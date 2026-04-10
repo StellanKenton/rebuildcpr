@@ -41,16 +41,6 @@ static const stDrvGpioMap gDrvGpioMap[DRVGPIO_MAX] = {
         .gpioPin = Power_ON_Check_Pin,
         .isOutput = false,
     },
-    [DRVGPIO_BAT_CHARGING_STATUS] = {
-        .gpioPort = BAT_Charging_Status_GPIO_Port,
-        .gpioPin = BAT_Charging_Status_Pin,
-        .isOutput = false,
-    },
-    [DRVGPIO_BAT_CHARGE_DONE_STATUS] = {
-        .gpioPort = BAT_ChargeDone_Status_GPIO_Port,
-        .gpioPin = BAT_ChargeDone_Status_Pin,
-        .isOutput = false,
-    },
 };
 
 static void drvGpioPortInit(void)

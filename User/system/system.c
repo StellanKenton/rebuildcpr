@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#include "cmsis_os.h"
+#include "systask.h"
 
 #include "../manager/manager.h"
 #include "../port/drvadc_port.h"
@@ -47,68 +47,16 @@ typedef enum eSystemInitStage {
 typedef struct stSystemContext {
     bool isBootstrapped;
     bool indicatorsDirty;
-    bool workerTasksCreated;
-    uint16_t backgroundCounter;
+    eSystemMode mode;
     eSystemInitStage initStage;
 } stSystemContext;
 
 static stSystemContext gSystemContext = {
     .isBootstrapped = false,
     .indicatorsDirty = false,
-    .workerTasksCreated = false,
-    .backgroundCounter = 0U,
+    .mode = eSYSTEM_INIT_MODE,
     .initStage = SYSTEM_INIT_STAGE_GPIO,
 };
-
-static osThreadId_t gSystemCommTaskHandle = NULL;
-static osThreadId_t gSystemMemoryTaskHandle = NULL;
-static osThreadId_t gSystemPowerTaskHandle = NULL;
-static osThreadId_t gSystemWirelessTaskHandle = NULL;
-static osThreadId_t gSystemAudioTaskHandle = NULL;
-static osThreadId_t gSystemBackgroundTaskHandle = NULL;
-
-static const osThreadAttr_t gSystemCommTaskAttributes = {
-    .name = "commTask",
-    .stack_size = 128U * 4U,
-    .priority = (osPriority_t)osPriorityBelowNormal7,
-};
-
-static const osThreadAttr_t gSystemMemoryTaskAttributes = {
-    .name = "memorytask",
-    .stack_size = 256U * 4U,
-    .priority = (osPriority_t)osPriorityLow5,
-};
-
-static const osThreadAttr_t gSystemPowerTaskAttributes = {
-    .name = "powertask",
-    .stack_size = 64U * 4U,
-    .priority = (osPriority_t)osPriorityBelowNormal,
-};
-
-static const osThreadAttr_t gSystemWirelessTaskAttributes = {
-    .name = "wirelessTask",
-    .stack_size = 512U * 4U,
-    .priority = (osPriority_t)osPriorityBelowNormal7,
-};
-
-static const osThreadAttr_t gSystemAudioTaskAttributes = {
-    .name = "audioTask",
-    .stack_size = 256U * 4U,
-    .priority = (osPriority_t)osPriorityLow,
-};
-
-static const osThreadAttr_t gSystemBackgroundTaskAttributes = {
-    .name = "backgroundTask",
-    .stack_size = 512U * 4U,
-    .priority = (osPriority_t)osPriorityLow,
-};
-
-static void systemCommTaskEntry(void *argument);
-static void systemMemoryTaskEntry(void *argument);
-static void systemPowerTaskEntry(void *argument);
-static void systemWirelessTaskEntry(void *argument);
-static void systemAudioTaskEntry(void *argument);
-static void systemBackgroundTaskEntry(void *argument);
 
 static void systemApplyIndicators(eSystemMode mode)
 {
@@ -177,13 +125,13 @@ static void systemChangeMode(eSystemMode mode)
         return;
     }
 
-    currentMode = repSystemGetMode();
+    currentMode = gSystemContext.mode;
     if (currentMode == mode) {
         return;
     }
 
     systemStopModeServices(currentMode);
-    (void)repSystemSetMode(mode);
+    gSystemContext.mode = mode;
     gSystemContext.indicatorsDirty = true;
 }
 
@@ -247,105 +195,16 @@ static void systemInitEnterFault(void)
     systemChangeMode(eSYSTEM_DIAGNOSTIC_MODE);
 }
 
-static bool systemCreateWorkerTasks(void)
-{
-    if (gSystemContext.workerTasksCreated) {
-        return true;
-    }
-
-    gSystemCommTaskHandle = osThreadNew(systemCommTaskEntry, NULL, &gSystemCommTaskAttributes);
-    gSystemMemoryTaskHandle = osThreadNew(systemMemoryTaskEntry, NULL, &gSystemMemoryTaskAttributes);
-    gSystemPowerTaskHandle = osThreadNew(systemPowerTaskEntry, NULL, &gSystemPowerTaskAttributes);
-    gSystemWirelessTaskHandle = osThreadNew(systemWirelessTaskEntry, NULL, &gSystemWirelessTaskAttributes);
-    gSystemAudioTaskHandle = osThreadNew(systemAudioTaskEntry, NULL, &gSystemAudioTaskAttributes);
-    gSystemBackgroundTaskHandle = osThreadNew(systemBackgroundTaskEntry, NULL, &gSystemBackgroundTaskAttributes);
-
-    if ((gSystemCommTaskHandle == NULL) ||
-        (gSystemMemoryTaskHandle == NULL) ||
-        (gSystemPowerTaskHandle == NULL) ||
-        (gSystemWirelessTaskHandle == NULL) ||
-        (gSystemAudioTaskHandle == NULL) ||
-        (gSystemBackgroundTaskHandle == NULL)) {
-        return false;
-    }
-
-    gSystemContext.workerTasksCreated = true;
-    return true;
-}
-
-static void systemCommTaskEntry(void *argument)
-{
-    (void)argument;
-
-    for (;;) {
-        systemCommTaskStep();
-        osDelay(20U);
-    }
-}
-
-static void systemMemoryTaskEntry(void *argument)
-{
-    (void)argument;
-
-    for (;;) {
-        systemMemoryTaskStep();
-        osDelay(100U);
-    }
-}
-
-static void systemPowerTaskEntry(void *argument)
-{
-    (void)argument;
-
-    for (;;) {
-        systemPowerTaskStep();
-        osDelay(100U);
-    }
-}
-
-static void systemWirelessTaskEntry(void *argument)
-{
-    (void)argument;
-
-    for (;;) {
-        systemWirelessTaskStep();
-        osDelay(50U);
-    }
-}
-
-static void systemAudioTaskEntry(void *argument)
-{
-    (void)argument;
-
-    for (;;) {
-        systemAudioTaskStep();
-        osDelay(20U);
-    }
-}
-
-static void systemBackgroundTaskEntry(void *argument)
-{
-    (void)argument;
-
-    for (;;) {
-        systemBackgroundTaskStep();
-        osDelay(250U);
-    }
-}
-
 void systemBootstrap(void)
 {
     if (gSystemContext.isBootstrapped) {
         return;
     }
 
-    repSystemReset();
     gSystemContext.isBootstrapped = true;
     gSystemContext.indicatorsDirty = true;
-    gSystemContext.workerTasksCreated = false;
-    gSystemContext.backgroundCounter = 0U;
+    gSystemContext.mode = eSYSTEM_INIT_MODE;
     gSystemContext.initStage = SYSTEM_INIT_STAGE_GPIO;
-    (void)repSystemSetMode(eSYSTEM_INIT_MODE);
     systemApplyIndicatorsIfNeeded();
 }
 
@@ -422,12 +281,12 @@ bool systemInit(void)
 
 bool systemIsValidMode(eSystemMode mode)
 {
-    return repSystemIsValidMode(mode);
+    return mode < eSYSTEM_MODE_MAX;
 }
 
 eSystemMode systemGetMode(void)
 {
-    return repSystemGetMode();
+    return gSystemContext.mode;
 }
 
 void systemSetMode(eSystemMode mode)
@@ -445,7 +304,7 @@ void systemDefaultTaskStep(void)
             break;
         case eSYSTEM_SELF_CHECK_MODE:
             if (managerRunStartupSelfCheck()) {
-                if (systemCreateWorkerTasks()) {
+                if (systaskCreateWorkerTasks()) {
                     systemChangeMode(eSYSTEM_STANDBY_MODE);
                 } else {
                     systemChangeMode(eSYSTEM_DIAGNOSTIC_MODE);
@@ -475,47 +334,9 @@ void systemDefaultTaskStep(void)
     systemApplyIndicatorsIfNeeded();
 }
 
-void systemCommTaskStep(void)
+void systemSyncIndicators(void)
 {
-}
-
-void systemMemoryTaskStep(void)
-{
-    if (systemGetMode() != eSYSTEM_UPDATE_MODE) {
-        return;
-    }
-
-    if (!managerUpdateStart()) {
-        systemChangeMode(eSYSTEM_DIAGNOSTIC_MODE);
-        systemApplyIndicatorsIfNeeded();
-        return;
-    }
-
-    managerUpdateProcess();
-}
-
-void systemPowerTaskStep(void)
-{
-    if (systemGetMode() == eSYSTEM_NORMAL_MODE) {
-        managerPowerProcess();
-    }
-}
-
-void systemWirelessTaskStep(void)
-{
-}
-
-void systemAudioTaskStep(void)
-{
-}
-
-void systemBackgroundTaskStep(void)
-{
-    if (systemGetMode() == eSYSTEM_NORMAL_MODE) {
-        gSystemContext.backgroundCounter = (uint16_t)((gSystemContext.backgroundCounter + 1U) % 1000U);
-        (void)tm1651PortShowNumber3(gSystemContext.backgroundCounter);
-        (void)pca9535PortLedLightNum((uint8_t)((gSystemContext.backgroundCounter % 8U) + 1U));
-    }
+    systemApplyIndicatorsIfNeeded();
 }
 
 /**************************End of file********************************/

@@ -9,47 +9,32 @@
 **********************************************************************************/
 #include "lsm6_port.h"
 
-#include "main.h"
+#include "drviic_port.h"
 #include "rtos.h"
 
-typedef enum eLsm6LocalBus {
-    LSM6_LOCAL_BUS0 = 0,
-} eLsm6LocalBus;
-
-static bool gLsm6PortCycleCntReady = false;
-
-static void lsm6PortEnableCycleCnt(void)
+static eDrvStatus lsm6PortInit(uint8_t bus)
 {
-    ...(truncated)
-    }
+    return drvIicInit(bus);
+}
 
-    for (index = 0U; index < regLen; ++index) {
-        status = lsm6PortWriteByte(regBuf[index]);
-        if (status != DRV_STATUS_OK) {
-            lsm6PortSendStop();
-            return status;
-        }
-    }
+static eDrvStatus lsm6PortWriteReg(uint8_t bus, uint8_t address, const uint8_t *regBuf, uint16_t regLen, const uint8_t *buffer, uint16_t length)
+{
+    return drvIicWriteRegister(bus, address, regBuf, regLen, buffer, length);
+}
 
-    lsm6PortSendStart();
-    status = lsm6PortWriteByte((uint8_t)((address << 1U) | 0x01U));
-    if (status != DRV_STATUS_OK) {
-        lsm6PortSendStop();
-        return status;
-    }
-
-    for (index = 0U; index < length; ++index) {
-        buffer[index] = lsm6PortReadByte(index < (uint16_t)(length - 1U));
-    }
-
-    lsm6PortSendStop();
-    return DRV_STATUS_OK;
+static eDrvStatus lsm6PortReadReg(uint8_t bus, uint8_t address, const uint8_t *regBuf, uint16_t regLen, uint8_t *buffer, uint16_t length)
+{
+    return drvIicReadRegister(bus, address, regBuf, regLen, buffer, length);
 }
 
 static const stLsm6IicInterface gLsm6IicInterface = {
     .init = lsm6PortInit,
     .writeReg = lsm6PortWriteReg,
     .readReg = lsm6PortReadReg,
+};
+
+static const uint8_t gLsm6LinkMap[LSM6_DEV_MAX] = {
+    [LSM6_DEV0] = DRVIIC_BUS1,
 };
 
 void lsm6LoadPlatformDefaultCfg(eLsm6MapType device, stLsm6Cfg *cfg)
@@ -69,18 +54,25 @@ void lsm6LoadPlatformDefaultCfg(eLsm6MapType device, stLsm6Cfg *cfg)
 
 const stLsm6IicInterface *lsm6GetPlatformIicInterface(eLsm6MapType device)
 {
-    return lsm6PlatformIsValidAssemble(device) ? &gLsm6IicInterface : NULL;
+    if (!lsm6PlatformIsValidAssemble(device)) {
+        return NULL;
+    }
+
+    return &gLsm6IicInterface;
 }
 
 bool lsm6PlatformIsValidAssemble(eLsm6MapType device)
 {
-    return ((uint32_t)device < (uint32_t)LSM6_DEV_MAX);
+    return ((uint32_t)device < (uint32_t)LSM6_DEV_MAX) && (gLsm6LinkMap[device] < DRVIIC_MAX);
 }
 
 uint8_t lsm6PlatformGetLinkId(eLsm6MapType device)
 {
-    (void)device;
-    return LSM6_LOCAL_BUS0;
+    if ((uint32_t)device >= (uint32_t)LSM6_DEV_MAX) {
+        return 0U;
+    }
+
+    return gLsm6LinkMap[device];
 }
 
 uint32_t lsm6PlatformGetResetDelayMs(void)

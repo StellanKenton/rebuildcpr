@@ -19,9 +19,6 @@ typedef enum eDrvGpioPinMap {
     DRVGPIO_RESET_WIFI,
     DRVGPIO_USB_SELECT,
     DRVGPIO_POWER_ON_CHECK,
-    DRVGPIO_BAT_CHARGING_STATUS,
-    DRVGPIO_BAT_CHARGE_DONE_STATUS,
-    DRVGPIO_MAX,
 } eDrvGpioPinMap;
 
 #ifdef __cplusplus

@@ -27,7 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "systask_port.h"
+#include "systask.h"
 
 /* USER CODE END Includes */
 
@@ -154,13 +154,7 @@ void SystemTask(void *argument)
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN DefaultTask */
-  rebuildcprSystemBootstrap();
-  /* Infinite loop */
-  for(;;)
-  {
-    rebuildcprSystemDefaultTaskStep();
-    osDelay(50);
-  }
+  systaskRunSystemTask(argument);
   /* USER CODE END SystemTask */
 }
 

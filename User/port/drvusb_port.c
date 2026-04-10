@@ -332,12 +332,8 @@ static eDrvUsbSpeed drvUsbPortGetSpeed(uint8_t usb)
     }
 
     switch (pcd->Init.speed) {
-        case PCD_SPEED_LOW:
-            return DRVUSB_SPEED_LOW;
         case PCD_SPEED_FULL:
             return DRVUSB_SPEED_FULL;
-        case PCD_SPEED_HIGH:
-            return DRVUSB_SPEED_HIGH;
         default:
             return DRVUSB_SPEED_UNKNOWN;
     }

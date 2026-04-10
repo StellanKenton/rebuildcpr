@@ -10,7 +10,61 @@
 #ifndef PROJECT_REBUILDCPR_REP_CONFIG_H
 #define PROJECT_REBUILDCPR_REP_CONFIG_H
 
-#include "../rep/example/rep_config.h"
+#ifndef REP_MCU_PLATFORM_NONE
+#define REP_MCU_PLATFORM_NONE 0
+#endif
+
+#ifndef REP_MCU_PLATFORM_STM32
+#define REP_MCU_PLATFORM_STM32 1
+#endif
+
+#ifndef REP_RTOS_NONE
+#define REP_RTOS_NONE 0
+#endif
+
+#ifndef REP_RTOS_FREERTOS
+#define REP_RTOS_FREERTOS 1
+#endif
+
+#ifndef REP_RTOS_UCOSII
+#define REP_RTOS_UCOSII 2
+#endif
+
+#ifndef REP_LOG_LEVEL_NONE
+#define REP_LOG_LEVEL_NONE 0
+#endif
+
+#ifndef REP_LOG_LEVEL_ERROR
+#define REP_LOG_LEVEL_ERROR 1
+#endif
+
+#ifndef REP_LOG_LEVEL_WARN
+#define REP_LOG_LEVEL_WARN 2
+#endif
+
+#ifndef REP_LOG_LEVEL_INFO
+#define REP_LOG_LEVEL_INFO 3
+#endif
+
+#ifndef REP_LOG_LEVEL_DEBUG
+#define REP_LOG_LEVEL_DEBUG 4
+#endif
+
+#ifndef NULL
+#define NULL ((void *)0)
+#endif
+
+typedef enum eDrvStatus {
+	DRV_STATUS_OK = 0,
+	DRV_STATUS_INVALID_PARAM,
+	DRV_STATUS_NOT_READY,
+	DRV_STATUS_BUSY,
+	DRV_STATUS_TIMEOUT,
+	DRV_STATUS_NACK,
+	DRV_STATUS_UNSUPPORTED,
+	DRV_STATUS_ID_NOTMATCH,
+	DRV_STATUS_ERROR,
+} eDrvStatus;
 
 #undef REP_MCU_PLATFORM
 #define REP_MCU_PLATFORM REP_MCU_PLATFORM_STM32

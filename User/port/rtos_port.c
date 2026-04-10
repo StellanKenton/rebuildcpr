@@ -14,13 +14,7 @@
 #include "../rep_config.h"
 #include "main.h"
 
-#if (((REP_RTOS_SYSTEM == REP_RTOS_FREERTOS) || (defined(REP_RTOS_CUBEMX_FREERTOS) && (REP_RTOS_SYSTEM == REP_RTOS_CUBEMX_FREERTOS))) && defined(__has_include) && __has_include("FreeRTOS.h"))
-#include "FreeRTOS.h"
-#include "queue.h"
-#include "semphr.h"
-#include "task.h"
-#define REBUILDCPR_RTOS_HAS_FREERTOS_NATIVE 1
-#elif ((REP_RTOS_SYSTEM == REP_RTOS_FREERTOS) || (defined(REP_RTOS_CUBEMX_FREERTOS) && (REP_RTOS_SYSTEM == REP_RTOS_CUBEMX_FREERTOS)))
+#if ((REP_RTOS_SYSTEM == REP_RTOS_FREERTOS) || (defined(REP_RTOS_CUBEMX_FREERTOS) && (REP_RTOS_SYSTEM == REP_RTOS_CUBEMX_FREERTOS)))
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "semphr.h"
@@ -29,27 +23,13 @@
 #endif
 
 #if defined(REP_RTOS_CUBEMX_FREERTOS) && (REP_RTOS_SYSTEM == REP_RTOS_CUBEMX_FREERTOS)
-#if defined(__has_include)
-#if __has_include("cmsis_os2.h")
-#include "cmsis_os2.h"
-#define REBUILDCPR_RTOS_HAS_CMSIS_V2 1
-#elif __has_include("cmsis_os.h")
 #include "cmsis_os.h"
 #define REBUILDCPR_RTOS_HAS_CMSIS_V1 1
-#endif
-#else
-#include "cmsis_os.h"
-#define REBUILDCPR_RTOS_HAS_CMSIS_V1 1
-#endif
 #endif
 
 #if (REP_RTOS_SYSTEM == REP_RTOS_UCOSII)
-#if defined(__has_include)
-#if __has_include("ucos_ii.h")
 #include "ucos_ii.h"
 #define REBUILDCPR_RTOS_HAS_UCOSII 1
-#endif
-#endif
 #endif
 
 #ifndef REBUILDCPR_RTOS_HAS_CMSIS_V1
@@ -68,9 +48,12 @@
 #define REBUILDCPR_RTOS_HAS_FREERTOS_NATIVE 0
 #endif
 
+#if defined(__get_PRIMASK) && defined(__set_PRIMASK)
 static uint32_t gRtosPortCriticalState = 0U;
+#endif
 static uint32_t gRtosPortCriticalDepth = 0U;
 
+#if (REP_RTOS_SYSTEM == REP_RTOS_UCOSII)
 static uint32_t rtosPortDelayMsToTicks(uint32_t delayMs, uint32_t tickHz)
 {
     if (tickHz == 0U) {
@@ -83,6 +66,7 @@ static uint32_t rtosPortDelayMsToTicks(uint32_t delayMs, uint32_t tickHz)
 
     return (uint32_t)((((uint64_t)delayMs * (uint64_t)tickHz) + 999ULL) / 1000ULL);
 }
+#endif
 
 static void rtosPortEnterBareMetalCritical(void)
 {

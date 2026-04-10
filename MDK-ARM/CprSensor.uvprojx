@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F103xE,DRVGPIO_LOG_SUPPORT=0,DRVGPIO_CONSOLE_SUPPORT=0</Define>
               <Undefine></Undefine>
-              <IncludePath>..;../Core/Inc;../User;../User/manager;../User/system;../User/port;../project/rebuildcpr;../project/rebuildcpr/manager;../project/rebuildcpr/system;../project/rebuildcpr/binding/drvlayer;../project/rebuildcpr/binding/module/mpu6050;../project/rebuildcpr/binding/module/w25qxxx;../project/rebuildcpr/binding/module/pca9535;../project/rebuildcpr/binding/module/tm1651;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../rep/driver/drviic;../rep/driver/drvspi;../rep/driver/drvuart;../rep/driver/drvgpio;../rep/driver/drvadc;../rep/driver/drvusb;../rep/module/mpu6050;../rep/module/w25qxxx;../rep/module/pca9535;../rep/module/tm1651;../rep/module/lsm6;../rep/service/lifecycle;../rep/service/rtos;../rep/service/system;../rep/tools/ringbuffer</IncludePath>
+              <IncludePath>..;../Core/Inc;../User;../User/manager;../User/system;../User/port;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../rep/driver/drviic;../rep/driver/drvspi;../rep/driver/drvuart;../rep/driver/drvgpio;../rep/driver/drvadc;../rep/driver/drvusb;../rep/driver/drvanlogiic;../rep/module/mpu6050;../rep/module/w25qxxx;../rep/module/pca9535;../rep/module/tm1651;../rep/module/lsm6;../rep/service/lifecycle;../rep/service/rtos;../rep/tools/ringbuffer</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -717,27 +717,27 @@
             <File>
               <FileName>drviic_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/drvlayer/drviic_port.c</FilePath>
+              <FilePath>../User/port/drviic_port.c</FilePath>
             </File>
             <File>
               <FileName>drvspi_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/drvlayer/drvspi_port.c</FilePath>
+              <FilePath>../User/port/drvspi_port.c</FilePath>
             </File>
             <File>
               <FileName>drvuart_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/drvlayer/drvuart_port.c</FilePath>
+              <FilePath>../User/port/drvuart_port.c</FilePath>
             </File>
             <File>
               <FileName>drvgpio_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/drvlayer/drvgpio_port.c</FilePath>
+              <FilePath>../User/port/drvgpio_port.c</FilePath>
             </File>
             <File>
               <FileName>drvadc_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/drvlayer/drvadc_port.c</FilePath>
+              <FilePath>../User/port/drvadc_port.c</FilePath>
             </File>
             <File>
               <FileName>drvusb_port.c</FileName>
@@ -752,22 +752,22 @@
             <File>
               <FileName>w25qxxx_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/module/w25qxxx/w25qxxx_port.c</FilePath>
+              <FilePath>../User/port/w25qxxx_port.c</FilePath>
             </File>
             <File>
               <FileName>mpu6050_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/module/mpu6050/mpu6050_port.c</FilePath>
+              <FilePath>../User/port/mpu6050_port.c</FilePath>
             </File>
             <File>
               <FileName>pca9535_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/module/pca9535/pca9535_port.c</FilePath>
+              <FilePath>../User/port/pca9535_port.c</FilePath>
             </File>
             <File>
               <FileName>tm1651_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/binding/module/tm1651/tm1651_port.c</FilePath>
+              <FilePath>../User/port/tm1651_port.c</FilePath>
             </File>
             <File>
               <FileName>lsm6_port.c</FileName>
@@ -797,22 +797,22 @@
             <File>
               <FileName>manager.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/manager/manager.c</FilePath>
+              <FilePath>../User/manager/manager.c</FilePath>
             </File>
             <File>
               <FileName>power.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/manager/power/power.c</FilePath>
+              <FilePath>../User/manager/power/power.c</FilePath>
             </File>
             <File>
               <FileName>selfcheck.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/manager/selfcheck/selfcheck.c</FilePath>
+              <FilePath>../User/manager/selfcheck/selfcheck.c</FilePath>
             </File>
             <File>
               <FileName>update.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/manager/update/update.c</FilePath>
+              <FilePath>../User/manager/update/update.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -822,12 +822,12 @@
             <File>
               <FileName>system.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/system/system.c</FilePath>
+              <FilePath>../User/system/system.c</FilePath>
             </File>
             <File>
-              <FileName>systask_port.c</FileName>
+              <FileName>systask.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../project/rebuildcpr/system/systask_port.c</FilePath>
+              <FilePath>../User/system/systask.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -873,11 +873,6 @@
               <FileName>rtos.c</FileName>
               <FileType>1</FileType>
               <FilePath>../rep/service/rtos/rtos.c</FilePath>
-            </File>
-            <File>
-              <FileName>system.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/service/system/system.c</FilePath>
             </File>
           </Files>
         </Group>

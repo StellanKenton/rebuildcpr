@@ -30,20 +30,6 @@ static const stDrvAdcChannelMap gDrvAdcChannelMap[DRVADC_MAX] = {
     [DRVADC_3V3] = {.channel = ADC_CHANNEL_15},
 };
 
-static eDrvStatus drvAdcPortStatusFromHal(HAL_StatusTypeDef halStatus)
-{
-    switch (halStatus) {
-        case HAL_OK:
-            return DRV_STATUS_OK;
-        case HAL_BUSY:
-            return DRV_STATUS_BUSY;
-        case HAL_TIMEOUT:
-            return DRV_STATUS_TIMEOUT;
-        default:
-            return DRV_STATUS_ERROR;
-    }
-}
-
 static eDrvStatus drvAdcPortInit(uint8_t adc)
 {
     (void)adc;
