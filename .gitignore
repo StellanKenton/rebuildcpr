@@ -57,3 +57,19 @@ dkms.conf
 *.ixf
 *.idx
 *.crf
+
+# Keil and generated build outputs
+*.axf
+*.bak
+*.bin
+*.lnp
+*.lst
+*.sct
+*.uvguix.*
+MDK-ARM/DebugConfig/
+MDK-ARM/CprSensor/
+
+# Local project packs and generated exports
+project/**/build/
+project/**/out/
+project/**/generated/

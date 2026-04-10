@@ -27,6 +27,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "systask_port.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,53 +50,11 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
+/* Definitions for systemTask */
+osThreadId_t systemTaskHandle;
+const osThreadAttr_t systemTask_attributes = {
+  .name = "systemTask",
   .stack_size = 64 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for commTask */
-osThreadId_t commTaskHandle;
-const osThreadAttr_t commTask_attributes = {
-  .name = "commTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityBelowNormal7,
-};
-/* Definitions for memorytask */
-osThreadId_t memorytaskHandle;
-const osThreadAttr_t memorytask_attributes = {
-  .name = "memorytask",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityLow5,
-};
-/* Definitions for powertask */
-osThreadId_t powertaskHandle;
-const osThreadAttr_t powertask_attributes = {
-  .name = "powertask",
-  .stack_size = 64 * 4,
-  .priority = (osPriority_t) osPriorityBelowNormal,
-};
-/* Definitions for wirelessTask */
-osThreadId_t wirelessTaskHandle;
-const osThreadAttr_t wirelessTask_attributes = {
-  .name = "wirelessTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityBelowNormal7,
-};
-/* Definitions for audioTask */
-osThreadId_t audioTaskHandle;
-const osThreadAttr_t audioTask_attributes = {
-  .name = "audioTask",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for backgroundTask */
-osThreadId_t backgroundTaskHandle;
-const osThreadAttr_t backgroundTask_attributes = {
-  .name = "backgroundTask",
-  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for testQueue */
@@ -113,13 +73,7 @@ const osMutexAttr_t testMutex_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void DefaultTask(void *argument);
-void CommTask(void *argument);
-void MemoryTask(void *argument);
-void PowerTask(void *argument);
-void WirelessTask(void *argument);
-void AudioTask(void *argument);
-void BackGroudTask(void *argument);
+void SystemTask(void *argument);
 
 extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
@@ -175,26 +129,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(DefaultTask, NULL, &defaultTask_attributes);
-
-  /* creation of commTask */
-  commTaskHandle = osThreadNew(CommTask, NULL, &commTask_attributes);
-
-  /* creation of memorytask */
-  memorytaskHandle = osThreadNew(MemoryTask, NULL, &memorytask_attributes);
-
-  /* creation of powertask */
-  powertaskHandle = osThreadNew(PowerTask, NULL, &powertask_attributes);
-
-  /* creation of wirelessTask */
-  wirelessTaskHandle = osThreadNew(WirelessTask, NULL, &wirelessTask_attributes);
-
-  /* creation of audioTask */
-  audioTaskHandle = osThreadNew(AudioTask, NULL, &audioTask_attributes);
-
-  /* creation of backgroundTask */
-  backgroundTaskHandle = osThreadNew(BackGroudTask, NULL, &backgroundTask_attributes);
+  /* creation of systemTask */
+  systemTaskHandle = osThreadNew(SystemTask, NULL, &systemTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -206,132 +142,26 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_DefaultTask */
+/* USER CODE BEGIN Header_SystemTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the systemTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_DefaultTask */
-void DefaultTask(void *argument)
+/* USER CODE END Header_SystemTask */
+void SystemTask(void *argument)
 {
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN DefaultTask */
+  rebuildcprSystemBootstrap();
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    rebuildcprSystemDefaultTaskStep();
+    osDelay(50);
   }
-  /* USER CODE END DefaultTask */
-}
-
-/* USER CODE BEGIN Header_CommTask */
-/**
-* @brief Function implementing the commTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_CommTask */
-void CommTask(void *argument)
-{
-  /* USER CODE BEGIN CommTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END CommTask */
-}
-
-/* USER CODE BEGIN Header_MemoryTask */
-/**
-* @brief Function implementing the memorytask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_MemoryTask */
-void MemoryTask(void *argument)
-{
-  /* USER CODE BEGIN MemoryTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END MemoryTask */
-}
-
-/* USER CODE BEGIN Header_PowerTask */
-/**
-* @brief Function implementing the powertask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_PowerTask */
-void PowerTask(void *argument)
-{
-  /* USER CODE BEGIN PowerTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END PowerTask */
-}
-
-/* USER CODE BEGIN Header_WirelessTask */
-/**
-* @brief Function implementing the wirelessTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_WirelessTask */
-void WirelessTask(void *argument)
-{
-  /* USER CODE BEGIN WirelessTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END WirelessTask */
-}
-
-/* USER CODE BEGIN Header_AudioTask */
-/**
-* @brief Function implementing the audioTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_AudioTask */
-void AudioTask(void *argument)
-{
-  /* USER CODE BEGIN AudioTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END AudioTask */
-}
-
-/* USER CODE BEGIN Header_BackGroudTask */
-/**
-* @brief Function implementing the backgroundTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_BackGroudTask */
-void BackGroudTask(void *argument)
-{
-  /* USER CODE BEGIN BackGroudTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END BackGroudTask */
+  /* USER CODE END SystemTask */
 }
 
 /* Private application code --------------------------------------------------*/

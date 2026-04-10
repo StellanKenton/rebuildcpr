@@ -1,0 +1,87 @@
+{
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "commands.workspaceCommands": {
+    "CprSensor Build": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Keil: Build",
+      "icon": "tools",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Build",
+        "name": "CprSensor Build",
+        "priority": 400,
+        "tooltip": "Run the Keil build task in the integrated terminal."
+      }
+    },
+    "CprSensor Flash": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "J-Link: Flash",
+      "icon": "plug",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Flash",
+        "name": "CprSensor Flash",
+        "priority": 399,
+        "tooltip": "Build and flash the target with the J-Link task."
+      }
+    },
+    "CprSensor RTT": {
+      "icon": "terminal",
+      "sequence": [
+        {
+          "command": "workbench.action.tasks.runTask",
+          "args": "J-Link: RTT Server"
+        },
+        {
+          "command": "workbench.action.tasks.runTask",
+          "args": "J-Link: RTT Terminal",
+          "delay": 800
+        }
+      ],
+      "statusBar": {
+        "alignment": "left",
+        "text": " RTT",
+        "name": "CprSensor RTT",
+        "priority": 398,
+        "tooltip": "Start the J-Link RTT server, then open the RTT terminal for read and write I/O."
+      }
+    },
+    "CprSensor Rebuild": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Keil: Rebuild",
+      "icon": "refresh",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Rebuild",
+        "name": "CprSensor Rebuild",
+        "priority": 397,
+        "tooltip": "Run the Keil rebuild task in the integrated terminal."
+      }
+    },
+    "CprSensor Reset": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "J-Link: Reset",
+      "icon": "debug-restart",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Reset",
+        "name": "CprSensor Reset",
+        "priority": 396,
+        "tooltip": "Reset the target with J-Link."
+      }
+    },
+    "CprSensor Serial": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Serial: Monitor",
+      "icon": "device-mobile",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Serial",
+        "name": "CprSensor Serial",
+        "priority": 395,
+        "tooltip": "Open the UART serial monitor. If needed, VS Code will prompt for the COM port."
+      }
+    }
+  }
+}

@@ -1,34 +1,6 @@
-<html>
-<body>
-<pre>
-<h1>µVision Build Log</h1>
-<h2>Tool Versions:</h2>
-IDE-Version: ¦ÌVision V5.41.0.0
-Copyright (C) 2024 ARM Ltd and ARM Germany GmbH. All rights reserved.
-License Information: senkin senkin7853@Gmail.com, Astroceta, LIC=CZLZX-HSU7Z-Z9GG9-4H358-4IUF9-VG5GD
- 
-Tool Versions:
-Toolchain:       MDK-ARM Plus  Version: 5.41.0.0
-Toolchain Path:  C:\Users\senki\AppData\Local\Keil_v5\ARM\ACC5\Bin
-C Compiler:      Armcc.exe V5.06 update 7 (build 960)
-Assembler:       Armasm.exe V5.06 update 7 (build 960)
-Linker/Locator:  ArmLink.exe V5.06 update 7 (build 960)
-Library Manager: ArmAr.exe V5.06 update 7 (build 960)
-Hex Converter:   FromElf.exe V5.06 update 7 (build 960)
-CPU DLL:         SARMCM3.DLL V5.41.0.0
-Dialog DLL:      DCM.DLL V1.17.5.0
-Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V3.3.0.0
-Dialog DLL:      TCM.DLL V1.56.4.0
- 
-<h2>Project:</h2>
-D:\Space\Work\rebuildcpr\MDK-ARM\CprSensor.uvprojx
-Project File Date:  04/10/2026
-
-<h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'C:\Users\senki\AppData\Local\Keil_v5\ARM\ACC5\Bin'
 Build target 'CprSensor'
-Note: source file '../rep/service/system/system.c' - object file renamed from 'CprSensor\system.o' to 'CprSensor\system_1.o'.
-compiling drvspi_port.c...
+Note: source file '../rep/service/system/system.c' - object file renamed from 'CprSensor\system.o' to 'CprSensor\system_1.o'.compiling drvspi_port.c...
 "no source": Error:  #5: cannot open source input file "../project/rebuildcpr/binding/drvlayer/drvspi_port.c": No such file or directory
 ../project/rebuildcpr/binding/drvlayer/drvspi_port.c: 0 warnings, 1 error
 compiling manager.c...
@@ -139,31 +111,5 @@ compiling drvusb_port.c...
   #include "../rep/example/rep_config.h"
 ../User/port/drvusb_port.c: 1 warning, 1 error
 "CprSensor\CprSensor.axf" - 29 Error(s), 4 Warning(s).
-
-<h2>Software Packages used:</h2>
-
-Package Vendor: ARM
-                https://www.keil.com/pack/ARM.CMSIS.6.1.0.pack
-                ARM::CMSIS@6.1.0
-                CMSIS (Common Microcontroller Software Interface Standard)
-   * Component: CORE Version: 6.1.0
-
-Package Vendor: Keil
-                http://www.keil.com/pack/Keil.STM32F1xx_DFP.2.3.0.pack
-                Keil::STM32F1xx_DFP@2.3.0
-                STMicroelectronics STM32F1 Series Device Support, Drivers and Examples
-
-<h2>Collection of Component include folders:</h2>
-  ./RTE/_CprSensor
-  C:/Users/senki/AppData/Local/Arm/Packs/ARM/CMSIS/6.1.0/CMSIS/Core/Include
-  C:/Users/senki/AppData/Local/Arm/Packs/Keil/STM32F1xx_DFP/2.3.0/Device/Include
-
-<h2>Collection of Component Files used:</h2>
-
-   * Component: ARM::CMSIS:CORE@6.1.0
-      Include file:  CMSIS/Core/Include/tz_context.h
 Target not created.
 Build Time Elapsed:  00:00:02
-</pre>
-</body>
-</html>

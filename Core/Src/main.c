@@ -92,7 +92,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+goto systemInitStart;
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -110,7 +110,7 @@ int main(void)
   MX_I2C2_Init();
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
-
+systemInitStart:
   /* USER CODE END 2 */
 
   /* Init scheduler */
