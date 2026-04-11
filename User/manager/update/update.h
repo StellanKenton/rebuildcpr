@@ -12,8 +12,6 @@
 
 #include <stdbool.h>
 
-#include "lifecycle.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,18 +22,14 @@ typedef enum eUpdateState {
     eUPDATE_STATE_PENDING,
     eUPDATE_STATE_ACTIVE,
     eUPDATE_STATE_STOPPED,
-    eUPDATE_STATE_FAULT,
 } eUpdateState;
 
 typedef struct stUpdateStatus {
-    stServiceLifecycle lifecycle;
     eUpdateState state;
     bool isUpdateRequested;
 } stUpdateStatus;
 
 bool updateInit(void);
-bool updateStart(void);
-void updateStop(void);
 void updateProcess(void);
 const stUpdateStatus *updateGetStatus(void);
 

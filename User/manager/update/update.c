@@ -10,21 +10,13 @@
 #include "update.h"
 
 static stUpdateStatus gUpdateStatus = {
-    .lifecycle = {
-        .classType = eSERVICE_LIFECYCLE_CLASS_RECOVERABLE_SERVICE,
-    },
     .state = eUPDATE_STATE_UNINIT,
     .isUpdateRequested = false,
 };
 
 bool updateInit(void)
 {
-    if (!lifecycleInit(&gUpdateStatus.lifecycle)) {
-        gUpdateStatus.state = eUPDATE_STATE_FAULT;
-        return false;
-    }
-
-    if (gUpdateStatus.state == eUPDATE_STATE_UNINIT) {
+    if ((gUpdateStatus.state == eUPDATE_STATE_UNINIT) || (gUpdateStatus.state == eUPDATE_STATE_STOPPED)) {
         gUpdateStatus.state = eUPDATE_STATE_IDLE;
         gUpdateStatus.isUpdateRequested = false;
     }
@@ -34,8 +26,7 @@ bool updateInit(void)
 
 bool updateStart(void)
 {
-    if (!updateInit() || !lifecycleStart(&gUpdateStatus.lifecycle)) {
-        gUpdateStatus.state = eUPDATE_STATE_FAULT;
+    if (!updateInit()) {
         return false;
     }
 
@@ -45,8 +36,7 @@ bool updateStart(void)
 
 void updateStop(void)
 {
-    if (!updateInit() || !lifecycleStop(&gUpdateStatus.lifecycle)) {
-        gUpdateStatus.state = eUPDATE_STATE_FAULT;
+    if (gUpdateStatus.state == eUPDATE_STATE_UNINIT) {
         return;
     }
 
@@ -56,10 +46,9 @@ void updateStop(void)
 
 void updateProcess(void)
 {
-    if (!lifecycleNoteProcess(&gUpdateStatus.lifecycle)) {
-        if (gUpdateStatus.lifecycle.hasFault) {
-            gUpdateStatus.state = eUPDATE_STATE_FAULT;
-        }
+    if ((gUpdateStatus.state != eUPDATE_STATE_IDLE) &&
+        (gUpdateStatus.state != eUPDATE_STATE_PENDING) &&
+        (gUpdateStatus.state != eUPDATE_STATE_ACTIVE)) {
         return;
     }
 

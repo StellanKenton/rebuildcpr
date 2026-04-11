@@ -12,8 +12,6 @@
 
 #include <stdbool.h>
 
-#include "lifecycle.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,7 +28,6 @@ typedef struct stSelfCheckSummary {
 } stSelfCheckSummary;
 
 typedef struct stSelfCheckStatus {
-    stServiceLifecycle lifecycle;
     stSelfCheckSummary summary;
 } stSelfCheckStatus;
 

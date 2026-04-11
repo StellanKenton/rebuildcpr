@@ -12,8 +12,6 @@
 
 #include <stdbool.h>
 
-#include "lifecycle.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,7 +26,6 @@ typedef enum ePowerState {
 } ePowerState;
 
 typedef struct stPowerStatus {
-    stServiceLifecycle lifecycle;
     ePowerState state;
     bool isLowPowerRequested;
 } stPowerStatus;

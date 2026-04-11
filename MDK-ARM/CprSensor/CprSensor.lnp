@@ -74,6 +74,7 @@
 "cprsensor\power.o"
 "cprsensor\selfcheck.o"
 "cprsensor\update.o"
+"cprsensor\sysmgr.o"
 "cprsensor\system.o"
 "cprsensor\systask.o"
 "cprsensor\drviic.o"

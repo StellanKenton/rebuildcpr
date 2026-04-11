@@ -30,7 +30,7 @@ static osThreadId_t gSystemBackgroundTaskHandle = NULL;
 
 static const osThreadAttr_t gSystemCommTaskAttributes = {
 	.name = "commTask",
-	.stack_size = 128U * 4U,
+	.stack_size = 128U * CommTaskStackSize,
 	.priority = (osPriority_t)osPriorityBelowNormal7,
 };
 
@@ -64,41 +64,7 @@ static const osThreadAttr_t gSystemBackgroundTaskAttributes = {
 	.priority = (osPriority_t)osPriorityLow,
 };
 
-static void systemCommTaskStep(void)
-{
-}
-
-static void systemMemoryTaskStep(void)
-{
-	if (systemGetMode() != eSYSTEM_UPDATE_MODE) {
-		return;
-	}
-
-	if (!managerUpdateStart()) {
-		systemSetMode(eSYSTEM_DIAGNOSTIC_MODE);
-		systemSyncIndicators();
-		return;
-	}
-
-	managerUpdateProcess();
-}
-
-static void systemPowerTaskStep(void)
-{
-	if (systemGetMode() == eSYSTEM_NORMAL_MODE) {
-		managerPowerProcess();
-	}
-}
-
-static void systemWirelessTaskStep(void)
-{
-}
-
-static void systemAudioTaskStep(void)
-{
-}
-
-static void systemBackgroundTaskStep(void)
+static void backgroundTaskManager(void)
 {
 	if (systemGetMode() == eSYSTEM_NORMAL_MODE) {
 		gSystaskBackgroundCounter = (uint16_t)((gSystaskBackgroundCounter + 1U) % 1000U);
@@ -112,7 +78,7 @@ static void systemCommTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systemCommTaskStep();
+		commTaskManager();
 		osDelay(20U);
 	}
 }
@@ -122,7 +88,7 @@ static void systemMemoryTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systemMemoryTaskStep();
+		memoryTaskManager();
 		osDelay(100U);
 	}
 }
@@ -132,7 +98,7 @@ static void systemPowerTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systemPowerTaskStep();
+		powerTaskManager();
 		osDelay(100U);
 	}
 }
@@ -142,7 +108,7 @@ static void systemWirelessTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systemWirelessTaskStep();
+		wirelessTaskManager();
 		osDelay(50U);
 	}
 }
@@ -152,7 +118,7 @@ static void systemAudioTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systemAudioTaskStep();
+		audioTaskManager();
 		osDelay(20U);
 	}
 }
@@ -162,7 +128,7 @@ static void systemBackgroundTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systemBackgroundTaskStep();
+		backgroundTaskManager();
 		osDelay(250U);
 	}
 }
@@ -196,10 +162,8 @@ bool systaskCreateWorkerTasks(void)
 void systaskRunSystemTask(void *argument)
 {
 	(void)argument;
-
-	systemBootstrap();
 	for (;;) {
-		systemDefaultTaskStep();
+		systemManagerRun();
 		osDelay(50U);
 	}
 }

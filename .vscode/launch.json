@@ -19,11 +19,11 @@
         "-speed",
         "${config:cpr.target.speed}",
         "-port",
-        "2331",
+        "3331",
         "-swoport",
-        "2332",
+        "3332",
         "-telnetport",
-        "2333"
+        "3333"
       ],
       "postLaunchCommands": [
         "monitor reset",

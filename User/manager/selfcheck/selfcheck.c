@@ -9,15 +9,12 @@
 **********************************************************************************/
 #include "selfcheck.h"
 
-static stSelfCheckStatus gSelfCheckStatus = {
-    .lifecycle = {
-        .classType = eSERVICE_LIFECYCLE_CLASS_RECOVERABLE_SERVICE,
-    },
-};
+static stSelfCheckStatus gSelfCheckStatus;
 
 bool selfCheckInit(void)
 {
-    return lifecycleInit(&gSelfCheckStatus.lifecycle);
+    selfCheckReset();
+    return true;
 }
 
 bool selfCheckStart(void)
@@ -25,12 +22,6 @@ bool selfCheckStart(void)
     if (!selfCheckInit()) {
         return false;
     }
-
-    if (!lifecycleStart(&gSelfCheckStatus.lifecycle)) {
-        return false;
-    }
-
-    selfCheckReset();
     return true;
 }
 
@@ -78,10 +69,6 @@ void selfCheckSetUpdateResult(bool isPassed)
 
 bool selfCheckCommit(void)
 {
-    if (!lifecycleNoteProcess(&gSelfCheckStatus.lifecycle)) {
-        return false;
-    }
-
     gSelfCheckStatus.summary.hasRun = true;
     gSelfCheckStatus.summary.isPassed = gSelfCheckStatus.summary.expanderReady &&
                                         gSelfCheckStatus.summary.displayReady &&
@@ -89,12 +76,6 @@ bool selfCheckCommit(void)
                                         gSelfCheckStatus.summary.motionReady &&
                                         gSelfCheckStatus.summary.powerReady &&
                                         gSelfCheckStatus.summary.updateReady;
-
-    if (gSelfCheckStatus.summary.isPassed) {
-        (void)lifecycleStop(&gSelfCheckStatus.lifecycle);
-    } else {
-        lifecycleReportFault(&gSelfCheckStatus.lifecycle, eSERVICE_LIFECYCLE_ERROR_CHECK_FAILED);
-    }
 
     return gSelfCheckStatus.summary.isPassed;
 }

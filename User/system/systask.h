@@ -16,6 +16,13 @@
 extern "C" {
 #endif
 
+
+#define CommTaskStackSize     2U
+#define CommTaskPriority      osPriorityBelowNormal7
+#define CommTaskInterval      100U
+
+
+
 bool systaskCreateWorkerTasks(void);
 void systaskRunSystemTask(void *argument);
 
