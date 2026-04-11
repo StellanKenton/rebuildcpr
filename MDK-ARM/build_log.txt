@@ -1,19 +1,4 @@
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'C:\Users\senki\AppData\Local\Keil_v5\ARM\ACC5\Bin'
 Build target 'CprSensor'
-compiling system.c...
-"no source": Error:  #5: cannot open source input file "../User/system/system.c": No such file or directory
-../User/system/system.c: 0 warnings, 1 error
-compiling rtos_port.c...
-"no source": Error:  #5: cannot open source input file "../User/port/rtos_port.c": No such file or directory
-../User/port/rtos_port.c: 0 warnings, 1 error
-compiling manager.c...
-"no source": Error:  #5: cannot open source input file "../User/manager/manager.c": No such file or directory
-../User/manager/manager.c: 0 warnings, 1 error
-compiling systask.c...
-../User/system/systask.c(17): error:  #5: cannot open source input file "../manager/manager.h": No such file or directory
-  #include "../manager/manager.h"
-../User/system/systask.c: 0 warnings, 1 error
-compiling main.c...
-"CprSensor\CprSensor.axf" - 4 Error(s), 0 Warning(s).
-Target not created.
+"CprSensor\CprSensor.axf" - 0 Error(s), 0 Warning(s).
 Build Time Elapsed:  00:00:01

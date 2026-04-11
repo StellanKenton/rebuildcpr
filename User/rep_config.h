@@ -84,6 +84,10 @@ typedef enum eDrvStatus {
 #define REP_LOG_LEVEL REP_LOG_LEVEL_INFO
 #endif
 
+#ifndef REP_LOG_OUTPUT_PORT
+#define REP_LOG_OUTPUT_PORT 1U
+#endif
+
 #ifndef DRVIIC_MAX
 #define DRVIIC_MAX 2U
 #endif

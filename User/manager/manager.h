@@ -1,22 +1,24 @@
 /************************************************************************************
-* @file     : sysmgr.h
-* @brief    : System mode scheduler entry.
-* @details  : Declares the project-side system manager dispatch function.
+* @file     : manager.h
+* @brief    : Project task manager aggregation.
+* @details  : Declares the worker task service entry points used by systask.
 * @author   : 
 * @date     : 
 * @version  : 
 * @copyright: Copyright (c) 2050
 ***********************************************************************************/
-#ifndef REBUILDCPR_SYSMGR_H
-#define REBUILDCPR_SYSMGR_H
-
-#include "system.h"
+#ifndef REBUILDCPR_MANAGER_H
+#define REBUILDCPR_MANAGER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void systemManagerRun(void);
+void commTaskManager(void);
+void memoryTaskManager(void);
+void powerTaskManager(void);
+void wirelessTaskManager(void);
+void audioTaskManager(void);
 
 #ifdef __cplusplus
 }
@@ -24,15 +26,3 @@ void systemManagerRun(void);
 
 #endif
 /**************************End of file********************************/
-
-
-
-
-
-
-
-
-
-
-
-

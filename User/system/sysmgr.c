@@ -19,10 +19,14 @@
 #include "../../Core/Inc/tim.h"
 #include "../../Core/Inc/usart.h"
 
+#include "../../rep/service/console/log.h"
+
 #include "../manager/power/power.h"
 #include "../manager/selfcheck/selfcheck.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
+
+#define SYSTEM_LOG_TAG "system"
 
 static bool gSystemInitModeCompleted = false;
 static bool gSystemBspInitCompleted = false;
@@ -43,7 +47,6 @@ static void systemInitBsp(void)
     MX_ADC1_Init();
     MX_I2C1_Init();
     MX_I2C2_Init();
-    MX_IWDG_Init();
     MX_RTC_Init();
     MX_SPI1_Init();
     MX_TIM3_Init();
@@ -64,29 +67,41 @@ static bool systemModuleInit(void)
 {
     bool lIsReady = true;
 
+    lIsReady = logInit() && lIsReady;
+    if (lIsReady) {
+        LOG_I(SYSTEM_LOG_TAG, "log init ok");
+    }
+
     lIsReady = selfCheckInit() && lIsReady;
+    LOG_I(SYSTEM_LOG_TAG, "selfcheck init %s", lIsReady ? "ok" : "fail");
 
     if (pca9535PortInit() == DRV_STATUS_OK) {
         selfCheckSetExpanderResult(true);
         (void)pca9535PortLedOff();
+        LOG_I(SYSTEM_LOG_TAG, "pca9535 init ok");
     } else {
         selfCheckSetExpanderResult(false);
         lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "pca9535 init fail");
     }
 
     if (tm1651PortInit() == DRV_STATUS_OK) {
         selfCheckSetDisplayResult(true);
         (void)tm1651PortClearDisplay();
+        LOG_I(SYSTEM_LOG_TAG, "tm1651 init ok");
     } else {
         selfCheckSetDisplayResult(false);
         lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "tm1651 init fail");
     }
 
     if (powerInit()) {
         selfCheckSetPowerResult(true);
+        LOG_I(SYSTEM_LOG_TAG, "power init ok");
     } else {
         selfCheckSetPowerResult(false);
         lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "power init fail");
     }
 
     return lIsReady;
@@ -106,10 +121,12 @@ static void systemInitMode(void)
     systemInitBsp();
     
     if (!systemModuleInit()) {
+        LOG_E(SYSTEM_LOG_TAG, "system init mode blocked");
         return;
     }
 
     gSystemInitModeCompleted = true;
+    LOG_I(SYSTEM_LOG_TAG, "switch to powerup selfcheck mode");
     systemSetMode(eSYSTEM_POWERUP_SELFCHECK_MODE);
 }
 

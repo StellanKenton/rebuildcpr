@@ -13,7 +13,8 @@
 #include "cmsis_os.h"
 
 #include "sysmgr.h"
-
+#include "system.h"
+#include "../../rep/service/console/log.h"
 #include "../manager/manager.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
@@ -164,6 +165,7 @@ void systaskRunSystemTask(void *argument)
 	(void)argument;
 	for (;;) {
 		systemManagerRun();
+		logProcessOutput();
 		osDelay(50U);
 	}
 }
