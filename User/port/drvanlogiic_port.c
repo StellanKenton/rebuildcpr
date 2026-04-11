@@ -10,7 +10,9 @@
 **********************************************************************************/
 #include "drvanlogiic.h"
 
-#include "bspanlogiic.h"
+#include "drvanlogiic_port.h"
+
+#include "../bsp/bspanlogiic.h"
 
 stDrvAnlogIicBspInterface gDrvAnlogIicBspInterface[DRVANLOGIIC_MAX] = {
     [DRVANLOGIIC_PCA] = {

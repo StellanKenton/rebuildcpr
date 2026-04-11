@@ -740,6 +740,11 @@
               <FilePath>..\User\manager\update\update.c</FilePath>
             </File>
             <File>
+              <FileName>manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\manager.c</FilePath>
+            </File>
+            <File>
               <FileName>sysmgr.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\system\sysmgr.c</FilePath>
@@ -818,6 +823,11 @@
               <FileName>bsp_rtt.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\bsp\bsp_rtt.c</FilePath>
+            </File>
+            <File>
+              <FileName>bspanlogiic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\bsp\bspanlogiic.c</FilePath>
             </File>
           </Files>
         </Group>

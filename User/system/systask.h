@@ -11,6 +11,7 @@
 #define REBUILDCPR_SYSTASK_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,27 +19,27 @@ extern "C" {
 
 
 #define CommTaskStackSize           2U
-#define CommTaskPriority            osPriorityBelowNormal7
+#define CommTaskPriority            23U
 #define CommTaskInterval            20U
 
 #define MemoryTaskStackSize         4U
-#define MemoryTaskPriority          osPriorityLow5
+#define MemoryTaskPriority          13U
 #define MemoryTaskInterval          100U
 
 #define PowerTaskStackSize          4U
-#define PowerTaskPriority           osPriorityBelowNormal
+#define PowerTaskPriority           16U
 #define PowerTaskInterval           100U
 
 #define WirelessTaskStackSize       4U
-#define WirelessTaskPriority        osPriorityBelowNormal7
+#define WirelessTaskPriority        23U
 #define WirelessTaskInterval        50U
 
 #define AudioTaskStackSize          4U
-#define AudioTaskPriority           osPriorityLow
+#define AudioTaskPriority           8U
 #define AudioTaskInterval           20U
 
 #define BackgroundTaskStackSize     4U
-#define BackgroundTaskPriority      osPriorityBelowNormal
+#define BackgroundTaskPriority      16U
 #define BackgroundTaskInterval      5U
 
 #define SystemTaskInterval          50U

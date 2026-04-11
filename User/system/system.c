@@ -98,6 +98,4 @@ const char *systemGetHardwareVersion(void)
     return HARDWARE_VERSION;
 }
 
-#include "sysmgr.c"
-
 /**************************End of file********************************/

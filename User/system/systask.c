@@ -10,7 +10,7 @@
 
 #include "systask.h"
 
-#include "cmsis_os.h"
+#include "rtos.h"
 
 #include "sysmgr.h"
 #include "system.h"
@@ -21,51 +21,77 @@
 #include "../port/tm1651_port.h"
 
 #define SYSTASK_LOG_TAG "systask"
+#define SYSTASK_STACK_DEPTH_FROM_BYTES(bytes) ((uint32_t)(bytes) / (uint32_t)sizeof(uint32_t))
+
+static void systemCommTaskEntry(void *argument);
+static void systemMemoryTaskEntry(void *argument);
+static void systemPowerTaskEntry(void *argument);
+static void systemWirelessTaskEntry(void *argument);
+static void systemAudioTaskEntry(void *argument);
+static void systemBackgroundTaskEntry(void *argument);
 
 static bool gSystaskWorkerTasksCreated = false;
 static bool gSystaskBackgroundServicesReady = false;
 
-static osThreadId_t gSystemCommTaskHandle = NULL;
-static osThreadId_t gSystemMemoryTaskHandle = NULL;
-static osThreadId_t gSystemPowerTaskHandle = NULL;
-static osThreadId_t gSystemWirelessTaskHandle = NULL;
-static osThreadId_t gSystemAudioTaskHandle = NULL;
-static osThreadId_t gSystemBackgroundTaskHandle = NULL;
+static repRtosTaskHandle gSystemCommTaskHandle = NULL;
+static repRtosTaskHandle gSystemMemoryTaskHandle = NULL;
+static repRtosTaskHandle gSystemPowerTaskHandle = NULL;
+static repRtosTaskHandle gSystemWirelessTaskHandle = NULL;
+static repRtosTaskHandle gSystemAudioTaskHandle = NULL;
+static repRtosTaskHandle gSystemBackgroundTaskHandle = NULL;
 
-static const osThreadAttr_t gSystemCommTaskAttributes = {
+static const stRepRtosTaskConfig gSystemCommTaskConfig = {
 	.name = "commTask",
-	.stack_size = 128U * CommTaskStackSize,
-	.priority = (osPriority_t)CommTaskPriority,
+	.entry = systemCommTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * CommTaskStackSize),
+	.priority = CommTaskPriority,
+	.handle = &gSystemCommTaskHandle,
 };
 
-static const osThreadAttr_t gSystemMemoryTaskAttributes = {
+static const stRepRtosTaskConfig gSystemMemoryTaskConfig = {
 	.name = "memorytask",
-	.stack_size = 256U * MemoryTaskStackSize,
-	.priority = (osPriority_t)MemoryTaskPriority,
+	.entry = systemMemoryTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * MemoryTaskStackSize),
+	.priority = MemoryTaskPriority,
+	.handle = &gSystemMemoryTaskHandle,
 };
 
-static const osThreadAttr_t gSystemPowerTaskAttributes = {
+static const stRepRtosTaskConfig gSystemPowerTaskConfig = {
 	.name = "powertask",
-	.stack_size = 64U * PowerTaskStackSize,
-	.priority = (osPriority_t)PowerTaskPriority,
+	.entry = systemPowerTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * PowerTaskStackSize),
+	.priority = PowerTaskPriority,
+	.handle = &gSystemPowerTaskHandle,
 };
 
-static const osThreadAttr_t gSystemWirelessTaskAttributes = {
+static const stRepRtosTaskConfig gSystemWirelessTaskConfig = {
 	.name = "wirelessTask",
-	.stack_size = 512U * WirelessTaskStackSize,
-	.priority = (osPriority_t)WirelessTaskPriority,
+	.entry = systemWirelessTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * WirelessTaskStackSize),
+	.priority = WirelessTaskPriority,
+	.handle = &gSystemWirelessTaskHandle,
 };
 
-static const osThreadAttr_t gSystemAudioTaskAttributes = {
+static const stRepRtosTaskConfig gSystemAudioTaskConfig = {
 	.name = "audioTask",
-	.stack_size = 256U * AudioTaskStackSize,
-	.priority = (osPriority_t)AudioTaskPriority,
+	.entry = systemAudioTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * AudioTaskStackSize),
+	.priority = AudioTaskPriority,
+	.handle = &gSystemAudioTaskHandle,
 };
 
-static const osThreadAttr_t gSystemBackgroundTaskAttributes = {
+static const stRepRtosTaskConfig gSystemBackgroundTaskConfig = {
 	.name = "backgroundTask",
-	.stack_size = 512U * BackgroundTaskStackSize,
-	.priority = (osPriority_t)BackgroundTaskPriority,
+	.entry = systemBackgroundTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * BackgroundTaskStackSize),
+	.priority = BackgroundTaskPriority,
+	.handle = &gSystemBackgroundTaskHandle,
 };
 
 static bool systaskInitBackgroundServices(void)
@@ -94,7 +120,7 @@ static void systemCommTaskEntry(void *argument)
 
 	for (;;) {
 		commTaskManager();
-		osDelay(CommTaskInterval);
+		(void)repRtosDelayMs(CommTaskInterval);
 	}
 }
 
@@ -104,7 +130,7 @@ static void systemMemoryTaskEntry(void *argument)
 
 	for (;;) {
 		memoryTaskManager();
-		osDelay(MemoryTaskInterval);
+		(void)repRtosDelayMs(MemoryTaskInterval);
 	}
 }
 
@@ -114,7 +140,7 @@ static void systemPowerTaskEntry(void *argument)
 
 	for (;;) {
 		powerTaskManager();
-		osDelay(PowerTaskInterval);
+		(void)repRtosDelayMs(PowerTaskInterval);
 	}
 }
 
@@ -124,7 +150,7 @@ static void systemWirelessTaskEntry(void *argument)
 
 	for (;;) {
 		wirelessTaskManager();
-		osDelay(WirelessTaskInterval);
+		(void)repRtosDelayMs(WirelessTaskInterval);
 	}
 }
 
@@ -134,7 +160,7 @@ static void systemAudioTaskEntry(void *argument)
 
 	for (;;) {
 		audioTaskManager();
-		osDelay(AudioTaskInterval);
+		(void)repRtosDelayMs(AudioTaskInterval);
 	}
 }
 
@@ -149,8 +175,7 @@ bool systaskCreateBackgroundTask(void)
 		return true;
 	}
 
-	gSystemBackgroundTaskHandle = osThreadNew(systemBackgroundTaskEntry, NULL, &gSystemBackgroundTaskAttributes);
-	return gSystemBackgroundTaskHandle != NULL;
+	return repRtosTaskCreate(&gSystemBackgroundTaskConfig) == REP_RTOS_STATUS_OK;
 }
 
 bool systaskCreateWorkerTasks(void)
@@ -159,11 +184,11 @@ bool systaskCreateWorkerTasks(void)
 		return true;
 	}
 
-	gSystemCommTaskHandle = osThreadNew(systemCommTaskEntry, NULL, &gSystemCommTaskAttributes);
-	gSystemMemoryTaskHandle = osThreadNew(systemMemoryTaskEntry, NULL, &gSystemMemoryTaskAttributes);
-	gSystemPowerTaskHandle = osThreadNew(systemPowerTaskEntry, NULL, &gSystemPowerTaskAttributes);
-	gSystemWirelessTaskHandle = osThreadNew(systemWirelessTaskEntry, NULL, &gSystemWirelessTaskAttributes);
-	gSystemAudioTaskHandle = osThreadNew(systemAudioTaskEntry, NULL, &gSystemAudioTaskAttributes);
+	(void)repRtosTaskCreate(&gSystemCommTaskConfig);
+	(void)repRtosTaskCreate(&gSystemMemoryTaskConfig);
+	(void)repRtosTaskCreate(&gSystemPowerTaskConfig);
+	(void)repRtosTaskCreate(&gSystemWirelessTaskConfig);
+	(void)repRtosTaskCreate(&gSystemAudioTaskConfig);
 	if (!systaskCreateBackgroundTask()) {
 		return false;
 	}
@@ -188,7 +213,7 @@ void systaskRunSystemTask(void *argument)
 
 	for (;;) {
 		systemManagerRun();
-		osDelay(SystemTaskInterval);
+		(void)repRtosDelayMs(SystemTaskInterval);
 	}
 }
 
@@ -201,7 +226,7 @@ void systaskRunBackgroundTask(void *argument)
 			consoleProcess();
 		}
 		
-		osDelay(BackgroundTaskInterval);
+		(void)repRtosDelayMs(BackgroundTaskInterval);
 	}
 }
 

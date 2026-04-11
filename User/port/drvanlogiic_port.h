@@ -11,6 +11,8 @@
 #ifndef DRVANLOGIIC_PORT_H
 #define DRVANLOGIIC_PORT_H
 
+#include "../../rep/driver/drvanlogiic/drvanlogiic.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,7 +32,7 @@ extern "C" {
 typedef enum eDrvAnlogIicPortMap {
     DRVANLOGIIC_PCA = 0,
     DRVANLOGIIC_TM,
-    DRVANLOGIIC_MAX,
+    DRVANLOGIIC_PORT_MAX = DRVANLOGIIC_MAX,
 } eDrvAnlogIicPortMap;
 
 #ifdef __cplusplus
