@@ -712,196 +712,6 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Application/Project/Bsp</GroupName>
-          <Files>
-            <File>
-              <FileName>bsp_rtt.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/bsp/bsp_rtt.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/Project/Binding/Drvlayer</GroupName>
-          <Files>
-            <File>
-              <FileName>drviic_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/drviic_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvspi_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/drvspi_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvuart_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/drvuart_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvgpio_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/drvgpio_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvadc_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/drvadc_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvusb_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/drvusb_port.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/Project/Binding/Module</GroupName>
-          <Files>
-            <File>
-              <FileName>w25qxxx_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/w25qxxx_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>mpu6050_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/mpu6050_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>pca9535_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/pca9535_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>tm1651_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/tm1651_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>lsm6_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/lsm6_port.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/Project/Binding/Service</GroupName>
-          <Files>
-            <File>
-              <FileName>log_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/log_port.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/Project/Binding/RTOS</GroupName>
-          <Files>
-            <File>
-              <FileName>rtos_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/port/rtos_port.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/Project/Manager</GroupName>
-          <Files>
-            <File>
-              <FileName>manager.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/manager/manager.c</FilePath>
-            </File>
-            <File>
-              <FileName>power.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/manager/power/power.c</FilePath>
-            </File>
-            <File>
-              <FileName>selfcheck.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/manager/selfcheck/selfcheck.c</FilePath>
-            </File>
-            <File>
-              <FileName>update.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/manager/update/update.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/Project/System</GroupName>
-          <Files>
-            <File>
-              <FileName>system.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/system/system.c</FilePath>
-            </File>
-            <File>
-              <FileName>systask.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../User/system/systask.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/rep/Driver</GroupName>
-          <Files>
-            <File>
-              <FileName>drviic.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/driver/drviic/drviic.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvspi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/driver/drvspi/drvspi.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvuart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/driver/drvuart/drvuart.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvgpio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/driver/drvgpio/drvgpio.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvadc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/driver/drvadc/drvadc.c</FilePath>
-            </File>
-            <File>
-              <FileName>drvusb.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/driver/drvusb/drvusb.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Application/rep/Service</GroupName>
-          <Files>
-            <File>
-              <FileName>log.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/service/console/log.c</FilePath>
-            </File>
-            <File>
-              <FileName>console.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/service/console/console.c</FilePath>
-            </File>
-            <File>
-              <FileName>rtos.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../rep/service/rtos/rtos.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
           <GroupName>ThirdParty/SEGGER</GroupName>
           <Files>
             <File>
@@ -912,42 +722,207 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Application/rep/Module</GroupName>
+          <GroupName>App</GroupName>
           <Files>
             <File>
-              <FileName>w25qxxx.c</FileName>
+              <FileName>power.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../rep/module/w25qxxx/w25qxxx.c</FilePath>
+              <FilePath>..\User\manager\power\power.c</FilePath>
             </File>
             <File>
-              <FileName>mpu6050.c</FileName>
+              <FileName>selfcheck.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../rep/module/mpu6050/mpu6050.c</FilePath>
+              <FilePath>..\User\manager\selfcheck\selfcheck.c</FilePath>
             </File>
             <File>
-              <FileName>pca9535.c</FileName>
+              <FileName>update.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../rep/module/pca9535/pca9535.c</FilePath>
+              <FilePath>..\User\manager\update\update.c</FilePath>
             </File>
             <File>
-              <FileName>tm1651.c</FileName>
+              <FileName>sysmgr.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../rep/module/tm1651/tm1651.c</FilePath>
+              <FilePath>..\User\system\sysmgr.c</FilePath>
             </File>
             <File>
-              <FileName>lsm6.c</FileName>
+              <FileName>systask.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../rep/module/lsm6/lsm6.c</FilePath>
+              <FilePath>..\User\system\systask.c</FilePath>
+            </File>
+            <File>
+              <FileName>system.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\system\system.c</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>Application/rep/Tools</GroupName>
+          <GroupName>Drv</GroupName>
+          <Files>
+            <File>
+              <FileName>drvadc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvadc\drvadc.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvanlogiic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvanlogiic\drvanlogiic.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvgpio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvgpio\drvgpio.c</FilePath>
+            </File>
+            <File>
+              <FileName>drviic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drviic\drviic.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvspi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvspi\drvspi.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvuart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvuart\drvuart.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvusb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvusb\drvusb.c</FilePath>
+            </File>
+            <File>
+              <FileName>gd25qxxx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\gd25qxxx\gd25qxxx.c</FilePath>
+            </File>
+            <File>
+              <FileName>pca9535.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\pca9535\pca9535.c</FilePath>
+            </File>
+            <File>
+              <FileName>tm1651.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\tm1651\tm1651.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Bsp</GroupName>
+          <Files>
+            <File>
+              <FileName>bsp_rtt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\bsp\bsp_rtt.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Lib</GroupName>
           <Files>
             <File>
               <FileName>ringbuffer.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../rep/tools/ringbuffer/ringbuffer.c</FilePath>
+              <FilePath>..\rep\tools\ringbuffer\ringbuffer.c</FilePath>
+            </File>
+            <File>
+              <FileName>console.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\service\console\console.c</FilePath>
+            </File>
+            <File>
+              <FileName>log.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\service\console\log.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtos.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\service\rtos\rtos.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Port</GroupName>
+          <Files>
+            <File>
+              <FileName>drvadc_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drvadc_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvgpio_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drvgpio_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>drviic_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drviic_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvspi_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drvspi_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvuart_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drvuart_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvusb_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drvusb_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>log_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\log_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>pca9535_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\pca9535_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtos_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\rtos_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>tm1651_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\tm1651_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvanlogiic_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drvanlogiic_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>gd25qxxx_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\gd25qxxx_port.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Debug</GroupName>
+          <Files>
+            <File>
+              <FileName>drvanlogiic_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvanlogiic\drvanlogiic_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>drviic_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drviic\drviic_debug.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -970,5 +945,14 @@
     </components>
     <files/>
   </RTE>
+
+  <LayerInfo>
+    <Layers>
+      <Layer>
+        <LayName>CprSensor</LayName>
+        <LayPrjMark>1</LayPrjMark>
+      </Layer>
+    </Layers>
+  </LayerInfo>
 
 </Project>

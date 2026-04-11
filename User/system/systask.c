@@ -24,8 +24,6 @@
 
 static bool gSystaskWorkerTasksCreated = false;
 static bool gSystaskBackgroundServicesReady = false;
-static uint16_t gSystaskBackgroundCounter = 0U;
-static uint8_t gSystaskBackgroundPollDivider = 0U;
 
 static osThreadId_t gSystemCommTaskHandle = NULL;
 static osThreadId_t gSystemMemoryTaskHandle = NULL;
@@ -87,23 +85,8 @@ static bool systaskInitBackgroundServices(void)
 	gSystaskBackgroundServicesReady = true;
 	LOG_I(SYSTASK_LOG_TAG, "background console ready");
 	return true;
-	}
-
-static void backgroundTaskManager(void)
-{
-	gSystaskBackgroundPollDivider++;
-	if (gSystaskBackgroundPollDivider < 5U) {
-		return;
-	}
-
-	gSystaskBackgroundPollDivider = 0U;
-
-	if (systemGetMode() == eSYSTEM_NORMAL_MODE) {
-		gSystaskBackgroundCounter = (uint16_t)((gSystaskBackgroundCounter + 1U) % 1000U);
-		(void)tm1651PortShowNumber3(gSystaskBackgroundCounter);
-		(void)pca9535PortLedLightNum((uint8_t)((gSystaskBackgroundCounter % 8U) + 1U));
-	}
 }
+
 
 static void systemCommTaskEntry(void *argument)
 {
@@ -217,8 +200,7 @@ void systaskRunBackgroundTask(void *argument)
 		if (systaskInitBackgroundServices()) {
 			consoleProcess();
 		}
-
-		backgroundTaskManager();
+		
 		osDelay(BackgroundTaskInterval);
 	}
 }

@@ -1,0 +1,35 @@
+{
+    "configurations": [
+        {
+            "name": "Keil ARMClang",
+            "compilerPath": "C:/Users/senki/AppData/Local/Keil_v5/ARM/ARMCLANG/bin/armclang.exe",
+            "intelliSenseMode": "windows-clang-x64",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "compilerArgs": [
+                "--target=arm-arm-none-eabi",
+                "-mcpu=cortex-m3",
+                "-mthumb"
+            ],
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/senki/AppData/Local/Keil_v5/ARM/ARMCLANG/include",
+                "C:/Users/senki/AppData/Local/Keil_v5/ARM/ACC5/include"
+            ],
+            "defines": [
+                "USE_HAL_DRIVER",
+                "STM32F103xE",
+                "ARM_MATH_CM3"
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+                    "C:/Users/senki/AppData/Local/Keil_v5/ARM/ARMCLANG/include",
+                    "C:/Users/senki/AppData/Local/Keil_v5/ARM/ACC5/include"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ],
+    "version": 4
+}

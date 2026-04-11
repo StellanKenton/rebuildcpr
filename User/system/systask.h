@@ -39,7 +39,7 @@ extern "C" {
 
 #define BackgroundTaskStackSize     4U
 #define BackgroundTaskPriority      osPriorityBelowNormal
-#define BackgroundTaskInterval      50U
+#define BackgroundTaskInterval      5U
 
 #define SystemTaskInterval          50U
 
