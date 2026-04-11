@@ -10,7 +10,7 @@
 #ifndef REBUILDCPR_SYSMGR_H
 #define REBUILDCPR_SYSMGR_H
 
-#include "system.h"
+#include "../../rep/service/system/system.h"
 
 #ifdef __cplusplus
 extern "C" {

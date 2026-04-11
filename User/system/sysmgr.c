@@ -9,19 +9,58 @@
 **********************************************************************************/
 #include "sysmgr.h"
 
+#include "../../Core/Inc/adc.h"
+#include "../../Core/Inc/dma.h"
+#include "../../Core/Inc/gpio.h"
+#include "../../Core/Inc/i2c.h"
+#include "../../Core/Inc/iwdg.h"
+#include "../../Core/Inc/rtc.h"
+#include "../../Core/Inc/spi.h"
+#include "../../Core/Inc/tim.h"
+#include "../../Core/Inc/usart.h"
+
 #include "../manager/power/power.h"
 #include "../manager/selfcheck/selfcheck.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
 
 static bool gSystemInitModeCompleted = false;
+static bool gSystemBspInitCompleted = false;
+
+/**
+* @brief : Run the generated STM32 BSP initialization sequence.
+* @param : None
+* @return: None
+**/
+static void systemInitBsp(void)
+{
+    if (gSystemBspInitCompleted) {
+        return;
+    }
+
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_ADC1_Init();
+    MX_I2C1_Init();
+    MX_I2C2_Init();
+    MX_IWDG_Init();
+    MX_RTC_Init();
+    MX_SPI1_Init();
+    MX_TIM3_Init();
+    MX_TIM4_Init();
+    MX_TIM7_Init();
+    MX_UART4_Init();
+    MX_USART2_UART_Init();
+
+    gSystemBspInitCompleted = true;
+}
 
 /**
 * @brief : Run one-time BSP and basic manager initialization.
 * @param : None
 * @return: true when the required initialization steps succeed.
 **/
-static bool systemInitModeRun(void)
+static bool systemModuleInit(void)
 {
     bool lIsReady = true;
 
@@ -64,7 +103,9 @@ static void systemInitMode(void)
         return;
     }
 
-    if (!systemInitModeRun()) {
+    systemInitBsp();
+    
+    if (!systemModuleInit()) {
         return;
     }
 
