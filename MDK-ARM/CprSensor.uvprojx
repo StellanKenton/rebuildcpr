@@ -890,6 +890,11 @@
               <FilePath>../rep/service/console/log.c</FilePath>
             </File>
             <File>
+              <FileName>console.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../rep/service/console/console.c</FilePath>
+            </File>
+            <File>
               <FileName>rtos.c</FileName>
               <FileType>1</FileType>
               <FilePath>../rep/service/rtos/rtos.c</FilePath>

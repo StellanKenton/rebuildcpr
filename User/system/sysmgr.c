@@ -67,11 +67,6 @@ static bool systemModuleInit(void)
 {
     bool lIsReady = true;
 
-    lIsReady = logInit() && lIsReady;
-    if (lIsReady) {
-        LOG_I(SYSTEM_LOG_TAG, "log init ok");
-    }
-
     lIsReady = selfCheckInit() && lIsReady;
     LOG_I(SYSTEM_LOG_TAG, "selfcheck init %s", lIsReady ? "ok" : "fail");
 
@@ -137,6 +132,7 @@ static void systemInitMode(void)
 **/
 static void systemPowerupSelfCheckMode(void)
 {
+    systemSetMode(eSYSTEM_STANDBY_MODE);
 }
 
 /**
@@ -146,6 +142,7 @@ static void systemPowerupSelfCheckMode(void)
 **/
 static void systemStandbyMode(void)
 {
+    systemSetMode(eSYSTEM_NORMAL_MODE);
 }
 
 /**

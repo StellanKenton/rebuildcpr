@@ -14,13 +14,18 @@
 
 #include "sysmgr.h"
 #include "system.h"
+#include "../../rep/service/console/console.h"
 #include "../../rep/service/console/log.h"
 #include "../manager/manager.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
 
+#define SYSTASK_LOG_TAG "systask"
+
 static bool gSystaskWorkerTasksCreated = false;
+static bool gSystaskBackgroundServicesReady = false;
 static uint16_t gSystaskBackgroundCounter = 0U;
+static uint8_t gSystaskBackgroundPollDivider = 0U;
 
 static osThreadId_t gSystemCommTaskHandle = NULL;
 static osThreadId_t gSystemMemoryTaskHandle = NULL;
@@ -32,41 +37,67 @@ static osThreadId_t gSystemBackgroundTaskHandle = NULL;
 static const osThreadAttr_t gSystemCommTaskAttributes = {
 	.name = "commTask",
 	.stack_size = 128U * CommTaskStackSize,
-	.priority = (osPriority_t)osPriorityBelowNormal7,
+	.priority = (osPriority_t)CommTaskPriority,
 };
 
 static const osThreadAttr_t gSystemMemoryTaskAttributes = {
 	.name = "memorytask",
-	.stack_size = 256U * 4U,
-	.priority = (osPriority_t)osPriorityLow5,
+	.stack_size = 256U * MemoryTaskStackSize,
+	.priority = (osPriority_t)MemoryTaskPriority,
 };
 
 static const osThreadAttr_t gSystemPowerTaskAttributes = {
 	.name = "powertask",
-	.stack_size = 64U * 4U,
-	.priority = (osPriority_t)osPriorityBelowNormal,
+	.stack_size = 64U * PowerTaskStackSize,
+	.priority = (osPriority_t)PowerTaskPriority,
 };
 
 static const osThreadAttr_t gSystemWirelessTaskAttributes = {
 	.name = "wirelessTask",
-	.stack_size = 512U * 4U,
-	.priority = (osPriority_t)osPriorityBelowNormal7,
+	.stack_size = 512U * WirelessTaskStackSize,
+	.priority = (osPriority_t)WirelessTaskPriority,
 };
 
 static const osThreadAttr_t gSystemAudioTaskAttributes = {
 	.name = "audioTask",
-	.stack_size = 256U * 4U,
-	.priority = (osPriority_t)osPriorityLow,
+	.stack_size = 256U * AudioTaskStackSize,
+	.priority = (osPriority_t)AudioTaskPriority,
 };
 
 static const osThreadAttr_t gSystemBackgroundTaskAttributes = {
 	.name = "backgroundTask",
-	.stack_size = 512U * 4U,
-	.priority = (osPriority_t)osPriorityLow,
+	.stack_size = 512U * BackgroundTaskStackSize,
+	.priority = (osPriority_t)BackgroundTaskPriority,
 };
+
+static bool systaskInitBackgroundServices(void)
+{
+	if (gSystaskBackgroundServicesReady) {
+		return true;
+	}
+
+	if (!logInit()) {
+		return false;
+	}
+
+	if (!consoleInit()) {
+		return false;
+	}
+
+	gSystaskBackgroundServicesReady = true;
+	LOG_I(SYSTASK_LOG_TAG, "background console ready");
+	return true;
+	}
 
 static void backgroundTaskManager(void)
 {
+	gSystaskBackgroundPollDivider++;
+	if (gSystaskBackgroundPollDivider < 5U) {
+		return;
+	}
+
+	gSystaskBackgroundPollDivider = 0U;
+
 	if (systemGetMode() == eSYSTEM_NORMAL_MODE) {
 		gSystaskBackgroundCounter = (uint16_t)((gSystaskBackgroundCounter + 1U) % 1000U);
 		(void)tm1651PortShowNumber3(gSystaskBackgroundCounter);
@@ -80,7 +111,7 @@ static void systemCommTaskEntry(void *argument)
 
 	for (;;) {
 		commTaskManager();
-		osDelay(20U);
+		osDelay(CommTaskInterval);
 	}
 }
 
@@ -90,7 +121,7 @@ static void systemMemoryTaskEntry(void *argument)
 
 	for (;;) {
 		memoryTaskManager();
-		osDelay(100U);
+		osDelay(MemoryTaskInterval);
 	}
 }
 
@@ -100,7 +131,7 @@ static void systemPowerTaskEntry(void *argument)
 
 	for (;;) {
 		powerTaskManager();
-		osDelay(100U);
+		osDelay(PowerTaskInterval);
 	}
 }
 
@@ -110,7 +141,7 @@ static void systemWirelessTaskEntry(void *argument)
 
 	for (;;) {
 		wirelessTaskManager();
-		osDelay(50U);
+		osDelay(WirelessTaskInterval);
 	}
 }
 
@@ -120,18 +151,23 @@ static void systemAudioTaskEntry(void *argument)
 
 	for (;;) {
 		audioTaskManager();
-		osDelay(20U);
+		osDelay(AudioTaskInterval);
 	}
 }
 
 static void systemBackgroundTaskEntry(void *argument)
 {
-	(void)argument;
+	systaskRunBackgroundTask(argument);
+}
 
-	for (;;) {
-		backgroundTaskManager();
-		osDelay(250U);
+bool systaskCreateBackgroundTask(void)
+{
+	if (gSystemBackgroundTaskHandle != NULL) {
+		return true;
 	}
+
+	gSystemBackgroundTaskHandle = osThreadNew(systemBackgroundTaskEntry, NULL, &gSystemBackgroundTaskAttributes);
+	return gSystemBackgroundTaskHandle != NULL;
 }
 
 bool systaskCreateWorkerTasks(void)
@@ -145,7 +181,9 @@ bool systaskCreateWorkerTasks(void)
 	gSystemPowerTaskHandle = osThreadNew(systemPowerTaskEntry, NULL, &gSystemPowerTaskAttributes);
 	gSystemWirelessTaskHandle = osThreadNew(systemWirelessTaskEntry, NULL, &gSystemWirelessTaskAttributes);
 	gSystemAudioTaskHandle = osThreadNew(systemAudioTaskEntry, NULL, &gSystemAudioTaskAttributes);
-	gSystemBackgroundTaskHandle = osThreadNew(systemBackgroundTaskEntry, NULL, &gSystemBackgroundTaskAttributes);
+	if (!systaskCreateBackgroundTask()) {
+		return false;
+	}
 
 	if ((gSystemCommTaskHandle == NULL) ||
 		(gSystemMemoryTaskHandle == NULL) ||
@@ -163,10 +201,25 @@ bool systaskCreateWorkerTasks(void)
 void systaskRunSystemTask(void *argument)
 {
 	(void)argument;
+	(void)systaskCreateWorkerTasks();
+
 	for (;;) {
 		systemManagerRun();
-		logProcessOutput();
-		osDelay(50U);
+		osDelay(SystemTaskInterval);
+	}
+}
+
+void systaskRunBackgroundTask(void *argument)
+{
+	(void)argument;
+
+	for (;;) {
+		if (systaskInitBackgroundServices()) {
+			consoleProcess();
+		}
+
+		backgroundTaskManager();
+		osDelay(BackgroundTaskInterval);
 	}
 }
 

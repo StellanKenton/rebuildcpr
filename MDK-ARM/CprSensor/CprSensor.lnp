@@ -84,6 +84,7 @@
 "cprsensor\drvadc.o"
 "cprsensor\drvusb.o"
 "cprsensor\log.o"
+"cprsensor\console.o"
 "cprsensor\rtos.o"
 "cprsensor\segger_rtt.o"
 "cprsensor\w25qxxx.o"
