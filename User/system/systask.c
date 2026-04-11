@@ -12,7 +12,7 @@
 
 #include "cmsis_os.h"
 
-#include "system.h"
+#include "sysmgr.h"
 
 #include "../manager/manager.h"
 #include "../port/pca9535_port.h"

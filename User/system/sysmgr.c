@@ -1,44 +1,148 @@
-#include "system.h"
+/***********************************************************************************
+* @file     : sysmgr.c
+* @brief    : Project-side system mode manager.
+* @details  : Dispatches the current system mode and performs one-time BSP startup.
+* @author   : rumi 
+* @date     : 2026/04/11
+* @version  : v0.0.1
+* @copyright: Copyright (c) 2050
+**********************************************************************************/
+#include "sysmgr.h"
 
+#include "../manager/power/power.h"
+#include "../manager/selfcheck/selfcheck.h"
+#include "../port/pca9535_port.h"
+#include "../port/tm1651_port.h"
 
+static bool gSystemInitModeCompleted = false;
 
+/**
+* @brief : Run one-time BSP and basic manager initialization.
+* @param : None
+* @return: true when the required initialization steps succeed.
+**/
+static bool systemInitModeRun(void)
+{
+    bool lIsReady = true;
 
-void systemInitMode() {
-    // Hardware initialization and self-check should be performed in this mode.
+    lIsReady = selfCheckInit() && lIsReady;
+
+    if (pca9535PortInit() == DRV_STATUS_OK) {
+        selfCheckSetExpanderResult(true);
+        (void)pca9535PortLedOff();
+    } else {
+        selfCheckSetExpanderResult(false);
+        lIsReady = false;
+    }
+
+    if (tm1651PortInit() == DRV_STATUS_OK) {
+        selfCheckSetDisplayResult(true);
+        (void)tm1651PortClearDisplay();
+    } else {
+        selfCheckSetDisplayResult(false);
+        lIsReady = false;
+    }
+
+    if (powerInit()) {
+        selfCheckSetPowerResult(true);
+    } else {
+        selfCheckSetPowerResult(false);
+        lIsReady = false;
+    }
+
+    return lIsReady;
 }
 
-void systemPowerupSelfCheckMode() {
+/**
+* @brief : Handle the system init mode.
+* @param : None
+* @return: None
+**/
+static void systemInitMode(void)
+{
+    if (gSystemInitModeCompleted) {
+        return;
+    }
 
+    if (!systemInitModeRun()) {
+        return;
+    }
+
+    gSystemInitModeCompleted = true;
+    systemSetMode(eSYSTEM_POWERUP_SELFCHECK_MODE);
 }
 
-void systemStandbyMode() {
-
+/**
+* @brief : Handle the power-up self-check mode.
+* @param : None
+* @return: None
+**/
+static void systemPowerupSelfCheckMode(void)
+{
 }
 
-void systemNormalMode() {
-
+/**
+* @brief : Handle the standby mode.
+* @param : None
+* @return: None
+**/
+static void systemStandbyMode(void)
+{
 }
 
-void systemSelfCheckMode() {
-
+/**
+* @brief : Handle the normal mode.
+* @param : None
+* @return: None
+**/
+static void systemNormalMode(void)
+{
 }
 
-
-void systemUpdateMode() {
-
+/**
+* @brief : Handle the manual self-check mode.
+* @param : None
+* @return: None
+**/
+static void systemSelfCheckMode(void)
+{
 }
 
-void systemDiagnosticMode() {
-
+/**
+* @brief : Handle the update mode.
+* @param : None
+* @return: None
+**/
+static void systemUpdateMode(void)
+{
 }
 
-void systemEolMode() {
-
+/**
+* @brief : Handle the diagnostic mode.
+* @param : None
+* @return: None
+**/
+static void systemDiagnosticMode(void)
+{
 }
 
+/**
+* @brief : Handle the end-of-line mode.
+* @param : None
+* @return: None
+**/
+static void systemEolMode(void)
+{
+}
 
-void systemManagerRun() {
-    switch(systemGetMode()) {
+/**
+* @brief : Dispatch the system mode handler.
+* @param : None
+* @return: None
+**/
+void systemManagerRun(void)
+{
+    switch (systemGetMode()) {
         case eSYSTEM_INIT_MODE:
             systemInitMode();
             break;
@@ -67,3 +171,5 @@ void systemManagerRun() {
             break;
     }
 }
+
+/**************************End of file********************************/
