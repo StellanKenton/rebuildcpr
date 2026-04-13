@@ -745,6 +745,31 @@
               <FilePath>..\User\manager\manager.c</FilePath>
             </File>
             <File>
+              <FileName>wirelessmanager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\wireless\wirelessmanager.c</FilePath>
+            </File>
+            <File>
+              <FileName>frameprocess.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\wireless\frameprocess\frameprocess.c</FilePath>
+            </File>
+            <File>
+              <FileName>frameprocess_data.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\wireless\frameprocess\frameprocess_data.c</FilePath>
+            </File>
+            <File>
+              <FileName>frameprocess_pack.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\wireless\frameprocess\frameprocess_pack.c</FilePath>
+            </File>
+            <File>
+              <FileName>frameprocess_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\wireless\frameprocess\frameprocess_port.c</FilePath>
+            </File>
+            <File>
               <FileName>sysmgr.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\system\sysmgr.c</FilePath>
@@ -834,6 +859,31 @@
               <FileType>1</FileType>
               <FilePath>..\User\bsp\bspanlogiic.c</FilePath>
             </File>
+            <File>
+              <FileName>bspgpio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\bsp\bspgpio.c</FilePath>
+            </File>
+            <File>
+              <FileName>bspiic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\bsp\bspiic.c</FilePath>
+            </File>
+            <File>
+              <FileName>bspspi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\bsp\bspspi.c</FilePath>
+            </File>
+            <File>
+              <FileName>bspuart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\bsp\bspuart.c</FilePath>
+            </File>
+            <File>
+              <FileName>bspusb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\bsp\bspusb.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -843,6 +893,11 @@
               <FileName>ringbuffer.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\rep\tools\ringbuffer\ringbuffer.c</FilePath>
+            </File>
+            <File>
+              <FileName>framepareser.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\comm\frameparser\framepareser.c</FilePath>
             </File>
             <File>
               <FileName>console.c</FileName>

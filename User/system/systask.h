@@ -18,19 +18,19 @@ extern "C" {
 #endif
 
 
-#define CommTaskStackSize           2U
+#define CommTaskStackSize           8U
 #define CommTaskPriority            23U
 #define CommTaskInterval            20U
 
-#define MemoryTaskStackSize         4U
+#define MemoryTaskStackSize         8U
 #define MemoryTaskPriority          13U
 #define MemoryTaskInterval          100U
 
-#define PowerTaskStackSize          4U
+#define PowerTaskStackSize          8U
 #define PowerTaskPriority           16U
 #define PowerTaskInterval           100U
 
-#define WirelessTaskStackSize       4U
+#define WirelessTaskStackSize       8U
 #define WirelessTaskPriority        23U
 #define WirelessTaskInterval        50U
 

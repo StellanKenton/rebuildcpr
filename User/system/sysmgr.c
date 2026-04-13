@@ -157,6 +157,7 @@ static void systemStandbyMode(void)
 **/
 static void systemNormalMode(void)
 {
+    
 }
 
 /**

@@ -10,6 +10,7 @@
 #include "manager.h"
 
 #include "power/power.h"
+#include "wireless/wirelessmanager.h"
 
 /**
 * @brief : Handle communication task work.
@@ -46,7 +47,7 @@ void powerTaskManager(void)
 **/
 void wirelessTaskManager(void)
 {
-    
+    wirelessManagerProcess();
 }
 
 /**
