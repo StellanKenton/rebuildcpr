@@ -740,14 +740,9 @@
               <FilePath>..\User\manager\update\update.c</FilePath>
             </File>
             <File>
-              <FileName>manager.c</FileName>
+              <FileName>wireless.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\manager\manager.c</FilePath>
-            </File>
-            <File>
-              <FileName>wirelessmanager.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\manager\wireless\wirelessmanager.c</FilePath>
+              <FilePath>..\User\manager\wireless\wireless.c</FilePath>
             </File>
             <File>
               <FileName>frameprocess.c</FileName>

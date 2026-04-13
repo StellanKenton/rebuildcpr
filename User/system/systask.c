@@ -19,7 +19,8 @@
 #include "../../rep/driver/drviic/drviic_debug.h"
 #include "../../rep/service/console/console.h"
 #include "../../rep/service/console/log.h"
-#include "../manager/manager.h"
+#include "../manager/power/power.h"
+#include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
 
@@ -97,6 +98,18 @@ static const stRepRtosTaskConfig gSystemBackgroundTaskConfig = {
 	.handle = &gSystemBackgroundTaskHandle,
 };
 
+static void systaskCommProcess(void)
+{
+}
+
+static void systaskMemoryProcess(void)
+{
+}
+
+static void systaskAudioProcess(void)
+{
+}
+
 static bool systaskInitBackgroundServices(void)
 {
 	if (gSystaskBackgroundServicesReady) {
@@ -134,7 +147,7 @@ static void systemCommTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		commTaskManager();
+		systaskCommProcess();
 		(void)repRtosDelayMs(CommTaskInterval);
 	}
 }
@@ -144,7 +157,7 @@ static void systemMemoryTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		memoryTaskManager();
+		systaskMemoryProcess();
 		(void)repRtosDelayMs(MemoryTaskInterval);
 	}
 }
@@ -154,7 +167,7 @@ static void systemPowerTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		powerTaskManager();
+		powerProcess();
 		(void)repRtosDelayMs(PowerTaskInterval);
 	}
 }
@@ -164,7 +177,7 @@ static void systemWirelessTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		wirelessTaskManager();
+		wirelessProcess();
 		(void)repRtosDelayMs(WirelessTaskInterval);
 	}
 }
@@ -174,7 +187,7 @@ static void systemAudioTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		audioTaskManager();
+		systaskAudioProcess();
 		(void)repRtosDelayMs(AudioTaskInterval);
 	}
 }
@@ -224,8 +237,6 @@ bool systaskCreateWorkerTasks(void)
 void systaskRunSystemTask(void *argument)
 {
 	(void)argument;
-	(void)systaskCreateWorkerTasks();
-
 	for (;;) {
 		systemManagerRun();
 		(void)repRtosDelayMs(SystemTaskInterval);

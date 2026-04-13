@@ -137,6 +137,7 @@ static void systemInitMode(void)
 **/
 static void systemPowerupSelfCheckMode(void)
 {
+    (void)systaskCreateWorkerTasks();
     systemSetMode(eSYSTEM_STANDBY_MODE);
 }
 

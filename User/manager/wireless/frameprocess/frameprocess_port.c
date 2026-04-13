@@ -28,7 +28,23 @@
 
 #define FRM_PROC_PORT_LOG_TAG               "FrmProcPort"
 
+typedef struct stFrmProcPortBinding {
+    UART_HandleTypeDef *uartHandle;
+    const char *linkName;
+} stFrmProcPortBinding;
+
 static const uint8_t gFrmProcPortHead[] = {0xFAU, 0xFCU};
+
+static const stFrmProcPortBinding gFrmProcPortBinding[FRAME_PROC_MAX] = {
+    [FRAME_PROC0] = {
+        .uartHandle = &huart4,
+        .linkName = "ble",
+    },
+    [FRAME_PROC1] = {
+        .uartHandle = NULL,
+        .linkName = "wifi",
+    },
+};
 
 static stRingBuffer gFrmProcPortRxRing[FRAME_PROC_MAX];
 static uint8_t gFrmProcPortRxStorage[FRAME_PROC_MAX][FRM_PROC_PORT_RX_RING_CAPACITY];
@@ -39,14 +55,35 @@ static uint32_t gFrmProcPortRxBytes[FRAME_PROC_MAX];
 
 static eFrmProcStatus frmProcPortTxFrame(eFrmProcMapType proc, const uint8_t *frameBuf, uint16_t frameLen);
 
+static const stFrmProcPortBinding *frmProcPortGetBinding(eFrmProcMapType proc)
+{
+    if ((uint32_t)proc >= (uint32_t)FRAME_PROC_MAX) {
+        return NULL;
+    }
+
+    return &gFrmProcPortBinding[proc];
+}
+
 static UART_HandleTypeDef *frmProcPortGetHandle(eFrmProcMapType proc)
 {
-    switch (proc) {
-        case FRAME_PROC0:
-            return &huart4;
-        default:
-            return NULL;
+    const stFrmProcPortBinding *lBinding = frmProcPortGetBinding(proc);
+
+    if (lBinding == NULL) {
+        return NULL;
     }
+
+    return lBinding->uartHandle;
+}
+
+static const char *frmProcPortGetLinkName(eFrmProcMapType proc)
+{
+    const stFrmProcPortBinding *lBinding = frmProcPortGetBinding(proc);
+
+    if ((lBinding == NULL) || (lBinding->linkName == NULL)) {
+        return "unknown";
+    }
+
+    return lBinding->linkName;
 }
 
 static stRingBuffer *frmProcPortGetRxRingBuffer(void *userCtx)
@@ -157,8 +194,9 @@ eFrmProcStatus frmProcPlatformInit(eFrmProcMapType proc)
     __HAL_UART_CLEAR_IDLEFLAG(lHandle);
     __HAL_UART_CLEAR_OREFLAG(lHandle);
     LOG_I(FRM_PROC_PORT_LOG_TAG,
-          "proc=%u uart4 init ok rxCap=%u",
+	      "proc=%u link=%s init ok rxCap=%u",
           (unsigned int)proc,
+	      frmProcPortGetLinkName(proc),
           (unsigned int)sizeof(gFrmProcPortRxStorage[proc]));
     return FRM_PROC_STATUS_OK;
 }
@@ -195,8 +233,9 @@ void frmProcPlatformPollRx(eFrmProcMapType proc)
     if (lReadCount > 0U) {
         gFrmProcPortRxBytes[proc] += lReadCount;
         LOG_I(FRM_PROC_PORT_LOG_TAG,
-              "proc=%u uart4 rx bytes=%u total=%u first=%02X %02X %02X %02X",
+              "proc=%u link=%s rx bytes=%u total=%u first=%02X %02X %02X %02X",
               (unsigned int)proc,
+              frmProcPortGetLinkName(proc),
               (unsigned int)lReadCount,
               (unsigned int)gFrmProcPortRxBytes[proc],
               (unsigned int)(lFirstCount > 0U ? lFirstBytes[0] : 0U),
@@ -263,8 +302,9 @@ static eFrmProcStatus frmProcPortTxFrame(eFrmProcMapType proc, const uint8_t *fr
 
     if (HAL_UART_Transmit(lHandle, (uint8_t *)frameBuf, frameLen, FRM_PROC_PORT_UART_TX_TIMEOUT_MS) != HAL_OK) {
         LOG_E(FRM_PROC_PORT_LOG_TAG,
-              "proc=%u tx fail cmd=0x%02X len=%u",
+          "proc=%u link=%s tx fail cmd=0x%02X len=%u",
               (unsigned int)proc,
+          frmProcPortGetLinkName(proc),
               (unsigned int)lCmd,
               (unsigned int)frameLen);
         return FRM_PROC_STATUS_ERROR;
@@ -272,8 +312,9 @@ static eFrmProcStatus frmProcPortTxFrame(eFrmProcMapType proc, const uint8_t *fr
 
     if (lCmd != (uint8_t)FRM_PROC_CMD_CPR_DATA) {
         LOG_I(FRM_PROC_PORT_LOG_TAG,
-              "proc=%u tx ok cmd=0x%02X len=%u",
+              "proc=%u link=%s tx ok cmd=0x%02X len=%u",
               (unsigned int)proc,
+              frmProcPortGetLinkName(proc),
               (unsigned int)lCmd,
               (unsigned int)frameLen);
     }
