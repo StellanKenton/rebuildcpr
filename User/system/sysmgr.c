@@ -25,8 +25,10 @@
 #include "../manager/selfcheck/selfcheck.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
+#include "systask.h"
+#include "system.h"
 
-#define SYSTEM_LOG_TAG "system"
+#define SYSTEM_LOG_TAG "systemManager"
 
 static bool gSystemInitModeCompleted = false;
 static bool gSystemBspInitCompleted = false;
@@ -112,7 +114,10 @@ static void systemInitMode(void)
     if (gSystemInitModeCompleted) {
         return;
     }
-
+    LOG_I(SYSTEM_LOG_TAG, "&&&&&&&&&&&&&&&&& SYSTEM POWER UP &&&&&&&&&&&&&&&&&");
+    LOG_I(SYSTEM_LOG_TAG, "System initialized.");
+    LOG_I(SYSTEM_LOG_TAG, "Firmware: %s, Version: %s, Hardware: %s", FIRMWARE_NAME, FIRMWARE_VERSION, HARDWARE_VERSION);
+    
     systemInitBsp();
     
     if (!systemModuleInit()) {

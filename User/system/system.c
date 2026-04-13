@@ -79,6 +79,16 @@ const char *systemGetModeString(eSystemMode mode)
 }
 
 /**
+* @brief : Get firmware name string.
+* @param : None
+* @return: Firmware name string.
+**/
+const char *systemGetFirmwareName(void)
+{
+    return FIRMWARE_NAME;
+}
+
+/**
 * @brief : Get firmware version string.
 * @param : None
 * @return: Firmware version string.

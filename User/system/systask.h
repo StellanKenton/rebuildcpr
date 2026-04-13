@@ -38,7 +38,7 @@ extern "C" {
 #define AudioTaskPriority           8U
 #define AudioTaskInterval           20U
 
-#define BackgroundTaskStackSize     4U
+#define BackgroundTaskStackSize     8U
 #define BackgroundTaskPriority      16U
 #define BackgroundTaskInterval      5U
 

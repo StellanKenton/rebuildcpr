@@ -86,12 +86,20 @@ unsigned long getRunTimeCounterValue(void);
 /* Functions needed when configGENERATE_RUN_TIME_STATS is on */
 __weak void configureTimerForRunTimeStats(void)
 {
-
+#if defined(DWT) && defined(CoreDebug) && defined(DWT_CTRL_CYCCNTENA_Msk) && defined(CoreDebug_DEMCR_TRCENA_Msk)
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0U;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+#endif
 }
 
 __weak unsigned long getRunTimeCounterValue(void)
 {
-return 0;
+#if defined(DWT) && defined(DWT_CTRL_CYCCNTENA_Msk)
+  return (unsigned long)DWT->CYCCNT;
+#else
+  return (unsigned long)HAL_GetTick();
+#endif
 }
 /* USER CODE END 1 */
 

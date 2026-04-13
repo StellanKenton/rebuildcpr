@@ -65,6 +65,7 @@
 "cprsensor\sysmgr.o"
 "cprsensor\systask.o"
 "cprsensor\system.o"
+"cprsensor\system_debug.o"
 "cprsensor\drvadc.o"
 "cprsensor\drvanlogiic.o"
 "cprsensor\drvgpio.o"

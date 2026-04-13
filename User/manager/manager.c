@@ -46,6 +46,7 @@ void powerTaskManager(void)
 **/
 void wirelessTaskManager(void)
 {
+    
 }
 
 /**

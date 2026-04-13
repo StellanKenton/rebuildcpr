@@ -759,6 +759,11 @@
               <FileType>1</FileType>
               <FilePath>..\User\system\system.c</FilePath>
             </File>
+            <File>
+              <FileName>system_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\system\system_debug.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

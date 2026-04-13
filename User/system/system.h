@@ -29,6 +29,7 @@ extern "C" {
 #define HW_VER_MINOR                    0
 #define HW_VER_PATCH                    1
 
+#define FIRMWARE_NAME                   "CprSensor"
 #define FIRMWARE_VERSION                "SoftVer" SYSTEM_STRINGIFY(FW_VER_MAJOR) "." SYSTEM_STRINGIFY(FW_VER_MINOR) "." SYSTEM_STRINGIFY(FW_VER_PATCH)
 #define HARDWARE_VERSION                "HardVer" SYSTEM_STRINGIFY(HW_VER_MAJOR) "." SYSTEM_STRINGIFY(HW_VER_MINOR) "." SYSTEM_STRINGIFY(HW_VER_PATCH)
 
@@ -48,6 +49,7 @@ typedef enum {
 eSystemMode systemGetMode(void);
 void systemSetMode(eSystemMode mode);
 const char *systemGetModeString(eSystemMode mode);
+const char *systemGetFirmwareName(void);
 const char *systemGetFirmwareVersion(void);
 const char *systemGetHardwareVersion(void);
 #ifdef __cplusplus
