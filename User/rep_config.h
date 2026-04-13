@@ -145,7 +145,7 @@ typedef enum eDrvStatus {
 #endif
 
 #ifndef DRVADC_CONSOLE_SUPPORT
-#define DRVADC_CONSOLE_SUPPORT 0
+#define DRVADC_CONSOLE_SUPPORT 1
 #endif
 
 #ifndef DRVUSB_CONSOLE_SUPPORT

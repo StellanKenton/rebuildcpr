@@ -980,6 +980,11 @@
           <GroupName>Debug</GroupName>
           <Files>
             <File>
+              <FileName>drvadc_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvadc\drvadc_debug.c</FilePath>
+            </File>
+            <File>
               <FileName>drvanlogiic_debug.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\rep\driver\drvanlogiic\drvanlogiic_debug.c</FilePath>

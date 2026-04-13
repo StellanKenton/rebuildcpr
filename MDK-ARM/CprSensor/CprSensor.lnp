@@ -104,6 +104,7 @@
 "cprsensor\tm1651_port.o"
 "cprsensor\drvanlogiic_port.o"
 "cprsensor\gd25qxxx_port.o"
+"cprsensor\drvadc_debug.o"
 "cprsensor\drvanlogiic_debug.o"
 "cprsensor\drviic_debug.o"
 --strict --scatter "CprSensor\CprSensor.sct"

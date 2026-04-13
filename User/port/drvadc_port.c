@@ -21,6 +21,7 @@ typedef struct stDrvAdcChannelMap {
 
 static stDrvAdcData gDrvAdcData[DRVADC_MAX] = {0};
 static bool gDrvAdcCalibrated = false;
+static bool gDrvAdcSingleShotConfigured = false;
 
 static const stDrvAdcChannelMap gDrvAdcChannelMap[DRVADC_MAX] = {
     [DRVADC_BAT] = {.channel = ADC_CHANNEL_0},
@@ -30,12 +31,50 @@ static const stDrvAdcChannelMap gDrvAdcChannelMap[DRVADC_MAX] = {
     [DRVADC_3V3] = {.channel = ADC_CHANNEL_15},
 };
 
+static eDrvStatus drvAdcPortConfigureSingleShot(void)
+{
+    if (hadc1.Instance == NULL) {
+        return DRV_STATUS_NOT_READY;
+    }
+
+    if (gDrvAdcSingleShotConfigured) {
+        return DRV_STATUS_OK;
+    }
+
+    (void)HAL_ADC_Stop(&hadc1);
+
+    hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+    hadc1.Init.ContinuousConvMode = DISABLE;
+    hadc1.Init.DiscontinuousConvMode = DISABLE;
+    hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+    hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+    hadc1.Init.NbrOfConversion = 1;
+
+    if (HAL_ADC_DeInit(&hadc1) != HAL_OK) {
+        return DRV_STATUS_ERROR;
+    }
+
+    if (HAL_ADC_Init(&hadc1) != HAL_OK) {
+        return DRV_STATUS_ERROR;
+    }
+
+    gDrvAdcSingleShotConfigured = true;
+    gDrvAdcCalibrated = false;
+    return DRV_STATUS_OK;
+}
+
 static eDrvStatus drvAdcPortInit(uint8_t adc)
 {
     (void)adc;
+    eDrvStatus lStatus;
 
     if (hadc1.Instance == NULL) {
         return DRV_STATUS_NOT_READY;
+    }
+
+    lStatus = drvAdcPortConfigureSingleShot();
+    if (lStatus != DRV_STATUS_OK) {
+        return lStatus;
     }
 
     if (!gDrvAdcCalibrated) {

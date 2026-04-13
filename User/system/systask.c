@@ -15,6 +15,7 @@
 #include "sysmgr.h"
 #include "system.h"
 #include "system_debug.h"
+#include "../../rep/driver/drvadc/drvadc_debug.h"
 #include "../../rep/driver/drvanlogiic/drvanlogiic_debug.h"
 #include "../../rep/driver/drviic/drviic_debug.h"
 #include "../../rep/service/console/console.h"
@@ -129,6 +130,10 @@ static bool systaskInitBackgroundServices(void)
 	}
 
 	if (!drvAnlogIicDebugConsoleRegister()) {
+		return false;
+	}
+
+	if (!drvAdcDebugConsoleRegister()) {
 		return false;
 	}
 
