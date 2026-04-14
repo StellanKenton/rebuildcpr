@@ -59,6 +59,8 @@ static void systemInitBsp(void)
     MX_UART4_Init();
     MX_USART2_UART_Init();
 
+    HAL_UART_MspInit(&huart4);
+    HAL_UART_MspInit(&huart2);
     gSystemBspInitCompleted = true;
 }
 

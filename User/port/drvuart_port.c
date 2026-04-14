@@ -16,6 +16,8 @@
 #include "../bsp/bspuart.h"
 
 static stRingBuffer gDrvUartRingBuffer[DRVUART_MAX];
+static uint8_t gDrvUartRingStorageDebug[DRVUART_RECVLEN_DEBUGUART];
+static uint8_t gDrvUartRingStorageAudio[DRVUART_RECVLEN_AUDIO];
 
 static stDrvUartBspInterface gDrvUartBspInterface[DRVUART_MAX] = {
     [DRVUART_DEBUG] = {
@@ -60,12 +62,12 @@ eDrvStatus drvUartGetPlatformStorageConfig(uint8_t uart, uint8_t **storage, uint
 
     switch ((eDrvUartPortMap)uart) {
         case DRVUART_DEBUG:
-            *storage = gBspUartRxStorageDebug;
-            *capacity = sizeof(gBspUartRxStorageDebug);
+            *storage = gDrvUartRingStorageDebug;
+            *capacity = sizeof(gDrvUartRingStorageDebug);
             return DRV_STATUS_OK;
         case DRVUART_AUDIO:
-            *storage = gBspUartRxStorageAudio;
-            *capacity = sizeof(gBspUartRxStorageAudio);
+            *storage = gDrvUartRingStorageAudio;
+            *capacity = sizeof(gDrvUartRingStorageAudio);
             return DRV_STATUS_OK;
         default:
             *storage = NULL;

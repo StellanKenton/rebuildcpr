@@ -18,12 +18,14 @@
 
 #include "drvgpio.h"
 #include "drvgpio_port.h"
+#include "drvuart.h"
 
 #include "../../../rep/comm/flowparser/flowparser_stream.h"
 #include "../../../rep/module/fc41d/fc41d_assembly.h"
 #include "../../../rep/service/console/log.h"
 #include "../../../rep/service/rtos/rtos.h"
 #include "../../../rep/tools/ringbuffer/ringbuffer.h"
+#include "../../port/drvuart_port.h"
 
 static const char *const gWirelessBleInitCmdSeq[] = {
     "AT+QBLEINIT=2",
@@ -62,6 +64,9 @@ static void wirelessResetBootWaitState(void);
 static bool wirelessConsumeBootReadyByte(uint8_t byte);
 static bool wirelessWaitBootReady(void);
 static void wirelessUpdateState(void);
+static const char *wirelessGetWifiStateName(eFc41dWifiState state);
+static bool wirelessIsWifiDiagLine(const uint8_t *lineBuf, uint16_t lineLen);
+static void wirelessLogWifiDiagLine(const uint8_t *lineBuf, uint16_t lineLen);
 static eDrvStatus wirelessFc41dSend(const uint8_t *buf, uint16_t len, void *userCtx);
 static bool wirelessRouteLinePayload(const uint8_t *lineBuf, uint16_t lineLen, const uint8_t **payloadBuf, uint16_t *payloadLen);
 
@@ -135,6 +140,9 @@ static bool wirelessWaitBootReady(void)
 static void wirelessUpdateState(void)
 {
     stFc41dInfo lInfo;
+    static bool lWifiStateLogged = false;
+    static eFc41dWifiState lLastWifiState = FC41D_WIFI_STATE_IDLE;
+    static uint8_t lLastReconnectRetryCount = 0U;
 
     if (!gWirelessBootReady) {
         if (gWirelessState != eWIRELESS_STATE_ERROR) {
@@ -155,18 +163,85 @@ static void wirelessUpdateState(void)
         return;
     }
 
+    if ((!lWifiStateLogged) || (lLastWifiState != lInfo.wifi.state) ||
+        (lLastReconnectRetryCount != lInfo.wifi.reconnectRetryCount)) {
+        LOG_I(WIRELESS_LOG_TAG,
+              "wifi state=%s retries=%u routed=%lu dropped=%lu",
+              wirelessGetWifiStateName(lInfo.wifi.state),
+              (unsigned int)lInfo.wifi.reconnectRetryCount,
+              (unsigned long)lInfo.wifi.rxRoutedBytes,
+              (unsigned long)lInfo.wifi.rxDroppedBytes);
+        lLastWifiState = lInfo.wifi.state;
+        lLastReconnectRetryCount = lInfo.wifi.reconnectRetryCount;
+        lWifiStateLogged = true;
+    }
+
     gWirelessState = lInfo.isReady ? eWIRELESS_STATE_NORMAL : eWIRELESS_STATE_INIT;
+}
+
+static const char *wirelessGetWifiStateName(eFc41dWifiState state)
+{
+    switch (state) {
+        case FC41D_WIFI_STATE_IDLE:
+            return "idle";
+        case FC41D_WIFI_STATE_STA_INIT:
+            return "sta_init";
+        case FC41D_WIFI_STATE_STA_CONNECTING:
+            return "sta_connecting";
+        case FC41D_WIFI_STATE_STA_SERVICE_STARTING:
+            return "sta_service_starting";
+        case FC41D_WIFI_STATE_STA_CONNECTED:
+            return "sta_connected";
+        case FC41D_WIFI_STATE_STA_DISCONNECTED:
+            return "sta_disconnected";
+        case FC41D_WIFI_STATE_AP_INIT:
+            return "ap_init";
+        case FC41D_WIFI_STATE_AP_STARTING:
+            return "ap_starting";
+        case FC41D_WIFI_STATE_AP_ACTIVE:
+            return "ap_active";
+        case FC41D_WIFI_STATE_AP_STOPPED:
+            return "ap_stopped";
+        case FC41D_WIFI_STATE_ERROR:
+            return "error";
+        default:
+            return "unknown";
+    }
+}
+
+static bool wirelessIsWifiDiagLine(const uint8_t *lineBuf, uint16_t lineLen)
+{
+    if ((lineBuf == NULL) || (lineLen < 4U) || (lineBuf[0] != '+')) {
+        return false;
+    }
+
+    if (((lineLen >= 6U) && (memcmp(lineBuf, "+QSTA", 5U) == 0)) ||
+        ((lineLen >= 4U) && (memcmp(lineBuf, "+STA", 4U) == 0)) ||
+        ((lineLen >= 3U) && (memcmp(lineBuf, "+QI", 3U) == 0))) {
+        return true;
+    }
+
+    return false;
+}
+
+static void wirelessLogWifiDiagLine(const uint8_t *lineBuf, uint16_t lineLen)
+{
+    if (!wirelessIsWifiDiagLine(lineBuf, lineLen)) {
+        return;
+    }
+
+    LOG_I(WIRELESS_LOG_TAG, "wifi urc: %.*s", (int)lineLen, (const char *)lineBuf);
 }
 
 static eDrvStatus wirelessFc41dSend(const uint8_t *buf, uint16_t len, void *userCtx)
 {
-    UART_HandleTypeDef *lHandle = (UART_HandleTypeDef *)userCtx;
+    (void)userCtx;
 
-    if ((lHandle == NULL) || (lHandle->Instance == NULL) || (buf == NULL) || (len == 0U)) {
+    if ((buf == NULL) || (len == 0U)) {
         return DRV_STATUS_INVALID_PARAM;
     }
 
-    return (HAL_UART_Transmit(lHandle, (uint8_t *)buf, len, 100U) == HAL_OK) ? DRV_STATUS_OK : DRV_STATUS_ERROR;
+    return drvUartTransmit(DRVUART_DEBUG, buf, len, 100U);
 }
 
 static bool wirelessRouteLinePayload(const uint8_t *lineBuf, uint16_t lineLen, const uint8_t **payloadBuf, uint16_t *payloadLen)
@@ -204,6 +279,12 @@ bool wirelessInit(void)
 
     if (gWirelessInitDone) {
         return gWirelessState != eWIRELESS_STATE_ERROR;
+    }
+
+    if (drvUartInit(DRVUART_DEBUG) != DRV_STATUS_OK) {
+        gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG, "debug uart init fail");
+        return false;
     }
 
     if (fc41dGetDefCfg(WIRELESS_FC41D_DEVICE, &lCfg) != FC41D_STATUS_OK) {
@@ -297,7 +378,7 @@ eFc41dStatus fc41dPlatformInitTransport(eFc41dMapType device)
 {
     (void)device;
 
-    if (huart4.Instance == NULL) {
+    if ((huart4.Instance == NULL) || (drvUartInit(DRVUART_DEBUG) != DRV_STATUS_OK)) {
         return FC41D_STATUS_NOT_READY;
     }
 
@@ -310,30 +391,30 @@ eFc41dStatus fc41dPlatformInitTransport(eFc41dMapType device)
     }
 
     wirelessResetBootWaitState();
-
-    __HAL_UART_CLEAR_IDLEFLAG(&huart4);
-    __HAL_UART_CLEAR_OREFLAG(&huart4);
     return FC41D_STATUS_OK;
 }
 
 void fc41dPlatformPollRx(eFc41dMapType device)
 {
     uint8_t lByte;
+    uint16_t lPendingLength;
 
     (void)device;
     if (huart4.Instance == NULL) {
         return;
     }
 
-    if (__HAL_UART_GET_FLAG(&huart4, UART_FLAG_ORE) != RESET) {
-        __HAL_UART_CLEAR_OREFLAG(&huart4);
-    }
+    lPendingLength = drvUartGetDataLen(DRVUART_DEBUG);
+    while (lPendingLength > 0U) {
+        if (drvUartReceive(DRVUART_DEBUG, &lByte, 1U) != DRV_STATUS_OK) {
+            break;
+        }
 
-    while (__HAL_UART_GET_FLAG(&huart4, UART_FLAG_RXNE) != RESET) {
-        lByte = (uint8_t)(huart4.Instance->DR & 0x00FFU);
         if (ringBufferWrite(&gWirelessAtRxRb, &lByte, 1U) != 1U) {
             break;
         }
+
+        lPendingLength--;
     }
 }
 
@@ -360,6 +441,7 @@ eFlowParserStrmSta fc41dPlatformInitAtStream(eFc41dMapType device, stFlowParserS
     static const char *const lUrcPatterns[] = {
         "+BLE*",
         "+WIFI*",
+        "+QSTA*",
         "+STA*",
         "+AP*",
         "+QI*",
@@ -407,7 +489,10 @@ bool fc41dPlatformRouteLine(eFc41dMapType device, const uint8_t *lineBuf, uint16
         return wirelessRouteLinePayload(lineBuf, lineLen, payloadBuf, payloadLen);
     }
 
+    wirelessLogWifiDiagLine(lineBuf, lineLen);
+
     if (((lineLen >= 5U) && (memcmp(lineBuf, "+WIFI", 5U) == 0)) ||
+        ((lineLen >= 5U) && (memcmp(lineBuf, "+QSTA", 5U) == 0)) ||
         ((lineLen >= 4U) && (memcmp(lineBuf, "+STA", 4U) == 0)) ||
         ((lineLen >= 3U) && (memcmp(lineBuf, "+AP", 3U) == 0)) ||
         ((lineLen >= 3U) && (memcmp(lineBuf, "+QI", 3U) == 0))) {

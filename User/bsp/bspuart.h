@@ -26,6 +26,7 @@ eDrvStatus bspUartTransmitIt(uint8_t uart, const uint8_t *buffer, uint16_t lengt
 eDrvStatus bspUartTransmitDma(uint8_t uart, const uint8_t *buffer, uint16_t length);
 uint16_t bspUartGetDataLen(uint8_t uart);
 eDrvStatus bspUartReceive(uint8_t uart, uint8_t *buffer, uint16_t length);
+void bspUartHandleIrq(uint8_t uart);
 
 #ifdef __cplusplus
 }
