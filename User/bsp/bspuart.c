@@ -16,8 +16,8 @@
 
 #include "../port/drvuart_port.h"
 
-uint8_t gBspUartRxStorageDebug[DRVUART_RECVLEN_DEBUGUART];
-uint8_t gBspUartRxStorageAudio[DRVUART_RECVLEN_AUDIO];
+static uint8_t gBspUartRxStorageDebug[DRVUART_RECVLEN_DEBUGUART];
+static uint8_t gBspUartRxStorageAudio[DRVUART_RECVLEN_AUDIO];
 
 typedef struct stBspUartRxContext {
     UART_HandleTypeDef *handle;
@@ -316,13 +316,16 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Pos)
 
     lPrimask = bspUartEnterCritical();
     if ((Pos > 0U) && (Pos <= context->dmaCapacity)) {
-        context->pendingLength = Pos;
-        context->pendingRx = 1U;
+        bspUartWriteRawData(context, context->dmaBuffer, Pos);
+        context->pendingLength = 0U;
+        context->pendingRx = 0U;
     } else {
         context->pendingLength = 0U;
         context->pendingRx = 0U;
     }
     bspUartExitCritical(lPrimask);
+
+    (void)bspUartStartRxDma(context);
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)

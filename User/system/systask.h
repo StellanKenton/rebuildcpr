@@ -35,7 +35,7 @@ static void powerTaskEntry(void *argument);
 
 #define WirelessTaskStackSize       8U
 #define WirelessTaskPriority        23U
-#define WirelessTaskInterval        50U
+#define WirelessTaskInterval        5U
 static void wirelessTaskEntry(void *argument);
 
 #define AudioTaskStackSize          4U

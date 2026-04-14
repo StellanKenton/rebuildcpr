@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "usart.h"
+#include "../../../../rep/module/fc41d/fc41d.h"
 #include "../../../../rep/service/rtos/rtos.h"
 #include "../../../../rep/service/console/log.h"
 
@@ -29,7 +29,7 @@
 #define FRM_PROC_PORT_LOG_TAG               "FrmProcPort"
 
 typedef struct stFrmProcPortBinding {
-    UART_HandleTypeDef *uartHandle;
+    eFc41dMapType fc41dDevice;
     const char *linkName;
 } stFrmProcPortBinding;
 
@@ -37,11 +37,11 @@ static const uint8_t gFrmProcPortHead[] = {0xFAU, 0xFCU};
 
 static const stFrmProcPortBinding gFrmProcPortBinding[FRAME_PROC_MAX] = {
     [FRAME_PROC0] = {
-        .uartHandle = &huart4,
+        .fc41dDevice = FC41D_DEV0,
         .linkName = "ble",
     },
     [FRAME_PROC1] = {
-        .uartHandle = NULL,
+        .fc41dDevice = FC41D_DEV_MAX,
         .linkName = "wifi",
     },
 };
@@ -52,6 +52,7 @@ static uint8_t gFrmProcPortUrgentStorage[FRAME_PROC_MAX][FRM_PROC_PORT_URGENT_QU
 static uint8_t gFrmProcPortNormalStorage[FRAME_PROC_MAX][FRM_PROC_PORT_NORMAL_QUEUE_CAPACITY];
 static uint8_t gFrmProcPortParserBuf[FRAME_PROC_MAX][FRM_PROC_MAX_PKT_LEN];
 static uint32_t gFrmProcPortRxBytes[FRAME_PROC_MAX];
+static uint8_t gFrmProcPortRxScratch[FRAME_PROC_MAX][32U];
 
 static eFrmProcStatus frmProcPortTxFrame(eFrmProcMapType proc, const uint8_t *frameBuf, uint16_t frameLen);
 
@@ -64,15 +65,11 @@ static const stFrmProcPortBinding *frmProcPortGetBinding(eFrmProcMapType proc)
     return &gFrmProcPortBinding[proc];
 }
 
-static UART_HandleTypeDef *frmProcPortGetHandle(eFrmProcMapType proc)
+static bool frmProcPortIsBound(eFrmProcMapType proc)
 {
     const stFrmProcPortBinding *lBinding = frmProcPortGetBinding(proc);
 
-    if (lBinding == NULL) {
-        return NULL;
-    }
-
-    return lBinding->uartHandle;
+    return (lBinding != NULL) && ((uint32_t)lBinding->fc41dDevice < (uint32_t)FC41D_DEV_MAX);
 }
 
 static const char *frmProcPortGetLinkName(eFrmProcMapType proc)
@@ -95,6 +92,18 @@ static stRingBuffer *frmProcPortGetRxRingBuffer(void *userCtx)
     }
 
     return &gFrmProcPortRxRing[lProc];
+}
+
+static uint32_t frmProcPortHeadLen(const uint8_t *buf, uint32_t availLen, void *userCtx)
+{
+    (void)buf;
+    (void)userCtx;
+
+    if (availLen < 6U) {
+        return 0U;
+    }
+
+    return 6U;
 }
 
 static uint32_t frmProcPortPktLen(const uint8_t *buf, uint32_t headLen, uint32_t availLen, void *userCtx)
@@ -140,7 +149,7 @@ static uint32_t frmProcPortCalcCrc16(const uint8_t *buf, uint32_t len, void *use
 
 eFrmProcStatus frmProcLoadPlatformDefaultCfg(eFrmProcMapType proc, stFrmProcCfg *cfg)
 {
-    if ((cfg == NULL) || (frmProcPortGetHandle(proc) == NULL)) {
+    if ((cfg == NULL) || !frmProcPortIsBound(proc)) {
         return FRM_PROC_STATUS_INVALID_PARAM;
     }
 
@@ -159,6 +168,7 @@ eFrmProcStatus frmProcLoadPlatformDefaultCfg(eFrmProcMapType proc, stFrmProcCfg 
     cfg->protoCfg.crcFieldOff = -2;
     cfg->protoCfg.crcFieldLen = 2U;
     cfg->protoCfg.crcFieldEnd = FRM_PSR_CRC_END_BIG;
+    cfg->protoCfg.headLenFunc = frmProcPortHeadLen;
     cfg->protoCfg.pktLenFunc = frmProcPortPktLen;
     cfg->protoCfg.crcCalcFunc = frmProcPortCalcCrc16;
     cfg->protoCfg.getTick = repRtosGetTickMs;
@@ -180,9 +190,9 @@ eFrmProcStatus frmProcLoadPlatformDefaultCfg(eFrmProcMapType proc, stFrmProcCfg 
 
 eFrmProcStatus frmProcPlatformInit(eFrmProcMapType proc)
 {
-    UART_HandleTypeDef *lHandle = frmProcPortGetHandle(proc);
+    const stFrmProcPortBinding *lBinding = frmProcPortGetBinding(proc);
 
-    if ((lHandle == NULL) || (lHandle->Instance == NULL)) {
+    if ((lBinding == NULL) || !frmProcPortIsBound(proc) || !fc41dIsReady(lBinding->fc41dDevice)) {
         return FRM_PROC_STATUS_NOT_READY;
     }
 
@@ -191,8 +201,7 @@ eFrmProcStatus frmProcPlatformInit(eFrmProcMapType proc)
     }
 
     gFrmProcPortRxBytes[proc] = 0U;
-    __HAL_UART_CLEAR_IDLEFLAG(lHandle);
-    __HAL_UART_CLEAR_OREFLAG(lHandle);
+    (void)fc41dBleClearRx(lBinding->fc41dDevice);
     LOG_I(FRM_PROC_PORT_LOG_TAG,
 	      "proc=%u link=%s init ok rxCap=%u",
           (unsigned int)proc,
@@ -203,40 +212,44 @@ eFrmProcStatus frmProcPlatformInit(eFrmProcMapType proc)
 
 void frmProcPlatformPollRx(eFrmProcMapType proc)
 {
-    UART_HandleTypeDef *lHandle = frmProcPortGetHandle(proc);
-    uint8_t lByte;
+    const stFrmProcPortBinding *lBinding = frmProcPortGetBinding(proc);
+    uint32_t lReadCount;
+    uint32_t lIndex;
     uint8_t lFirstBytes[4];
-    uint32_t lReadCount = 0U;
+    uint32_t lTotalRead = 0U;
     uint32_t lFirstCount = 0U;
 
-    if ((lHandle == NULL) || (lHandle->Instance == NULL)) {
+    if ((lBinding == NULL) || !frmProcPortIsBound(proc) || !fc41dIsReady(lBinding->fc41dDevice)) {
         return;
     }
 
-    if (__HAL_UART_GET_FLAG(lHandle, UART_FLAG_ORE) != RESET) {
-        __HAL_UART_CLEAR_OREFLAG(lHandle);
-    }
-
-    while (__HAL_UART_GET_FLAG(lHandle, UART_FLAG_RXNE) != RESET) {
-        lByte = (uint8_t)(lHandle->Instance->DR & 0x00FFU);
-        if (lFirstCount < sizeof(lFirstBytes)) {
-            lFirstBytes[lFirstCount] = lByte;
-            lFirstCount++;
+    do {
+        lReadCount = fc41dBleRead(lBinding->fc41dDevice,
+                                  gFrmProcPortRxScratch[proc],
+                                  sizeof(gFrmProcPortRxScratch[proc]));
+        for (lIndex = 0U; lIndex < lReadCount; lIndex++) {
+            if (lFirstCount < sizeof(lFirstBytes)) {
+                lFirstBytes[lFirstCount] = gFrmProcPortRxScratch[proc][lIndex];
+                lFirstCount++;
+            }
         }
-        if (ringBufferWrite(&gFrmProcPortRxRing[proc], &lByte, 1U) != 1U) {
-            LOG_W(FRM_PROC_PORT_LOG_TAG, "proc=%u rx ring full", (unsigned int)proc);
-            break;
-        }
-        lReadCount++;
-    }
 
-    if (lReadCount > 0U) {
-        gFrmProcPortRxBytes[proc] += lReadCount;
+        if (lReadCount > 0U) {
+            if (ringBufferWrite(&gFrmProcPortRxRing[proc], gFrmProcPortRxScratch[proc], lReadCount) != lReadCount) {
+                LOG_W(FRM_PROC_PORT_LOG_TAG, "proc=%u rx ring full", (unsigned int)proc);
+                break;
+            }
+            lTotalRead += lReadCount;
+        }
+    } while (lReadCount == sizeof(gFrmProcPortRxScratch[proc]));
+
+    if (lTotalRead > 0U) {
+        gFrmProcPortRxBytes[proc] += lTotalRead;
         LOG_I(FRM_PROC_PORT_LOG_TAG,
               "proc=%u link=%s rx bytes=%u total=%u first=%02X %02X %02X %02X",
               (unsigned int)proc,
               frmProcPortGetLinkName(proc),
-              (unsigned int)lReadCount,
+              (unsigned int)lTotalRead,
               (unsigned int)gFrmProcPortRxBytes[proc],
               (unsigned int)(lFirstCount > 0U ? lFirstBytes[0] : 0U),
               (unsigned int)(lFirstCount > 1U ? lFirstBytes[1] : 0U),
@@ -247,7 +260,7 @@ void frmProcPlatformPollRx(eFrmProcMapType proc)
 
 eFrmProcStatus frmProcEnsurePlatformFmt(eFrmProcMapType proc, const stFrmProcCfg *cfg)
 {
-    if ((frmProcPortGetHandle(proc) == NULL) || (cfg == NULL) || (!frmPsrIsProtoCfgValid(&cfg->protoCfg))) {
+    if (!frmProcPortIsBound(proc) || (cfg == NULL) || (!frmPsrIsProtoCfgValid(&cfg->protoCfg))) {
         return FRM_PROC_STATUS_INVALID_PARAM;
     }
 
@@ -289,10 +302,11 @@ eFrmProcStatus frmProcBuildPlatformPkt(eFrmProcMapType proc, uint8_t cmd, const 
 
 static eFrmProcStatus frmProcPortTxFrame(eFrmProcMapType proc, const uint8_t *frameBuf, uint16_t frameLen)
 {
-    UART_HandleTypeDef *lHandle = frmProcPortGetHandle(proc);
+    const stFrmProcPortBinding *lBinding = frmProcPortGetBinding(proc);
+    eFc41dStatus lStatus;
     uint8_t lCmd = 0U;
 
-    if ((lHandle == NULL) || (lHandle->Instance == NULL) || (frameBuf == NULL) || (frameLen == 0U)) {
+    if ((lBinding == NULL) || !frmProcPortIsBound(proc) || (frameBuf == NULL) || (frameLen == 0U)) {
         return FRM_PROC_STATUS_INVALID_PARAM;
     }
 
@@ -300,14 +314,15 @@ static eFrmProcStatus frmProcPortTxFrame(eFrmProcMapType proc, const uint8_t *fr
         lCmd = frameBuf[3];
     }
 
-    if (HAL_UART_Transmit(lHandle, (uint8_t *)frameBuf, frameLen, FRM_PROC_PORT_UART_TX_TIMEOUT_MS) != HAL_OK) {
+    lStatus = fc41dBleSend(lBinding->fc41dDevice, frameBuf, frameLen);
+    if (lStatus != FC41D_STATUS_OK) {
         LOG_E(FRM_PROC_PORT_LOG_TAG,
           "proc=%u link=%s tx fail cmd=0x%02X len=%u",
               (unsigned int)proc,
           frmProcPortGetLinkName(proc),
               (unsigned int)lCmd,
               (unsigned int)frameLen);
-        return FRM_PROC_STATUS_ERROR;
+      return (eFrmProcStatus)lStatus;
     }
 
     if (lCmd != (uint8_t)FRM_PROC_CMD_CPR_DATA) {

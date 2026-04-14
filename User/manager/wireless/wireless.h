@@ -1,8 +1,8 @@
 /************************************************************************************
 * @file     : wireless.h
 * @brief    : Project-side wireless manager.
-* @details  : Wraps the FC41D module for initialization, periodic processing and
-*             status query in the current product.
+* @details  : Wraps the FC41D module for BLE initialization, periodic processing
+*             and status query in the current product.
 * @author   : 
 * @date     : 
 * @version  : 
@@ -24,14 +24,13 @@ extern "C" {
 #define WIRELESS_RESET_ASSERT_MS             20U
 #define WIRELESS_RESET_RELEASE_MS            200U
 #define WIRELESS_BOOT_READY_TIMEOUT_MS       3000U
-#define WIRELESS_AT_RX_CAPACITY              512U
-#define WIRELESS_AT_LINE_BUF_SIZE            256U
-#define WIRELESS_AT_CMD_BUF_SIZE             256U
-#define WIRELESS_AT_PAYLOAD_BUF_SIZE         256U
+#define WIRELESS_AT_RX_CAPACITY              256U
+#define WIRELESS_AT_LINE_BUF_SIZE            128U
+#define WIRELESS_AT_CMD_BUF_SIZE             128U
+#define WIRELESS_AT_PAYLOAD_BUF_SIZE         128U
 #define WIRELESS_BLE_RX_CAPACITY             512U
-#define WIRELESS_WIFI_RX_CAPACITY            512U
-#define WIRELESS_WIFI_RECONNECT_MS           3000U
-#define WIRELESS_WIFI_TCP_SERVER_PORT        5000U
+#define WIRELESS_BLE_FRAME_MAX_LEN           136U
+#define WIRELESS_UNUSED_RX_CAPACITY          1U
 
 typedef enum eWirelessState {
     eWIRELESS_STATE_INIT = 0,

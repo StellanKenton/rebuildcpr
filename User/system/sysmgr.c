@@ -29,6 +29,7 @@
 #include "../port/tm1651_port.h"
 #include "systask.h"
 #include "system.h"
+#include "../manager/comm/frameprocess/frameprocess.h"
 
 #define SYSTEM_LOG_TAG "systemManager"
 
@@ -109,6 +110,13 @@ static bool systemModuleInit(void)
 
     if (wirelessInit()) {
         LOG_I(SYSTEM_LOG_TAG, "wireless init ok");
+
+        if (frmProcInit(FRAME_PROC0) == FRM_PROC_STATUS_OK) {
+            LOG_I(SYSTEM_LOG_TAG, "frameprocess init ok");
+        } else {
+            lIsReady = false;
+            LOG_E(SYSTEM_LOG_TAG, "frameprocess init fail");
+        }
     } else {
         lIsReady = false;
         LOG_E(SYSTEM_LOG_TAG, "wireless init fail");

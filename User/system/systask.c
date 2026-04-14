@@ -16,6 +16,7 @@
 #include "system.h"
 #include "system_debug.h"
 #include "../../rep/driver/drvadc/drvadc.h"
+#include "../manager/comm/frameprocess/frameprocess.h"
 #include "../manager/power/power.h"
 #include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
@@ -114,6 +115,7 @@ static void wirelessTaskEntry(void *argument)
 
 	for (;;) {
 		wirelessProcess();
+		frmProcProcess(FRAME_PROC0);
 		(void)repRtosDelayMs(WirelessTaskInterval);
 	}
 }

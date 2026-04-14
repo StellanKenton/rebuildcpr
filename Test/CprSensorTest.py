@@ -16,7 +16,9 @@ import zlib
 import os
 
 DEFAULT_SERVICE_UUID = "0000fe60-0000-1000-8000-00805f9b34fb"
-DEFAULT_CHAR_UUID = "0000fe61-0000-1000-8000-00805f9b34fb"
+DEFAULT_WRITE_CHAR_UUID = "0000fe61-0000-1000-8000-00805f9b34fb"
+DEFAULT_NOTIFY_CHAR_UUID = "0000fe62-0000-1000-8000-00805f9b34fb"
+DEFAULT_CHAR_UUID = DEFAULT_WRITE_CHAR_UUID
 
 CMD_HANDSHAKE = 0x01
 CMD_HEARTBEAT = 0x03
@@ -446,6 +448,7 @@ class BLEDeviceManager:
         self.client = None
         self.loop = asyncio.new_event_loop()
         self.notification_characteristic = None
+        self.write_characteristic_uuid = DEFAULT_WRITE_CHAR_UUID
         self.update_callback = update_callback
         self.aes_key = b'0011223344556677'  # 改为字节类型
         self.handshake_completed = False
@@ -506,6 +509,7 @@ class BLEDeviceManager:
             await self.client.connect()
             self.connected_device = device
             self.notification_characteristic = None
+            self.write_characteristic_uuid = DEFAULT_WRITE_CHAR_UUID
             
             services = self.client.services
             self.update_callback("发现的服务:")
@@ -514,9 +518,24 @@ class BLEDeviceManager:
                 for char in service.characteristics:
                     self.update_callback(f"  特性: {char.uuid} - 属性: {char.properties}")
                     
-                    if "notify" in char.properties:
+                    if char.uuid.lower() == DEFAULT_WRITE_CHAR_UUID.lower() and (
+                        "write" in char.properties or "write-without-response" in char.properties
+                    ):
+                        self.write_characteristic_uuid = char.uuid
+
+                    if char.uuid.lower() == DEFAULT_NOTIFY_CHAR_UUID.lower() and "notify" in char.properties:
                         self.notification_characteristic = char
                         self.update_callback(f"找到通知特性: {char.uuid}")
+
+            if self.notification_characteristic is None:
+                for service in services:
+                    for char in service.characteristics:
+                        if "notify" in char.properties:
+                            self.notification_characteristic = char
+                            self.update_callback(f"找到通知特性: {char.uuid}")
+                            break
+                    if self.notification_characteristic is not None:
+                        break
             
             # 如果找到通知特性，启用通知
             if self.notification_characteristic:
@@ -740,8 +759,8 @@ class BLEDeviceManager:
                 data = data.encode('utf-8')
             
             # 如果没有指定UUID，尝试使用找到的通知特性
-            if not characteristic_uuid and self.notification_characteristic:
-                characteristic_uuid = self.notification_characteristic.uuid
+            if not characteristic_uuid:
+                characteristic_uuid = self.write_characteristic_uuid
             
             if not characteristic_uuid:
                 self.update_callback("未指定特性UUID")

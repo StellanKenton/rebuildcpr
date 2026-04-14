@@ -17,9 +17,6 @@
 extern "C" {
 #endif
 
-extern uint8_t gBspUartRxStorageDebug[DRVUART_RECVLEN_DEBUGUART];
-extern uint8_t gBspUartRxStorageAudio[DRVUART_RECVLEN_AUDIO];
-
 eDrvStatus bspUartInit(uint8_t uart);
 eDrvStatus bspUartTransmit(uint8_t uart, const uint8_t *buffer, uint16_t length, uint32_t timeoutMs);
 eDrvStatus bspUartTransmitIt(uint8_t uart, const uint8_t *buffer, uint16_t length);

@@ -7,7 +7,8 @@ from bleak import BleakClient, BleakScanner
 from Crypto.Cipher import AES
 
 DEFAULT_SERVICE_UUID = "0000fe60-0000-1000-8000-00805f9b34fb"
-DEFAULT_CHAR_UUID = "0000fe61-0000-1000-8000-00805f9b34fb"
+DEFAULT_WRITE_CHAR_UUID = "0000fe61-0000-1000-8000-00805f9b34fb"
+DEFAULT_NOTIFY_CHAR_UUID = "0000fe62-0000-1000-8000-00805f9b34fb"
 
 CMD_HANDSHAKE = 0x01
 CMD_HEARTBEAT = 0x03
@@ -65,7 +66,7 @@ class Candidate:
     advertisement: object
 
 
-async def probe_candidate(candidate: Candidate, service_uuid: str, char_uuid: str, timeout: float) -> bool:
+async def probe_candidate(candidate: Candidate, service_uuid: str, write_char_uuid: str, notify_char_uuid: str, timeout: float) -> bool:
     notifications = []
 
     def handle_notification(_: object, data: bytearray) -> None:
@@ -83,7 +84,7 @@ async def probe_candidate(candidate: Candidate, service_uuid: str, char_uuid: st
             target_char = None
             for service in client.services:
                 for characteristic in service.characteristics:
-                    if characteristic.uuid.lower() == char_uuid.lower():
+                    if characteristic.uuid.lower() == write_char_uuid.lower():
                         target_char = characteristic.uuid
                         break
                 if target_char is not None:
@@ -101,7 +102,7 @@ async def probe_candidate(candidate: Candidate, service_uuid: str, char_uuid: st
             notify_char = None
             for service in client.services:
                 for characteristic in service.characteristics:
-                    if characteristic.uuid.lower() == char_uuid.lower() and "notify" in characteristic.properties:
+                    if characteristic.uuid.lower() == notify_char_uuid.lower() and "notify" in characteristic.properties:
                         notify_char = characteristic.uuid
                         break
                 if notify_char is not None:
@@ -149,7 +150,8 @@ async def probe_candidate(candidate: Candidate, service_uuid: str, char_uuid: st
 async def main() -> int:
     parser = argparse.ArgumentParser(description="Probe nearby BLE devices against the current CPR sensor protocol")
     parser.add_argument("--service-uuid", default=DEFAULT_SERVICE_UUID)
-    parser.add_argument("--char-uuid", default=DEFAULT_CHAR_UUID)
+    parser.add_argument("--write-char-uuid", default=DEFAULT_WRITE_CHAR_UUID)
+    parser.add_argument("--notify-char-uuid", default=DEFAULT_NOTIFY_CHAR_UUID)
     parser.add_argument("--scan-timeout", type=float, default=8.0)
     parser.add_argument("--connect-timeout", type=float, default=10.0)
     parser.add_argument("--limit", type=int, default=12)
@@ -170,7 +172,11 @@ async def main() -> int:
         print(f"candidate address={candidate.device.address} name={candidate.device.name!r} rssi={candidate.advertisement.rssi} uuids={uuids}")
 
     for candidate in candidates[:args.limit]:
-        if await probe_candidate(candidate, args.service_uuid, args.char_uuid, args.connect_timeout):
+        if await probe_candidate(candidate,
+                                 args.service_uuid,
+                                 args.write_char_uuid,
+                                 args.notify_char_uuid,
+                                 args.connect_timeout):
             print(f"match address={candidate.device.address}")
             return 0
 

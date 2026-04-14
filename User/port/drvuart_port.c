@@ -27,7 +27,7 @@ static stDrvUartBspInterface gDrvUartBspInterface[DRVUART_MAX] = {
         .transmitDma = bspUartTransmitDma,
         .getDataLen = bspUartGetDataLen,
         .receive = bspUartReceive,
-        .Buffer = gBspUartRxStorageDebug,
+        .Buffer = gDrvUartRingStorageDebug,
     },
     [DRVUART_AUDIO] = {
         .init = bspUartInit,
@@ -36,7 +36,7 @@ static stDrvUartBspInterface gDrvUartBspInterface[DRVUART_MAX] = {
         .transmitDma = bspUartTransmitDma,
         .getDataLen = bspUartGetDataLen,
         .receive = bspUartReceive,
-        .Buffer = gBspUartRxStorageAudio,
+        .Buffer = gDrvUartRingStorageAudio,
     },
 };
 
