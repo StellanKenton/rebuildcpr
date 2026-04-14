@@ -11,6 +11,9 @@
 
 #include "main.h"
 
+#include "drvgpio.h"
+#include "drvgpio_port.h"
+
 typedef enum eTm1651LocalBus {
     TM1651_LOCAL_BUS0 = 0,
 } eTm1651LocalBus;
@@ -54,21 +57,17 @@ static void tm1651PortDelayUs(uint16_t delayUs)
 
 static void tm1651PortDriveScl(bool releaseHigh)
 {
-    HAL_GPIO_WritePin(MCU_LED_CLK_GPIO_Port,
-                      MCU_LED_CLK_Pin,
-                      releaseHigh ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    drvGpioWrite(DRVGPIO_TM1651_CLK, releaseHigh ? DRVGPIO_PIN_SET : DRVGPIO_PIN_RESET);
 }
 
 static void tm1651PortDriveSda(bool releaseHigh)
 {
-    HAL_GPIO_WritePin(MCU_LED_SDA_GPIO_Port,
-                      MCU_LED_SDA_Pin,
-                      releaseHigh ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    drvGpioWrite(DRVGPIO_TM1651_SDA, releaseHigh ? DRVGPIO_PIN_SET : DRVGPIO_PIN_RESET);
 }
 
 static bool tm1651PortReadSda(void)
 {
-    return HAL_GPIO_ReadPin(MCU_LED_SDA_GPIO_Port, MCU_LED_SDA_Pin) == GPIO_PIN_SET;
+    return drvGpioRead(DRVGPIO_TM1651_SDA) == DRVGPIO_PIN_SET;
 }
 
 static void tm1651PortSendStart(void)

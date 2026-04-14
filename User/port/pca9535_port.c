@@ -12,6 +12,9 @@
 #include "main.h"
 #include "rtos.h"
 
+#include "drvgpio.h"
+#include "drvgpio_port.h"
+
 typedef enum ePca9535LocalBus {
     PCA9535_LOCAL_BUS0 = 0,
 } ePca9535LocalBus;
@@ -56,21 +59,17 @@ static void pca9535PortDelayUs(uint16_t delayUs)
 
 static void pca9535PortDriveScl(bool releaseHigh)
 {
-    HAL_GPIO_WritePin(PCA9535_SCL_GPIO_Port,
-                      PCA9535_SCL_Pin,
-                      releaseHigh ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    drvGpioWrite(DRVGPIO_PCA9535_SCL, releaseHigh ? DRVGPIO_PIN_SET : DRVGPIO_PIN_RESET);
 }
 
 static void pca9535PortDriveSda(bool releaseHigh)
 {
-    HAL_GPIO_WritePin(PCA9535_SDA_GPIO_Port,
-                      PCA9535_SDA_Pin,
-                      releaseHigh ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    drvGpioWrite(DRVGPIO_PCA9535_SDA, releaseHigh ? DRVGPIO_PIN_SET : DRVGPIO_PIN_RESET);
 }
 
 static bool pca9535PortReadSda(void)
 {
-    return HAL_GPIO_ReadPin(PCA9535_SDA_GPIO_Port, PCA9535_SDA_Pin) == GPIO_PIN_SET;
+    return drvGpioRead(DRVGPIO_PCA9535_SDA) == DRVGPIO_PIN_SET;
 }
 
 static void pca9535PortSendStart(void)
@@ -270,14 +269,12 @@ uint8_t pca9535PlatformGetLinkId(ePca9535MapType device)
 
 void pca9535PlatformResetInit(void)
 {
-    HAL_GPIO_WritePin(PCA9535_RESET_GPIO_Port, PCA9535_RESET_Pin, GPIO_PIN_SET);
+    drvGpioWrite(DRVGPIO_PCA9535_RESET, DRVGPIO_PIN_SET);
 }
 
 void pca9535PlatformResetWrite(bool assertReset)
 {
-    HAL_GPIO_WritePin(PCA9535_RESET_GPIO_Port,
-                      PCA9535_RESET_Pin,
-                      assertReset ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    drvGpioWrite(DRVGPIO_PCA9535_RESET, assertReset ? DRVGPIO_PIN_RESET : DRVGPIO_PIN_SET);
 }
 
 uint32_t pca9535PlatformGetResetAssertDelayMs(void)

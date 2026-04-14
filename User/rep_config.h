@@ -52,7 +52,7 @@
 #endif
 
 #ifndef DRVGPIO_MAX
-#define DRVGPIO_MAX 6U
+#define DRVGPIO_MAX 10U
 #endif
 
 #ifndef DRVUSB_MAX

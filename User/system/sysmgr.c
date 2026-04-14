@@ -19,6 +19,7 @@
 #include "../../Core/Inc/tim.h"
 #include "../../Core/Inc/usart.h"
 
+#include "drvgpio.h"
 #include "../../rep/service/console/log.h"
 
 #include "../manager/power/power.h"
@@ -69,6 +70,8 @@ static void systemInitBsp(void)
 static bool systemModuleInit(void)
 {
     bool lIsReady = true;
+
+    drvGpioInit();
 
     lIsReady = selfCheckInit() && lIsReady;
     LOG_I(SYSTEM_LOG_TAG, "selfcheck init %s", lIsReady ? "ok" : "fail");

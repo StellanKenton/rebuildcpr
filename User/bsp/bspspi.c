@@ -12,13 +12,15 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "../rep_config.h"
+#include "drvgpio.h"
 #include "spi.h"
 
+#include "../port/drvgpio_port.h"
 #include "../port/drvspi_port.h"
 
 const stBspSpiCsPin gBspSpiBus0CsPin = {
-    .gpioPort = SPI_CS_GPIO_Port,
-    .gpioPin = SPI_CS_Pin,
+    .pin = DRVGPIO_SPI_CS,
     .isActiveLow = true,
 };
 
@@ -113,21 +115,19 @@ void bspSpiCsInit(void *context)
         return;
     }
 
-    HAL_GPIO_WritePin(pin->gpioPort,
-                      pin->gpioPin,
-                      pin->isActiveLow ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    drvGpioWrite(pin->pin, pin->isActiveLow ? DRVGPIO_PIN_SET : DRVGPIO_PIN_RESET);
 }
 
 void bspSpiCsWrite(void *context, bool isActive)
 {
     stBspSpiCsPin *pin = (stBspSpiCsPin *)context;
-    GPIO_PinState state;
+    eDrvGpioPinState lState;
 
     if (pin == NULL) {
         return;
     }
 
-    state = (isActive == pin->isActiveLow) ? GPIO_PIN_RESET : GPIO_PIN_SET;
-    HAL_GPIO_WritePin(pin->gpioPort, pin->gpioPin, state);
+    lState = (isActive == pin->isActiveLow) ? DRVGPIO_PIN_RESET : DRVGPIO_PIN_SET;
+    drvGpioWrite(pin->pin, lState);
 }
 /**************************End of file********************************/

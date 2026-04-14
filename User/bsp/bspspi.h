@@ -11,8 +11,8 @@
 #define REBUILDCPR_BSPSPI_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
-#include "main.h"
 #include "drvspi.h"
 
 #ifdef __cplusplus
@@ -20,8 +20,7 @@ extern "C" {
 #endif
 
 typedef struct stBspSpiCsPin {
-    GPIO_TypeDef *gpioPort;
-    uint16_t gpioPin;
+    uint8_t pin;
     bool isActiveLow;
 } stBspSpiCsPin;
 

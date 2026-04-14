@@ -782,22 +782,22 @@
             <File>
               <FileName>frameprocess.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\manager\wireless\frameprocess\frameprocess.c</FilePath>
+              <FilePath>..\User\manager\comm\frameprocess\frameprocess.c</FilePath>
             </File>
             <File>
               <FileName>frameprocess_data.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\manager\wireless\frameprocess\frameprocess_data.c</FilePath>
+              <FilePath>..\User\manager\comm\frameprocess\frameprocess_data.c</FilePath>
             </File>
             <File>
               <FileName>frameprocess_pack.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\manager\wireless\frameprocess\frameprocess_pack.c</FilePath>
+              <FilePath>..\User\manager\comm\frameprocess\frameprocess_pack.c</FilePath>
             </File>
             <File>
               <FileName>frameprocess_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\manager\wireless\frameprocess\frameprocess_port.c</FilePath>
+              <FilePath>..\User\manager\comm\frameprocess\frameprocess_port.c</FilePath>
             </File>
             <File>
               <FileName>sysmgr.c</FileName>

@@ -19,24 +19,29 @@
 extern "C" {
 #endif
 
-typedef enum eWirelessState {
-    eWIRELESS_STATE_UNINIT = 0,
-    eWIRELESS_STATE_READY,
-    eWIRELESS_STATE_ACTIVE,
-    eWIRELESS_STATE_FAULT,
-} eWirelessState;
+#define WIRELESS_LOG_TAG                     "wireless"
+#define WIRELESS_FC41D_DEVICE                FC41D_DEV0
+#define WIRELESS_RESET_ASSERT_MS             20U
+#define WIRELESS_RESET_RELEASE_MS            200U
+#define WIRELESS_BOOT_READY_TIMEOUT_MS       3000U
+#define WIRELESS_AT_RX_CAPACITY              512U
+#define WIRELESS_AT_LINE_BUF_SIZE            256U
+#define WIRELESS_AT_CMD_BUF_SIZE             256U
+#define WIRELESS_AT_PAYLOAD_BUF_SIZE         256U
+#define WIRELESS_BLE_RX_CAPACITY             512U
+#define WIRELESS_WIFI_RX_CAPACITY            512U
+#define WIRELESS_WIFI_RECONNECT_MS           3000U
+#define WIRELESS_WIFI_TCP_SERVER_PORT        5000U
 
-typedef struct stWirelessStatus {
-    eWirelessState state;
-    bool initStarted;
-    bool aliveCheckStarted;
-    stFc41dInfo fc41dInfo;
-    stFc41dTxnStatus txnStatus;
-} stWirelessStatus;
+typedef enum eWirelessState {
+    eWIRELESS_STATE_INIT = 0,
+    eWIRELESS_STATE_NORMAL,
+    eWIRELESS_STATE_ERROR,
+} eWirelessState;
 
 bool wirelessInit(void);
 void wirelessProcess(void);
-const stWirelessStatus *wirelessGetStatus(void);
+const eWirelessState *wirelessGetStatus(void);
 
 #ifdef __cplusplus
 }

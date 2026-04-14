@@ -10,6 +10,7 @@
 #ifndef REBUILDCPR_BSPGPIO_H
 #define REBUILDCPR_BSPGPIO_H
 
+#include "../rep_config.h"
 #include "drvgpio.h"
 
 #ifdef __cplusplus
