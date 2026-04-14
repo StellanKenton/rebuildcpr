@@ -13,9 +13,15 @@
 #include <string.h>
 
 #include "../../Core/Inc/main.h"
+#include "../../rep/driver/drvadc/drvadc_debug.h"
+#include "../../rep/driver/drvanlogiic/drvanlogiic_debug.h"
+#include "../../rep/driver/drviic/drviic_debug.h"
 #include "../../rep/service/console/console.h"
+#include "../../rep/service/console/log.h"
 #include "../rep_config.h"
 #include "system.h"
+
+#define SYSTEM_DEBUG_LOG_TAG "system_debug"
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
 #include "FreeRTOS.h"
@@ -45,6 +51,8 @@ static void systemDebugTaskUsageSampler(void *parameter);
 static eConsoleCommandResult systemDebugConsoleVersionHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleStatusHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleRebootHandler(uint32_t transport, int argc, char *argv[]);
+static bool gSystemDebugBackgroundServicesReady = false;
+
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
 static eConsoleCommandResult systemDebugConsoleTaskUsageHandler(uint32_t transport, int argc, char *argv[]);
 
@@ -332,6 +340,50 @@ static eConsoleCommandResult systemDebugConsoleRebootHandler(uint32_t transport,
     NVIC_SystemReset();
 
     return CONSOLE_COMMAND_RESULT_OK;
+}
+
+bool systemDebugBackgroundServicesInit(void)
+{
+    if (gSystemDebugBackgroundServicesReady) {
+        return true;
+    }
+
+    if (!logInit()) {
+        return false;
+    }
+
+    if (!consoleInit()) {
+        return false;
+    }
+
+    if (!systemDebugConsoleRegister()) {
+        return false;
+    }
+
+    if (!drvAnlogIicDebugConsoleRegister()) {
+        return false;
+    }
+
+    if (!drvAdcDebugConsoleRegister()) {
+        return false;
+    }
+
+    if (!drvIicDebugConsoleRegister()) {
+        return false;
+    }
+
+    gSystemDebugBackgroundServicesReady = true;
+    LOG_I(SYSTEM_DEBUG_LOG_TAG, "background console ready");
+    return true;
+}
+
+void systemDebugBackgroundServicesProcess(void)
+{
+    if (!gSystemDebugBackgroundServicesReady) {
+        return;
+    }
+
+    consoleProcess();
 }
 
 bool systemDebugConsoleRegister(void)

@@ -20,6 +20,8 @@ extern "C" {
 #define SYSTEM_DEBUG_CONSOLE_SUPPORT    1
 #endif
 
+bool systemDebugBackgroundServicesInit(void);
+void systemDebugBackgroundServicesProcess(void);
 bool systemDebugConsoleRegister(void);
 
 #ifdef __cplusplus

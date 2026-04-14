@@ -23,6 +23,7 @@
 
 #include "../manager/power/power.h"
 #include "../manager/selfcheck/selfcheck.h"
+#include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
 #include "systask.h"
@@ -99,6 +100,13 @@ static bool systemModuleInit(void)
         selfCheckSetPowerResult(false);
         lIsReady = false;
         LOG_E(SYSTEM_LOG_TAG, "power init fail");
+    }
+
+    if (wirelessInit()) {
+        LOG_I(SYSTEM_LOG_TAG, "wireless init ok");
+    } else {
+        lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "wireless init fail");
     }
 
     return lIsReady;

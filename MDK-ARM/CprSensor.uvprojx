@@ -745,6 +745,41 @@
               <FilePath>..\User\manager\wireless\wireless.c</FilePath>
             </File>
             <File>
+              <FileName>fc41d.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\fc41d\fc41d.c</FilePath>
+            </File>
+            <File>
+              <FileName>fc41d_at.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\fc41d\fc41d_at.c</FilePath>
+            </File>
+            <File>
+              <FileName>fc41d_ble.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\fc41d\fc41d_ble.c</FilePath>
+            </File>
+            <File>
+              <FileName>fc41d_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\fc41d\fc41d_wifi.c</FilePath>
+            </File>
+            <File>
+              <FileName>fc41d_mode.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\fc41d\fc41d_mode.c</FilePath>
+            </File>
+            <File>
+              <FileName>flowparser_stream.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\comm\flowparser\flowparser_stream.c</FilePath>
+            </File>
+            <File>
+              <FileName>flowparser_tokenizer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\comm\flowparser\flowparser_tokenizer.c</FilePath>
+            </File>
+            <File>
               <FileName>frameprocess.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\manager\wireless\frameprocess\frameprocess.c</FilePath>

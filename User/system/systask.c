@@ -15,12 +15,7 @@
 #include "sysmgr.h"
 #include "system.h"
 #include "system_debug.h"
-#include "../../rep/driver/drvadc/drvadc_debug.h"
 #include "../../rep/driver/drvadc/drvadc.h"
-#include "../../rep/driver/drvanlogiic/drvanlogiic_debug.h"
-#include "../../rep/driver/drviic/drviic_debug.h"
-#include "../../rep/service/console/console.h"
-#include "../../rep/service/console/log.h"
 #include "../manager/power/power.h"
 #include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
@@ -29,14 +24,7 @@
 #define SYSTASK_LOG_TAG "systask"
 #define SYSTASK_STACK_DEPTH_FROM_BYTES(bytes) ((uint32_t)(bytes) / (uint32_t)sizeof(uint32_t))
 
-static void systemCommTaskEntry(void *argument);
-static void systemMemoryTaskEntry(void *argument);
-static void systemPowerTaskEntry(void *argument);
-static void systemWirelessTaskEntry(void *argument);
-static void systemAudioTaskEntry(void *argument);
-
 static bool gSystaskWorkerTasksCreated = false;
-static bool gSystaskBackgroundServicesReady = false;
 
 static repRtosTaskHandle gSystemCommTaskHandle = NULL;
 static repRtosTaskHandle gSystemMemoryTaskHandle = NULL;
@@ -46,7 +34,7 @@ static repRtosTaskHandle gSystemAudioTaskHandle = NULL;
 
 static const stRepRtosTaskConfig gSystemCommTaskConfig = {
 	.name = "commTask",
-	.entry = systemCommTaskEntry,
+	.entry = commTaskEntry,
 	.argument = NULL,
 	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * CommTaskStackSize),
 	.priority = CommTaskPriority,
@@ -55,7 +43,7 @@ static const stRepRtosTaskConfig gSystemCommTaskConfig = {
 
 static const stRepRtosTaskConfig gSystemMemoryTaskConfig = {
 	.name = "memorytask",
-	.entry = systemMemoryTaskEntry,
+	.entry = memoryTaskEntry,
 	.argument = NULL,
 	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * MemoryTaskStackSize),
 	.priority = MemoryTaskPriority,
@@ -64,7 +52,7 @@ static const stRepRtosTaskConfig gSystemMemoryTaskConfig = {
 
 static const stRepRtosTaskConfig gSystemPowerTaskConfig = {
 	.name = "powertask",
-	.entry = systemPowerTaskEntry,
+	.entry = powerTaskEntry,
 	.argument = NULL,
 	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * PowerTaskStackSize),
 	.priority = PowerTaskPriority,
@@ -73,7 +61,7 @@ static const stRepRtosTaskConfig gSystemPowerTaskConfig = {
 
 static const stRepRtosTaskConfig gSystemWirelessTaskConfig = {
 	.name = "wirelessTask",
-	.entry = systemWirelessTaskEntry,
+	.entry = wirelessTaskEntry,
 	.argument = NULL,
 	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * WirelessTaskStackSize),
 	.priority = WirelessTaskPriority,
@@ -82,50 +70,15 @@ static const stRepRtosTaskConfig gSystemWirelessTaskConfig = {
 
 static const stRepRtosTaskConfig gSystemAudioTaskConfig = {
 	.name = "audioTask",
-	.entry = systemAudioTaskEntry,
+	.entry = audioTaskEntry,
 	.argument = NULL,
 	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * AudioTaskStackSize),
 	.priority = AudioTaskPriority,
 	.handle = &gSystemAudioTaskHandle,
 };
 
-static bool systaskInitBackgroundServices(void)
-{
-	if (gSystaskBackgroundServicesReady) {
-		return true;
-	}
 
-	if (!logInit()) {
-		return false;
-	}
-
-	if (!consoleInit()) {
-		return false;
-	}
-
-	if (!systemDebugConsoleRegister()) {
-		return false;
-	}
-
-	if (!drvAnlogIicDebugConsoleRegister()) {
-		return false;
-	}
-
-	if (!drvAdcDebugConsoleRegister()) {
-		return false;
-	}
-
-	if (!drvIicDebugConsoleRegister()) {
-		return false;
-	}
-
-	gSystaskBackgroundServicesReady = true;
-	LOG_I(SYSTASK_LOG_TAG, "background console ready");
-	return true;
-}
-
-
-static void systemCommTaskEntry(void *argument)
+static void commTaskEntry(void *argument)
 {
 	(void)argument;
 
@@ -135,7 +88,7 @@ static void systemCommTaskEntry(void *argument)
 	}
 }
 
-static void systemMemoryTaskEntry(void *argument)
+static void memoryTaskEntry(void *argument)
 {
 	(void)argument;
 
@@ -145,7 +98,7 @@ static void systemMemoryTaskEntry(void *argument)
 	}
 }
 
-static void systemPowerTaskEntry(void *argument)
+static void powerTaskEntry(void *argument)
 {
 	(void)argument;
 
@@ -155,17 +108,17 @@ static void systemPowerTaskEntry(void *argument)
 	}
 }
 
-static void systemWirelessTaskEntry(void *argument)
+static void wirelessTaskEntry(void *argument)
 {
 	(void)argument;
 
 	for (;;) {
-		
+		wirelessProcess();
 		(void)repRtosDelayMs(WirelessTaskInterval);
 	}
 }
 
-static void systemAudioTaskEntry(void *argument)
+static void audioTaskEntry(void *argument)
 {
 	(void)argument;
 
@@ -199,7 +152,7 @@ bool systaskCreateWorkerTasks(void)
 	return true;
 }
 
-void systaskRunSystemTask(void *argument)
+void systemTaskEntry(void *argument)
 {
 	(void)argument;
 	for (;;) {
@@ -207,8 +160,8 @@ void systaskRunSystemTask(void *argument)
 
         /***************Background Services*********************/
         drvAdcBackground();         // ADC background processing
-        if (systaskInitBackgroundServices()) {
-			consoleProcess();
+		if (systemDebugBackgroundServicesInit()) {
+			systemDebugBackgroundServicesProcess();
 		}
         /*******************************************************/
 		(void)repRtosDelayMs(SystemTaskInterval);

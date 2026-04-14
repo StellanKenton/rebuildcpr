@@ -1,7 +1,8 @@
 /************************************************************************************
 * @file     : wireless.h
-* @brief    : Wireless service entry.
-* @details  : Provides project wireless processing across bluetooth and wifi links.
+* @brief    : Project-side wireless manager.
+* @details  : Wraps the FC41D module for initialization, periodic processing and
+*             status query in the current product.
 * @author   : 
 * @date     : 
 * @version  : 
@@ -11,28 +12,31 @@
 #define REBUILDCPR_WIRELESS_H
 
 #include <stdbool.h>
-#include <stdint.h>
 
-#include "frameprocess/frameprocess.h"
+#include "../../../rep/module/fc41d/fc41d.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum eWirelessLink {
-    WIRELESS_LINK_BLUETOOTH = 0,
-    WIRELESS_LINK_WIFI,
-    WIRELESS_LINK_MAX,
-} eWirelessLinkType;
+typedef enum eWirelessState {
+    eWIRELESS_STATE_UNINIT = 0,
+    eWIRELESS_STATE_READY,
+    eWIRELESS_STATE_ACTIVE,
+    eWIRELESS_STATE_FAULT,
+} eWirelessState;
 
-bool wirelessIsReady(eWirelessLinkType link);
+typedef struct stWirelessStatus {
+    eWirelessState state;
+    bool initStarted;
+    bool aliveCheckStarted;
+    stFc41dInfo fc41dInfo;
+    stFc41dTxnStatus txnStatus;
+} stWirelessStatus;
+
+bool wirelessInit(void);
 void wirelessProcess(void);
-void wirelessProcessLink(eWirelessLinkType link);
-eFrmProcStatus wirelessPostSelfCheck(eWirelessLinkType link, const stFrmDataTxSelfCheck *data, bool isUrgent);
-eFrmProcStatus wirelessPostDisconnect(eWirelessLinkType link, bool isUrgent);
-eFrmProcStatus wirelessPostCprData(eWirelessLinkType link, const stFrmDataTxCprData *data, bool isUrgent);
-const stFrmDataRxStore *wirelessGetRxStore(eWirelessLinkType link);
-void wirelessClearRxFlags(eWirelessLinkType link, uint32_t flags);
+const stWirelessStatus *wirelessGetStatus(void);
 
 #ifdef __cplusplus
 }

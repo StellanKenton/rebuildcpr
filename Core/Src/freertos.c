@@ -163,7 +163,7 @@ void SystemTask(void *argument)
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN DefaultTask */
-  systaskRunSystemTask(argument);
+  systemTaskEntry(argument);
   /* USER CODE END SystemTask */
 }
 
