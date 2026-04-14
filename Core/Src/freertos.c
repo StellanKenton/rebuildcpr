@@ -54,8 +54,8 @@
 osThreadId_t systemTaskHandle;
 const osThreadAttr_t systemTask_attributes = {
   .name = "systemTask",
-  .stack_size = 64 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .stack_size = 128 * SystemTaskStackSize,
+  .priority = (osPriority_t) SystemTaskPriority,
 };
 /* Definitions for testQueue */
 osMessageQueueId_t testQueueHandle;
@@ -74,6 +74,7 @@ const osMutexAttr_t testMutex_attributes = {
 /* USER CODE END FunctionPrototypes */
 
 void SystemTask(void *argument);
+void BackgroundTask(void *argument);
 
 extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
@@ -142,7 +143,6 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-  (void)systaskCreateBackgroundTask();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

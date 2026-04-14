@@ -137,8 +137,15 @@ static void systemInitMode(void)
 **/
 static void systemPowerupSelfCheckMode(void)
 {
-    (void)systaskCreateWorkerTasks();
-    systemSetMode(eSYSTEM_STANDBY_MODE);
+    static bool lSelfCheckCompleted = false;
+
+    // jump
+    lSelfCheckCompleted = true;
+
+    if(lSelfCheckCompleted) {
+        (void)systaskCreateWorkerTasks();
+        systemSetMode(eSYSTEM_STANDBY_MODE);
+    }
 }
 
 /**

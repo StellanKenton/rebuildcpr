@@ -16,6 +16,7 @@
 #include "system.h"
 #include "system_debug.h"
 #include "../../rep/driver/drvadc/drvadc_debug.h"
+#include "../../rep/driver/drvadc/drvadc.h"
 #include "../../rep/driver/drvanlogiic/drvanlogiic_debug.h"
 #include "../../rep/driver/drviic/drviic_debug.h"
 #include "../../rep/service/console/console.h"
@@ -33,7 +34,6 @@ static void systemMemoryTaskEntry(void *argument);
 static void systemPowerTaskEntry(void *argument);
 static void systemWirelessTaskEntry(void *argument);
 static void systemAudioTaskEntry(void *argument);
-static void systemBackgroundTaskEntry(void *argument);
 
 static bool gSystaskWorkerTasksCreated = false;
 static bool gSystaskBackgroundServicesReady = false;
@@ -43,7 +43,6 @@ static repRtosTaskHandle gSystemMemoryTaskHandle = NULL;
 static repRtosTaskHandle gSystemPowerTaskHandle = NULL;
 static repRtosTaskHandle gSystemWirelessTaskHandle = NULL;
 static repRtosTaskHandle gSystemAudioTaskHandle = NULL;
-static repRtosTaskHandle gSystemBackgroundTaskHandle = NULL;
 
 static const stRepRtosTaskConfig gSystemCommTaskConfig = {
 	.name = "commTask",
@@ -90,27 +89,6 @@ static const stRepRtosTaskConfig gSystemAudioTaskConfig = {
 	.handle = &gSystemAudioTaskHandle,
 };
 
-static const stRepRtosTaskConfig gSystemBackgroundTaskConfig = {
-	.name = "backgroundTask",
-	.entry = systemBackgroundTaskEntry,
-	.argument = NULL,
-	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * BackgroundTaskStackSize),
-	.priority = BackgroundTaskPriority,
-	.handle = &gSystemBackgroundTaskHandle,
-};
-
-static void systaskCommProcess(void)
-{
-}
-
-static void systaskMemoryProcess(void)
-{
-}
-
-static void systaskAudioProcess(void)
-{
-}
-
 static bool systaskInitBackgroundServices(void)
 {
 	if (gSystaskBackgroundServicesReady) {
@@ -152,7 +130,7 @@ static void systemCommTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systaskCommProcess();
+		
 		(void)repRtosDelayMs(CommTaskInterval);
 	}
 }
@@ -162,7 +140,7 @@ static void systemMemoryTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systaskMemoryProcess();
+		
 		(void)repRtosDelayMs(MemoryTaskInterval);
 	}
 }
@@ -172,7 +150,7 @@ static void systemPowerTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		powerProcess();
+		
 		(void)repRtosDelayMs(PowerTaskInterval);
 	}
 }
@@ -182,7 +160,7 @@ static void systemWirelessTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		wirelessProcess();
+		
 		(void)repRtosDelayMs(WirelessTaskInterval);
 	}
 }
@@ -192,23 +170,9 @@ static void systemAudioTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		systaskAudioProcess();
+		
 		(void)repRtosDelayMs(AudioTaskInterval);
 	}
-}
-
-static void systemBackgroundTaskEntry(void *argument)
-{
-	systaskRunBackgroundTask(argument);
-}
-
-bool systaskCreateBackgroundTask(void)
-{
-	if (gSystemBackgroundTaskHandle != NULL) {
-		return true;
-	}
-
-	return repRtosTaskCreate(&gSystemBackgroundTaskConfig) == REP_RTOS_STATUS_OK;
 }
 
 bool systaskCreateWorkerTasks(void)
@@ -222,16 +186,12 @@ bool systaskCreateWorkerTasks(void)
 	(void)repRtosTaskCreate(&gSystemPowerTaskConfig);
 	(void)repRtosTaskCreate(&gSystemWirelessTaskConfig);
 	(void)repRtosTaskCreate(&gSystemAudioTaskConfig);
-	if (!systaskCreateBackgroundTask()) {
-		return false;
-	}
 
 	if ((gSystemCommTaskHandle == NULL) ||
 		(gSystemMemoryTaskHandle == NULL) ||
 		(gSystemPowerTaskHandle == NULL) ||
 		(gSystemWirelessTaskHandle == NULL) ||
-		(gSystemAudioTaskHandle == NULL) ||
-		(gSystemBackgroundTaskHandle == NULL)) {
+		(gSystemAudioTaskHandle == NULL)) {
 		return false;
 	}
 
@@ -243,21 +203,15 @@ void systaskRunSystemTask(void *argument)
 {
 	(void)argument;
 	for (;;) {
-		systemManagerRun();
-		(void)repRtosDelayMs(SystemTaskInterval);
-	}
-}
+		systemManagerRun();         // System Manager
 
-void systaskRunBackgroundTask(void *argument)
-{
-	(void)argument;
-
-	for (;;) {
-		if (systaskInitBackgroundServices()) {
+        /***************Background Services*********************/
+        drvAdcBackground();         // ADC background processing
+        if (systaskInitBackgroundServices()) {
 			consoleProcess();
 		}
-		
-		(void)repRtosDelayMs(BackgroundTaskInterval);
+        /*******************************************************/
+		(void)repRtosDelayMs(SystemTaskInterval);
 	}
 }
 
