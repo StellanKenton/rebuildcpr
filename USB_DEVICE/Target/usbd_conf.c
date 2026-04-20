@@ -20,11 +20,14 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+#include <stdio.h>
 #include "stm32f1xx.h"
 #include "stm32f1xx_hal.h"
 #include "usbd_def.h"
 #include "usbd_core.h"
 #include "usbd_cdc.h"
+
+#include "SEGGER_RTT.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -36,6 +39,7 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+static uint32_t gUsbSetupTraceCount = 0U;
 
 /* USER CODE END PV */
 
@@ -54,6 +58,21 @@ void Error_Handler(void);
 /* Private functions ---------------------------------------------------------*/
 static USBD_StatusTypeDef USBD_Get_USB_Status(HAL_StatusTypeDef hal_status);
 /* USER CODE BEGIN 1 */
+static void usbTraceCoreState(const char *pTag, PCD_HandleTypeDef *hpcd)
+{
+  char lBuffer[96];
+
+  snprintf(
+      lBuffer,
+      sizeof(lBuffer),
+      "[usb] %s ISTR=%04x EP0R=%04x CNTR=%04x DADDR=%04x\r\n",
+      pTag,
+      hpcd->Instance->ISTR,
+      hpcd->Instance->EP0R,
+      hpcd->Instance->CNTR,
+      hpcd->Instance->DADDR);
+  SEGGER_RTT_WriteString(0, lBuffer);
+}
 
 /* USER CODE END 1 */
 #if (USE_HAL_PCD_REGISTER_CALLBACKS == 1U)
@@ -82,6 +101,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
     HAL_NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
     HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
+    SEGGER_RTT_WriteString(0, "[usb] HAL_PCD_MspInit\r\n");
   /* USER CODE BEGIN USB_MspInit 1 */
 
   /* USER CODE END USB_MspInit 1 */
@@ -120,6 +140,28 @@ static void PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  char lBuffer[96];
+
+  if (gUsbSetupTraceCount < 8U)
+  {
+    snprintf(
+        lBuffer,
+        sizeof(lBuffer),
+        "[usb] SETUP #%lu bm=%02x req=%02x val=%02x%02x idx=%02x%02x len=%02x%02x\r\n",
+        gUsbSetupTraceCount,
+        hpcd->Setup[0],
+        hpcd->Setup[1],
+        hpcd->Setup[3],
+        hpcd->Setup[2],
+        hpcd->Setup[5],
+        hpcd->Setup[4],
+        hpcd->Setup[7],
+        hpcd->Setup[6]);
+    SEGGER_RTT_WriteString(0, lBuffer);
+    usbTraceCoreState("SETUP regs", hpcd);
+    gUsbSetupTraceCount++;
+  }
+
   USBD_LL_SetupStage((USBD_HandleTypeDef*)hpcd->pData, (uint8_t *)hpcd->Setup);
 }
 
@@ -180,6 +222,9 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
 {
   USBD_SpeedTypeDef speed = USBD_SPEED_FULL;
 
+  SEGGER_RTT_WriteString(0, "[usb] HAL_PCD_ResetCallback\r\n");
+  usbTraceCoreState("RESET before", hpcd);
+
   if ( hpcd->Init.speed != PCD_SPEED_FULL)
   {
     Error_Handler();
@@ -189,6 +234,7 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
 
   /* Reset Device. */
   USBD_LL_Reset((USBD_HandleTypeDef*)hpcd->pData);
+  usbTraceCoreState("RESET after", hpcd);
 }
 
 /**
@@ -274,6 +320,7 @@ static void PCD_ConnectCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_ConnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  SEGGER_RTT_WriteString(0, "[usb] HAL_PCD_ConnectCallback\r\n");
   USBD_LL_DevConnected((USBD_HandleTypeDef*)hpcd->pData);
 }
 
@@ -288,6 +335,7 @@ static void PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  SEGGER_RTT_WriteString(0, "[usb] HAL_PCD_DisconnectCallback\r\n");
   USBD_LL_DevDisconnected((USBD_HandleTypeDef*)hpcd->pData);
 }
 
@@ -302,6 +350,7 @@ void HAL_PCD_DisconnectCallback(PCD_HandleTypeDef *hpcd)
   */
 USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 {
+  SEGGER_RTT_WriteString(0, "[usb] USBD_LL_Init enter\r\n");
   /* Init USB Ip. */
   /* Link the driver to the stack. */
   hpcd_USB_FS.pData = pdev;
@@ -342,6 +391,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x01 , PCD_SNG_BUF, 0x110);
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x82 , PCD_SNG_BUF, 0x100);
   /* USER CODE END EndPoint_Configuration_CDC */
+  SEGGER_RTT_WriteString(0, "[usb] USBD_LL_Init done\r\n");
   return USBD_OK;
 }
 
@@ -620,15 +670,20 @@ static void PCDEx_SetConnectionState(PCD_HandleTypeDef *hpcd, uint8_t state)
 void HAL_PCDEx_SetConnectionState(PCD_HandleTypeDef *hpcd, uint8_t state)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  (void)hpcd;
   /* USER CODE BEGIN 6 */
   if (state == 1)
   {
     /* Configure Low connection state. */
+    HAL_GPIO_WritePin(USB_Select_GPIO_Port, USB_Select_Pin, GPIO_PIN_SET);
+    SEGGER_RTT_WriteString(0, "[usb] connect state=1\r\n");
 
   }
   else
   {
     /* Configure High connection state. */
+    HAL_GPIO_WritePin(USB_Select_GPIO_Port, USB_Select_Pin, GPIO_PIN_RESET);
+    SEGGER_RTT_WriteString(0, "[usb] connect state=0\r\n");
 
   }
   /* USER CODE END 6 */

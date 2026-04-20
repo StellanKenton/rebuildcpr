@@ -25,6 +25,7 @@ typedef enum eDrvGpioPinMap {
     DRVGPIO_TM1651_CLK,
     DRVGPIO_TM1651_SDA,
     DRVGPIO_SPI_CS,
+    DRVGPIO_POWER_ON_CTRL,
 } eDrvGpioPinMap;
 
 #ifdef __cplusplus

@@ -83,6 +83,12 @@ static const stBspGpioMap gBspGpioMap[DRVGPIO_MAX] = {
         .isOutput = true,
         .defaultState = DRVGPIO_PIN_SET,
     },
+    [DRVGPIO_POWER_ON_CTRL] = {
+        .gpioPort = Power_ON_Ctrl_GPIO_Port,
+        .gpioPin = Power_ON_Ctrl_Pin,
+        .isOutput = true,
+        .defaultState = DRVGPIO_PIN_RESET,
+    },
 };
 
 void bspGpioInit(void)

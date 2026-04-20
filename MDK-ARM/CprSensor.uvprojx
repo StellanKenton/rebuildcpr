@@ -735,6 +735,11 @@
               <FilePath>..\User\manager\selfcheck\selfcheck.c</FilePath>
             </File>
             <File>
+              <FileName>memory.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\memory\memory.c</FilePath>
+            </File>
+            <File>
               <FileName>update.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\manager\update\update.c</FilePath>
@@ -932,12 +937,12 @@
             <File>
               <FileName>console.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\rep\service\console\console.c</FilePath>
+              <FilePath>..\rep\service\log\console.c</FilePath>
             </File>
             <File>
               <FileName>log.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\rep\service\console\log.c</FilePath>
+              <FilePath>..\rep\service\log\log.c</FilePath>
             </File>
             <File>
               <FileName>rtos.c</FileName>
@@ -973,6 +978,11 @@
               <FileName>drvuart_port.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\port\drvuart_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>fc41dport.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\fc41dport.c</FilePath>
             </File>
             <File>
               <FileName>drvusb_port.c</FileName>

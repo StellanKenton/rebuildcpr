@@ -17,6 +17,7 @@
 #include "system_debug.h"
 #include "../../rep/driver/drvadc/drvadc.h"
 #include "../manager/comm/frameprocess/frameprocess.h"
+#include "../manager/memory/memory.h"
 #include "../manager/power/power.h"
 #include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
@@ -84,7 +85,7 @@ static void commTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		
+		frmProcProcess(FRAME_PROC0);
 		(void)repRtosDelayMs(CommTaskInterval);
 	}
 }
@@ -94,7 +95,7 @@ static void memoryTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		
+		memoryProcess();
 		(void)repRtosDelayMs(MemoryTaskInterval);
 	}
 }
@@ -115,7 +116,6 @@ static void wirelessTaskEntry(void *argument)
 
 	for (;;) {
 		wirelessProcess();
-		frmProcProcess(FRAME_PROC0);
 		(void)repRtosDelayMs(WirelessTaskInterval);
 	}
 }

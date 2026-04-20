@@ -7,7 +7,7 @@
 * @version  : 
 * @copyright: Copyright (c) 2050
 **********************************************************************************/
-#include "../../rep/service/console/log.h"
+#include "../../rep/service/log/log.h"
 
 #include "../bsp/bsp_rtt.h"
 

@@ -16,8 +16,8 @@
 #include "../../rep/driver/drvadc/drvadc_debug.h"
 #include "../../rep/driver/drvanlogiic/drvanlogiic_debug.h"
 #include "../../rep/driver/drviic/drviic_debug.h"
-#include "../../rep/service/console/console.h"
-#include "../../rep/service/console/log.h"
+#include "../../rep/service/log/console.h"
+#include "../../rep/service/log/log.h"
 #include "../rep_config.h"
 #include "system.h"
 
@@ -137,7 +137,7 @@ static eConsoleCommandResult systemDebugReplyTaskUsageSample(uint32_t transport,
         return CONSOLE_COMMAND_RESULT_ERROR;
     }
 
-    if (consoleReply(transport,
+    if (logConsoleReply(transport,
         "sample %lu/%lu window=%lums",
         (unsigned long)(sampleIndex + 1U),
         (unsigned long)SYSTEM_DEBUG_TASK_USAGE_SAMPLE_COUNT,
@@ -163,7 +163,7 @@ static eConsoleCommandResult systemDebugReplyTaskUsageSample(uint32_t transport,
             ((uint64_t)totalRunTimeDelta / 2ULL)) /
             (uint64_t)totalRunTimeDelta);
         lTaskName = (currentTaskStats[lIndex].pcTaskName != NULL) ? currentTaskStats[lIndex].pcTaskName : "unknown";
-        if (consoleReply(transport,
+        if (logConsoleReply(transport,
             "%s: %lu.%lu%%",
             lTaskName,
             (unsigned long)(lUsagePercentX10 / 10U),
@@ -188,7 +188,7 @@ static void systemDebugTaskUsageSampler(void *parameter)
         SYSTEM_DEBUG_TASK_USAGE_MAX_TASKS,
         &lContext->previousTaskCount,
         &lContext->previousTotalRunTime)) {
-        (void)consoleReply(lTransport, "ERROR: task runtime stats unavailable");
+        (void)logConsoleReply(lTransport, "ERROR: task runtime stats unavailable");
         gSystemDebugTaskUsageHandle = NULL;
         vTaskDelete(NULL);
         return;
@@ -202,12 +202,12 @@ static void systemDebugTaskUsageSampler(void *parameter)
             SYSTEM_DEBUG_TASK_USAGE_MAX_TASKS,
             &lContext->currentTaskCount,
             &lContext->currentTotalRunTime)) {
-            (void)consoleReply(lTransport, "ERROR: task runtime stats unavailable");
+            (void)logConsoleReply(lTransport, "ERROR: task runtime stats unavailable");
             break;
         }
 
         if (lContext->currentTotalRunTime <= lContext->previousTotalRunTime) {
-            (void)consoleReply(lTransport, "ERROR: invalid runtime stats window");
+            (void)logConsoleReply(lTransport, "ERROR: invalid runtime stats window");
             break;
         }
 
@@ -228,7 +228,7 @@ static void systemDebugTaskUsageSampler(void *parameter)
         lContext->previousTotalRunTime = lContext->currentTotalRunTime;
     }
 
-    (void)consoleReply(lTransport, "top done");
+    (void)logConsoleReply(lTransport, "top done");
     gSystemDebugTaskUsageHandle = NULL;
     vTaskDelete(NULL);
 }
@@ -242,7 +242,7 @@ static eConsoleCommandResult systemDebugConsoleTaskUsageHandler(uint32_t transpo
     }
 
     if (gSystemDebugTaskUsageHandle != NULL) {
-        if (consoleReply(transport, "ERROR: top sampler busy") <= 0) {
+        if (logConsoleReply(transport, "ERROR: top sampler busy") <= 0) {
             return CONSOLE_COMMAND_RESULT_ERROR;
         }
         return CONSOLE_COMMAND_RESULT_OK;
@@ -257,7 +257,7 @@ static eConsoleCommandResult systemDebugConsoleTaskUsageHandler(uint32_t transpo
         return CONSOLE_COMMAND_RESULT_ERROR;
     }
 
-    if (consoleReply(transport,
+    if (logConsoleReply(transport,
         "top started: %lums x %lu",
         (unsigned long)SYSTEM_DEBUG_TASK_USAGE_SAMPLE_PERIOD_MS,
         (unsigned long)SYSTEM_DEBUG_TASK_USAGE_SAMPLE_COUNT) <= 0) {
@@ -283,7 +283,7 @@ static eConsoleCommandResult systemDebugConsoleVersionHandler(uint32_t transport
         return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
     }
 
-    if (consoleReply(transport,
+    if (logConsoleReply(transport,
         "Firmware: %s\nVersion: %s\nHardware: %s\nOK",
         systemGetFirmwareName(),
         systemGetFirmwareVersion(),
@@ -309,7 +309,7 @@ static eConsoleCommandResult systemDebugConsoleStatusHandler(uint32_t transport,
         return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
     }
 
-    if (consoleReply(transport,
+    if (logConsoleReply(transport,
         "Mode: %s\nOK",
         systemGetModeString(systemGetMode())) <= 0) {
         return CONSOLE_COMMAND_RESULT_ERROR;
@@ -326,7 +326,7 @@ static eConsoleCommandResult systemDebugConsoleRebootHandler(uint32_t transport,
         return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
     }
 
-    if (consoleReply(transport, "rebooting...") <= 0) {
+    if (logConsoleReply(transport, "rebooting...") <= 0) {
         return CONSOLE_COMMAND_RESULT_ERROR;
     }
 
@@ -349,10 +349,6 @@ bool systemDebugBackgroundServicesInit(void)
     }
 
     if (!logInit()) {
-        return false;
-    }
-
-    if (!consoleInit()) {
         return false;
     }
 
@@ -383,39 +379,39 @@ void systemDebugBackgroundServicesProcess(void)
         return;
     }
 
-    consoleProcess();
+    ConsoleBackGournd();
 }
 
 bool systemDebugConsoleRegister(void)
 {
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
-    if (!consoleRegisterCommand(&gSystemVersionConsoleCommand)) {
+    if (!logRegisterConsole(&gSystemVersionConsoleCommand)) {
         return false;
     }
 
-    if (!consoleRegisterCommand(&gSystemStatusConsoleCommand)) {
+    if (!logRegisterConsole(&gSystemStatusConsoleCommand)) {
         return false;
     }
 
-    if (!consoleRegisterCommand(&gSystemRebootConsoleCommand)) {
+    if (!logRegisterConsole(&gSystemRebootConsoleCommand)) {
         return false;
     }
 
-    if (!consoleRegisterCommand(&gSystemTaskUsageConsoleCommand)) {
+    if (!logRegisterConsole(&gSystemTaskUsageConsoleCommand)) {
         return false;
     }
 
     return true;
 #elif (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1)
-    if (!consoleRegisterCommand(&gSystemVersionConsoleCommand)) {
+    if (!logRegisterConsole(&gSystemVersionConsoleCommand)) {
         return false;
     }
 
-    if (!consoleRegisterCommand(&gSystemStatusConsoleCommand)) {
+    if (!logRegisterConsole(&gSystemStatusConsoleCommand)) {
         return false;
     }
 
-    if (!consoleRegisterCommand(&gSystemRebootConsoleCommand)) {
+    if (!logRegisterConsole(&gSystemRebootConsoleCommand)) {
         return false;
     }
 

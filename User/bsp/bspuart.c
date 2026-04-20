@@ -13,10 +13,11 @@
 #include <stddef.h>
 
 #include "usart.h"
+#include "../../rep/service/rtos/rtos.h"
 
 #include "../port/drvuart_port.h"
 
-static uint8_t gBspUartRxStorageDebug[DRVUART_RECVLEN_DEBUGUART];
+static uint8_t gBspUartRxStorageWifi[DRVUART_RECVLEN_WIFI];
 static uint8_t gBspUartRxStorageAudio[DRVUART_RECVLEN_AUDIO];
 
 typedef struct stBspUartRxContext {
@@ -29,18 +30,19 @@ typedef struct stBspUartRxContext {
     uint16_t dmaCapacity;
     volatile uint16_t pendingLength;
     volatile uint8_t pendingRx;
+    volatile uint8_t txBusy;
 } stBspUartRxContext;
 
-static uint8_t gBspUartRxDmaDebug[DRVUART_RECVLEN_DEBUGUART];
+static uint8_t gBspUartRxDmaWifi[DRVUART_RECVLEN_WIFI];
 static uint8_t gBspUartRxDmaAudio[DRVUART_RECVLEN_AUDIO];
 
 static stBspUartRxContext gBspUartRxContext[DRVUART_MAX] = {
-    [DRVUART_DEBUG] = {
+    [DRVUART_WIFI] = {
         .handle = &huart4,
-        .storage = gBspUartRxStorageDebug,
-        .capacity = (uint16_t)sizeof(gBspUartRxStorageDebug),
-        .dmaBuffer = gBspUartRxDmaDebug,
-        .dmaCapacity = (uint16_t)sizeof(gBspUartRxDmaDebug),
+        .storage = gBspUartRxStorageWifi,
+        .capacity = (uint16_t)sizeof(gBspUartRxStorageWifi),
+        .dmaBuffer = gBspUartRxDmaWifi,
+        .dmaCapacity = (uint16_t)sizeof(gBspUartRxDmaWifi),
     },
     [DRVUART_AUDIO] = {
         .handle = &huart2,
@@ -78,6 +80,15 @@ static eDrvStatus bspUartStatusFromHal(HAL_StatusTypeDef halStatus)
         default:
             return DRV_STATUS_ERROR;
     }
+}
+
+static uint32_t bspUartGetTickMs(void)
+{
+    if (repRtosIsSchedulerRunning()) {
+        return repRtosGetTickMs();
+    }
+
+    return HAL_GetTick();
 }
 
 static stBspUartRxContext *bspUartGetContext(uint8_t uart)
@@ -135,6 +146,57 @@ static eDrvStatus bspUartStartRxDma(stBspUartRxContext *context)
     return DRV_STATUS_OK;
 }
 
+static eDrvStatus bspUartStartTxDma(stBspUartRxContext *context, const uint8_t *buffer, uint16_t length)
+{
+    HAL_StatusTypeDef lHalStatus;
+    uint32_t lPrimask;
+
+    if ((context == NULL) || (context->handle == NULL) || (context->handle->Instance == NULL) || (buffer == NULL) || (length == 0U)) {
+        return DRV_STATUS_INVALID_PARAM;
+    }
+
+    lPrimask = bspUartEnterCritical();
+    if (context->txBusy != 0U) {
+        bspUartExitCritical(lPrimask);
+        return DRV_STATUS_BUSY;
+    }
+    context->txBusy = 1U;
+    bspUartExitCritical(lPrimask);
+
+    lHalStatus = HAL_UART_Transmit_DMA(context->handle, (uint8_t *)buffer, length);
+    if (lHalStatus != HAL_OK) {
+        lPrimask = bspUartEnterCritical();
+        context->txBusy = 0U;
+        bspUartExitCritical(lPrimask);
+    }
+
+    return bspUartStatusFromHal(lHalStatus);
+}
+
+static eDrvStatus bspUartWaitTxDone(stBspUartRxContext *context, uint32_t timeoutMs)
+{
+    uint32_t lStartTick;
+
+    if (context == NULL) {
+        return DRV_STATUS_INVALID_PARAM;
+    }
+
+    lStartTick = bspUartGetTickMs();
+    while (context->txBusy != 0U) {
+        if (timeoutMs == 0U) {
+            continue;
+        }
+
+        if ((uint32_t)(bspUartGetTickMs() - lStartTick) >= timeoutMs) {
+            (void)HAL_UART_AbortTransmit(context->handle);
+            context->txBusy = 0U;
+            return DRV_STATUS_TIMEOUT;
+        }
+    }
+
+    return DRV_STATUS_OK;
+}
+
 static void bspUartWriteRawData(stBspUartRxContext *context, const uint8_t *buffer, uint16_t length)
 {
     uint16_t lRemaining = length;
@@ -178,11 +240,16 @@ eDrvStatus bspUartInit(uint8_t uart)
 
     context->head = 0U;
     context->tail = 0U;
+    context->txBusy = 0U;
     (void)memset(context->storage, 0, context->capacity);
     (void)memset(context->dmaBuffer, 0, context->dmaCapacity);
 
     if (context->handle->RxState != HAL_UART_STATE_READY) {
         (void)HAL_UART_AbortReceive(context->handle);
+    }
+
+    if (context->handle->gState != HAL_UART_STATE_READY) {
+        (void)HAL_UART_AbortTransmit(context->handle);
     }
 
     return bspUartStartRxDma(context);
@@ -191,13 +258,18 @@ eDrvStatus bspUartInit(uint8_t uart)
 eDrvStatus bspUartTransmit(uint8_t uart, const uint8_t *buffer, uint16_t length, uint32_t timeoutMs)
 {
     stBspUartRxContext *context = bspUartGetContext(uart);
-    UART_HandleTypeDef *handle = (context != NULL) ? context->handle : NULL;
+    eDrvStatus lStatus;
 
-    if ((handle == NULL) || (buffer == NULL) || (length == 0U)) {
+    if ((context == NULL) || (context->handle == NULL) || (buffer == NULL) || (length == 0U)) {
         return DRV_STATUS_INVALID_PARAM;
     }
 
-    return bspUartStatusFromHal(HAL_UART_Transmit(handle, (uint8_t *)buffer, length, timeoutMs));
+    lStatus = bspUartStartTxDma(context, buffer, length);
+    if (lStatus != DRV_STATUS_OK) {
+        return lStatus;
+    }
+
+    return bspUartWaitTxDone(context, timeoutMs);
 }
 
 eDrvStatus bspUartTransmitIt(uint8_t uart, const uint8_t *buffer, uint16_t length)
@@ -215,13 +287,12 @@ eDrvStatus bspUartTransmitIt(uint8_t uart, const uint8_t *buffer, uint16_t lengt
 eDrvStatus bspUartTransmitDma(uint8_t uart, const uint8_t *buffer, uint16_t length)
 {
     stBspUartRxContext *context = bspUartGetContext(uart);
-    UART_HandleTypeDef *handle = (context != NULL) ? context->handle : NULL;
 
-    if ((handle == NULL) || (buffer == NULL) || (length == 0U)) {
+    if ((context == NULL) || (context->handle == NULL) || (buffer == NULL) || (length == 0U)) {
         return DRV_STATUS_INVALID_PARAM;
     }
 
-    return bspUartStatusFromHal(HAL_UART_Transmit_DMA(handle, (uint8_t *)buffer, length));
+    return bspUartStartTxDma(context, buffer, length);
 }
 
 uint16_t bspUartGetDataLen(uint8_t uart)
@@ -336,10 +407,23 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         return;
     }
 
+    context->txBusy = 0U;
+
     if ((huart->ErrorCode & HAL_UART_ERROR_ORE) != 0U) {
         __HAL_UART_CLEAR_OREFLAG(huart);
     }
 
     (void)bspUartStartRxDma(context);
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    stBspUartRxContext *context = bspUartGetContextByHandle(huart);
+
+    if (context == NULL) {
+        return;
+    }
+
+    context->txBusy = 0U;
 }
 /**************************End of file********************************/

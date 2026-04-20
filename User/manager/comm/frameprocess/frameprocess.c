@@ -1,609 +1,270 @@
-/************************************************************************************
+/***********************************************************************************
 * @file     : frameprocess.c
-* @brief    : Framed protocol process service implementation.
+* @brief    : Project-side USB communication manager implementation.
+* @details  : Uses the reusable drvusb abstraction to expose a simple CDC-backed
+*             communication path for the current product.
+* @author   : 
+* @date     : 
+* @version  : 
 * @copyright: Copyright (c) 2050
-***********************************************************************************/
+**********************************************************************************/
 #include "frameprocess.h"
 
 #include <string.h>
 
-#include "../../../../rep/service/console/log.h"
-#include "frameprocess_pack.h"
+#include "drvusb.h"
+#include "ringbuffer.h"
+#include "rtos.h"
 
-#define FRM_PROC_TAG  "FrmProc"
+#include "../../../../rep/service/log/log.h"
+#include "../../../port/drvusb_port.h"
 
-static void frmProcLogRxFrame(eFrmProcMapType proc, uint8_t cmd, uint16_t payloadLen);
+typedef struct stFrmProcContext {
+    bool isInitialized;
+    stFrmProcInfo info;
+    stRingBuffer rxRingBuffer;
+    uint8_t rxStorage[FRM_PROC_RX_BUFFER_SIZE];
+    uint8_t ioBuffer[FRM_PROC_IO_CHUNK_SIZE];
+} stFrmProcContext;
 
-extern eFrmProcStatus frmProcLoadPlatformDefaultCfg(eFrmProcMapType proc, stFrmProcCfg *cfg);
-extern eFrmProcStatus frmProcPlatformInit(eFrmProcMapType proc);
-extern void frmProcPlatformPollRx(eFrmProcMapType proc);
-extern eFrmProcStatus frmProcEnsurePlatformFmt(eFrmProcMapType proc, const stFrmProcCfg *cfg);
-extern eFrmProcStatus frmProcBuildPlatformPkt(eFrmProcMapType proc, uint8_t cmd, const uint8_t *payloadBuf, uint16_t payloadLen, uint8_t *pktBuf, uint16_t pktBufSize, uint16_t *pktLen);
+static stFrmProcContext gFrmProcContext[FRAME_PROC_COUNT];
 
-__attribute__((weak)) eFrmProcStatus frmProcLoadPlatformDefaultCfg(eFrmProcMapType proc, stFrmProcCfg *cfg)
+static bool frmProcIsValid(uint8_t process)
 {
-    (void)proc;
-    (void)cfg;
-    return FRM_PROC_STATUS_UNSUPPORTED;
+    return process < FRAME_PROC_COUNT;
 }
 
-__attribute__((weak)) eFrmProcStatus frmProcPlatformInit(eFrmProcMapType proc)
+static eFrmProcStatus frmProcMapDrvStatus(eDrvStatus status)
 {
-    (void)proc;
-    return FRM_PROC_STATUS_UNSUPPORTED;
+    switch (status) {
+        case DRV_STATUS_OK:
+            return FRM_PROC_STATUS_OK;
+        case DRV_STATUS_INVALID_PARAM:
+            return FRM_PROC_STATUS_INVALID_PARAM;
+        case DRV_STATUS_NOT_READY:
+        case DRV_STATUS_UNSUPPORTED:
+            return FRM_PROC_STATUS_NOT_READY;
+        case DRV_STATUS_BUSY:
+            return FRM_PROC_STATUS_BUSY;
+        case DRV_STATUS_TIMEOUT:
+            return FRM_PROC_STATUS_TIMEOUT;
+        default:
+            return FRM_PROC_STATUS_ERROR;
+    }
 }
 
-__attribute__((weak)) void frmProcPlatformPollRx(eFrmProcMapType proc)
+static stFrmProcContext *frmProcGetContext(uint8_t process)
 {
-    (void)proc;
-}
-
-__attribute__((weak)) eFrmProcStatus frmProcEnsurePlatformFmt(eFrmProcMapType proc, const stFrmProcCfg *cfg)
-{
-    (void)proc;
-    (void)cfg;
-    return FRM_PROC_STATUS_UNSUPPORTED;
-}
-
-__attribute__((weak)) eFrmProcStatus frmProcBuildPlatformPkt(eFrmProcMapType proc, uint8_t cmd, const uint8_t *payloadBuf, uint16_t payloadLen, uint8_t *pktBuf, uint16_t pktBufSize, uint16_t *pktLen)
-{
-    (void)proc;
-    (void)cmd;
-    (void)payloadBuf;
-    (void)payloadLen;
-    (void)pktBuf;
-    (void)pktBufSize;
-    (void)pktLen;
-    return FRM_PROC_STATUS_UNSUPPORTED;
-}
-
-static stFrmProcCfg gFrmProcCfg[FRAME_PROC_MAX];
-static bool gFrmProcHasCfg[FRAME_PROC_MAX];
-static stFrmProcCtx gFrmProcCtx[FRAME_PROC_MAX];
-
-static bool frmProcIsValidProc(eFrmProcMapType proc);
-static stFrmProcCtx *frmProcGetCtx(eFrmProcMapType proc);
-static eFrmProcStatus frmProcEnsureCfgLoaded(eFrmProcMapType proc);
-static uint32_t frmProcGetTickMs(const stFrmProcCtx *ctx);
-static bool frmProcNeedsAckByCmd(uint8_t cmd);
-static bool frmProcNeedsAckByFrame(const uint8_t *frameBuf, uint16_t frameLen);
-static bool frmProcIsAckMatch(stFrmProcCtx *ctx, const uint8_t *frameBuf, uint16_t frameLen);
-static void frmProcMarkAckReceived(stFrmProcCtx *ctx);
-static eFrmProcStatus frmProcQueueFrame(stRingBuffer *ringBuf, const uint8_t *frameBuf, uint16_t frameLen);
-static bool frmProcPeekFrame(const stRingBuffer *ringBuf, uint8_t *recordBuf, uint16_t recordBufSize, uint8_t *frameBuf, uint16_t frameBufSize, uint16_t *frameLen);
-static void frmProcDiscardQueuedFrame(stRingBuffer *ringBuf, uint16_t frameLen);
-static eFrmProcStatus frmProcBuildAndQueueTx(stFrmProcCtx *ctx, eFrmProcMapType proc, uint8_t cmd, uint32_t flagMask);
-static void frmProcProcessRx(eFrmProcMapType proc, stFrmProcCtx *ctx);
-static void frmProcBuildPendingTx(eFrmProcMapType proc, stFrmProcCtx *ctx);
-static void frmProcProcessAckTimeout(eFrmProcMapType proc, stFrmProcCtx *ctx);
-static void frmProcProcessTx(eFrmProcMapType proc, stFrmProcCtx *ctx);
-
-static void frmProcLogRxFrame(eFrmProcMapType proc, uint8_t cmd, uint16_t payloadLen)
-{
-    LOG_I(FRM_PROC_TAG,
-          "proc=%u rx cmd=0x%02X payload=%u",
-          (unsigned int)proc,
-          (unsigned int)cmd,
-          (unsigned int)payloadLen);
-}
-
-static bool frmProcIsValidProc(eFrmProcMapType proc)
-{
-    return ((uint32_t)proc < (uint32_t)FRAME_PROC_MAX);
-}
-
-static stFrmProcCtx *frmProcGetCtx(eFrmProcMapType proc)
-{
-    if (!frmProcIsValidProc(proc)) {
+    if (!frmProcIsValid(process)) {
         return NULL;
     }
 
-    return &gFrmProcCtx[proc];
+    return &gFrmProcContext[process];
 }
 
-static eFrmProcStatus frmProcEnsureCfgLoaded(eFrmProcMapType proc)
+static void frmProcRefreshState(stFrmProcContext *context)
 {
-    if (!frmProcIsValidProc(proc)) {
-        return FRM_PROC_STATUS_INVALID_PARAM;
-    }
-
-    if (!gFrmProcHasCfg[proc]) {
-        if (frmProcLoadPlatformDefaultCfg(proc, &gFrmProcCfg[proc]) != FRM_PROC_STATUS_OK) {
-            return FRM_PROC_STATUS_ERROR;
-        }
-        gFrmProcHasCfg[proc] = true;
-    }
-
-    return FRM_PROC_STATUS_OK;
-}
-
-static uint32_t frmProcGetTickMs(const stFrmProcCtx *ctx)
-{
-    if ((ctx == NULL) || (ctx->cfg.getTick == NULL)) {
-        return 0U;
-    }
-
-    return ctx->cfg.getTick();
-}
-
-static bool frmProcNeedsAckByCmd(uint8_t cmd)
-{
-    return cmd == (uint8_t)FRM_PROC_CMD_HANDSHAKE;
-}
-
-static bool frmProcNeedsAckByFrame(const uint8_t *frameBuf, uint16_t frameLen)
-{
-    if ((frameBuf == NULL) || (frameLen < 4U)) {
-        return false;
-    }
-
-    return frmProcNeedsAckByCmd(frameBuf[3]);
-}
-
-static bool frmProcIsAckMatch(stFrmProcCtx *ctx, const uint8_t *frameBuf, uint16_t frameLen)
-{
-    if ((ctx == NULL) || (!ctx->ackState.isWaiting) || (frameBuf == NULL)) {
-        return false;
-    }
-
-    if (ctx->ackState.frameLen != frameLen) {
-        return false;
-    }
-
-    return memcmp(ctx->ackState.frameBuf, frameBuf, frameLen) == 0;
-}
-
-static void frmProcMarkAckReceived(stFrmProcCtx *ctx)
-{
-    if (ctx == NULL) {
+    if ((context == NULL) || !context->isInitialized) {
         return;
     }
 
-    (void)memset(&ctx->ackState, 0, sizeof(ctx->ackState));
-    ctx->runFlags.bits.isWaitingAck = 0U;
-    ctx->rxStore.flags.bits.ackFrame = 1U;
+    context->info.isConnected = drvUsbIsConnected(DRVUSB_DEV0);
+    context->info.isConfigured = drvUsbIsConfigured(DRVUSB_DEV0);
+
+    if (context->info.isConfigured) {
+        context->info.state = eFRM_PROC_STATE_RUNNING;
+    } else if (context->info.isConnected) {
+        context->info.state = eFRM_PROC_STATE_READY;
+    } else {
+        context->info.state = eFRM_PROC_STATE_READY;
+    }
 }
 
-static eFrmProcStatus frmProcQueueFrame(stRingBuffer *ringBuf, const uint8_t *frameBuf, uint16_t frameLen)
+eFrmProcStatus frmProcInit(uint8_t process)
 {
-    uint8_t lHeader[FRM_PROC_QUEUE_RECORD_OVERHEAD];
-    uint32_t lNeedSize;
+    stFrmProcContext *context;
+    eDrvStatus lDrvStatus;
 
-    if ((ringBuf == NULL) || (frameBuf == NULL) || (frameLen == 0U)) {
+    context = frmProcGetContext(process);
+    if (context == NULL) {
         return FRM_PROC_STATUS_INVALID_PARAM;
     }
 
-    lNeedSize = (uint32_t)frameLen + FRM_PROC_QUEUE_RECORD_OVERHEAD;
-    if (ringBufferGetFree(ringBuf) < lNeedSize) {
-        return FRM_PROC_STATUS_NO_SPACE;
+    if (context->isInitialized) {
+        frmProcRefreshState(context);
+        return FRM_PROC_STATUS_OK;
     }
 
-    lHeader[0] = (uint8_t)((frameLen >> 8U) & 0xFFU);
-    lHeader[1] = (uint8_t)(frameLen & 0xFFU);
-    if (ringBufferWrite(ringBuf, lHeader, sizeof(lHeader)) != sizeof(lHeader)) {
-        return FRM_PROC_STATUS_ERROR;
-    }
-    if (ringBufferWrite(ringBuf, frameBuf, frameLen) != frameLen) {
+    (void)memset(context, 0, sizeof(*context));
+    if (ringBufferInit(&context->rxRingBuffer, context->rxStorage, sizeof(context->rxStorage)) != RINGBUFFER_OK) {
+        context->info.state = eFRM_PROC_STATE_ERROR;
         return FRM_PROC_STATUS_ERROR;
     }
 
+    lDrvStatus = drvUsbInit(DRVUSB_DEV0);
+    if (lDrvStatus != DRV_STATUS_OK) {
+        context->info.state = eFRM_PROC_STATE_ERROR;
+        LOG_E(FRM_PROC_LOG_TAG, "usb init fail status=%d", (int)lDrvStatus);
+        return frmProcMapDrvStatus(lDrvStatus);
+    }
+
+    lDrvStatus = drvUsbStart(DRVUSB_DEV0);
+    if (lDrvStatus != DRV_STATUS_OK) {
+        context->info.state = eFRM_PROC_STATE_ERROR;
+        LOG_E(FRM_PROC_LOG_TAG, "usb start fail status=%d", (int)lDrvStatus);
+        return frmProcMapDrvStatus(lDrvStatus);
+    }
+
+    lDrvStatus = drvUsbDisconnect(DRVUSB_DEV0);
+    if ((lDrvStatus != DRV_STATUS_OK) && (lDrvStatus != DRV_STATUS_UNSUPPORTED)) {
+        context->info.state = eFRM_PROC_STATE_ERROR;
+        LOG_E(FRM_PROC_LOG_TAG, "usb disconnect fail status=%d", (int)lDrvStatus);
+        return frmProcMapDrvStatus(lDrvStatus);
+    }
+
+    (void)repRtosDelayMs(20U);
+
+    lDrvStatus = drvUsbConnect(DRVUSB_DEV0);
+    if ((lDrvStatus != DRV_STATUS_OK) && (lDrvStatus != DRV_STATUS_UNSUPPORTED)) {
+        context->info.state = eFRM_PROC_STATE_ERROR;
+        LOG_E(FRM_PROC_LOG_TAG, "usb connect fail status=%d", (int)lDrvStatus);
+        return frmProcMapDrvStatus(lDrvStatus);
+    }
+
+    context->isInitialized = true;
+    context->info.state = eFRM_PROC_STATE_READY;
+    frmProcRefreshState(context);
+    LOG_I(FRM_PROC_LOG_TAG, "usb comm init ok");
     return FRM_PROC_STATUS_OK;
 }
 
-static bool frmProcPeekFrame(const stRingBuffer *ringBuf, uint8_t *recordBuf, uint16_t recordBufSize, uint8_t *frameBuf, uint16_t frameBufSize, uint16_t *frameLen)
+void frmProcProcess(uint8_t process)
 {
-    uint16_t lFrameLen;
-    uint32_t lNeedSize;
+    stFrmProcContext *context;
 
-    if ((ringBuf == NULL) || (recordBuf == NULL) || (frameBuf == NULL) || (frameLen == NULL)) {
-        return false;
-    }
-
-    if (ringBufferGetUsed(ringBuf) < FRM_PROC_QUEUE_RECORD_OVERHEAD) {
-        return false;
-    }
-
-    if (ringBufferPeek(ringBuf, recordBuf, FRM_PROC_QUEUE_RECORD_OVERHEAD) != FRM_PROC_QUEUE_RECORD_OVERHEAD) {
-        return false;
-    }
-
-    lFrameLen = (uint16_t)(((uint16_t)recordBuf[0] << 8U) | (uint16_t)recordBuf[1]);
-    lNeedSize = (uint32_t)lFrameLen + FRM_PROC_QUEUE_RECORD_OVERHEAD;
-    if ((lFrameLen == 0U) || (lFrameLen > frameBufSize) || (lNeedSize > recordBufSize) || (ringBufferGetUsed(ringBuf) < lNeedSize)) {
-        return false;
-    }
-
-    if (ringBufferPeek(ringBuf, recordBuf, lNeedSize) != lNeedSize) {
-        return false;
-    }
-
-    (void)memcpy(frameBuf, &recordBuf[FRM_PROC_QUEUE_RECORD_OVERHEAD], lFrameLen);
-    *frameLen = lFrameLen;
-    return true;
-}
-
-static void frmProcDiscardQueuedFrame(stRingBuffer *ringBuf, uint16_t frameLen)
-{
-    if ((ringBuf == NULL) || (frameLen == 0U)) {
+    context = frmProcGetContext(process);
+    if ((context == NULL) || !context->isInitialized) {
         return;
     }
 
-    (void)ringBufferDiscard(ringBuf, (uint32_t)frameLen + FRM_PROC_QUEUE_RECORD_OVERHEAD);
-}
+    frmProcRefreshState(context);
+    while (context->info.isConnected) {
+        uint16_t lActualLength = 0U;
+        uint32_t lWrittenLength;
+        eDrvStatus lDrvStatus;
 
-static eFrmProcStatus frmProcBuildAndQueueTx(stFrmProcCtx *ctx, eFrmProcMapType proc, uint8_t cmd, uint32_t flagMask)
-{
-    uint16_t lPayloadLen;
-    uint16_t lFrameLen;
-    bool lIsUrgent;
-    stRingBuffer *lTargetRb;
-
-    if (ctx == NULL) {
-        return FRM_PROC_STATUS_INVALID_PARAM;
-    }
-
-    if (!frmProcDataBuildTx(cmd, &ctx->txStore, ctx->txPayloadBuf, sizeof(ctx->txPayloadBuf), &lPayloadLen)) {
-        return FRM_PROC_STATUS_BUILD_ERROR;
-    }
-
-    if (frmProcBuildPlatformPkt(proc, cmd, ctx->txPayloadBuf, lPayloadLen, ctx->txFrameBuf, sizeof(ctx->txFrameBuf), &lFrameLen) != FRM_PROC_STATUS_OK) {
-        return FRM_PROC_STATUS_BUILD_ERROR;
-    }
-
-    lIsUrgent = (ctx->txUrgentMask & flagMask) != 0U;
-    lTargetRb = lIsUrgent ? &ctx->urgentTxRb : &ctx->normalTxRb;
-    if (frmProcQueueFrame(lTargetRb, ctx->txFrameBuf, lFrameLen) != FRM_PROC_STATUS_OK) {
-        return FRM_PROC_STATUS_NO_SPACE;
-    }
-
-    ctx->txStore.flags.value &= ~flagMask;
-    ctx->txUrgentMask &= ~flagMask;
-    return FRM_PROC_STATUS_OK;
-}
-
-static void frmProcProcessRx(eFrmProcMapType proc, stFrmProcCtx *ctx)
-{
-    stFrmPsrPkt lPacket;
-    eFrmPsrSta lPsrStatus;
-    uint16_t lPayloadLen;
-    uint8_t lCmd;
-    uint32_t lCount;
-
-    frmProcPlatformPollRx(proc);
-    for (lCount = 0U; lCount < FRM_PROC_MAX_RX_PER_CALL; lCount++) {
-        lPsrStatus = frmPsrProc(&ctx->parser, &lPacket);
-        if (lPsrStatus != FRM_PSR_OK) {
-            if ((lPsrStatus != FRM_PSR_EMPTY) && (lPsrStatus != FRM_PSR_NEED_MORE_DATA) && (lPsrStatus != FRM_PSR_HEAD_NOT_FOUND)) {
-                LOG_W(FRM_PROC_TAG, "Parser status=%d", (int)lPsrStatus);
+        lDrvStatus = drvUsbReceiveTimeout(DRVUSB_DEV0,
+                                          DRVUSB_PORT_CDC_DATA_OUT_EP,
+                                          context->ioBuffer,
+                                          (uint16_t)sizeof(context->ioBuffer),
+                                          &lActualLength,
+                                          0U);
+        if ((lDrvStatus != DRV_STATUS_OK) || (lActualLength == 0U)) {
+            if ((lDrvStatus != DRV_STATUS_TIMEOUT) && (lDrvStatus != DRV_STATUS_NOT_READY)) {
+                context->info.state = eFRM_PROC_STATE_ERROR;
             }
             break;
         }
 
-        if ((lPacket.buf == NULL) || (lPacket.len < 8U)) {
-            frmPsrFreePkt(&ctx->parser);
-            continue;
+        lWrittenLength = ringBufferWrite(&context->rxRingBuffer, context->ioBuffer, lActualLength);
+        context->info.rxBytes += lActualLength;
+        if (lWrittenLength < lActualLength) {
+            context->info.dropBytes += (uint32_t)(lActualLength - lWrittenLength);
+            LOG_W(FRM_PROC_LOG_TAG,
+                  "usb rx drop=%u",
+                  (unsigned int)(lActualLength - lWrittenLength));
         }
 
-        if (frmProcIsAckMatch(ctx, lPacket.buf, lPacket.len)) {
-            LOG_I(FRM_PROC_TAG, "proc=%u ack rx len=%u", (unsigned int)proc, (unsigned int)lPacket.len);
-            frmProcMarkAckReceived(ctx);
-            frmPsrFreePkt(&ctx->parser);
-            continue;
-        }
-
-        lCmd = lPacket.buf[3];
-        lPayloadLen = (uint16_t)(((uint16_t)lPacket.buf[4] << 8U) | (uint16_t)lPacket.buf[5]);
-        if ((uint16_t)(6U + lPayloadLen + 2U) != lPacket.len) {
-            frmPsrFreePkt(&ctx->parser);
-            continue;
-        }
-
-        frmProcLogRxFrame(proc, lCmd, lPayloadLen);
-
-        if (frmProcNeedsAckByCmd(lCmd)) {
-            if (lPacket.len <= sizeof(ctx->immediateAckBuf)) {
-                (void)memcpy(ctx->immediateAckBuf, lPacket.buf, lPacket.len);
-                ctx->immediateAckLen = lPacket.len;
-                ctx->runFlags.bits.hasImmediateAck = 1U;
-            }
-        }
-
-        if (!frmProcDataParseRx(lCmd, &lPacket.buf[6], lPayloadLen, &ctx->rxStore)) {
-            LOG_W(FRM_PROC_TAG, "RX decode fail cmd=0x%02X len=%u", (unsigned int)lCmd, (unsigned int)lPayloadLen);
-            frmPsrFreePkt(&ctx->parser);
-            continue;
-        }
-
-        if (!frmProcPackOnRx(ctx, lCmd)) {
-            LOG_W(FRM_PROC_TAG, "Pack handle fail cmd=0x%02X", (unsigned int)lCmd);
-        }
-
-        frmPsrFreePkt(&ctx->parser);
+        frmProcRefreshState(context);
     }
 }
 
-static void frmProcBuildPendingTx(eFrmProcMapType proc, stFrmProcCtx *ctx)
+eFrmProcStatus frmProcSend(uint8_t process, const uint8_t *buffer, uint16_t length)
 {
-    if ((ctx->txStore.flags.value & FRM_PROC_TX_FLAG_HANDSHAKE_MASK) != 0U) {
-        if (frmProcBuildAndQueueTx(ctx, proc, FRM_PROC_CMD_HANDSHAKE, FRM_PROC_TX_FLAG_HANDSHAKE_MASK) != FRM_PROC_STATUS_OK) {
-            return;
-        }
-    }
-    if ((ctx->txStore.flags.value & FRM_PROC_TX_FLAG_HEARTBEAT_MASK) != 0U) {
-        if (frmProcBuildAndQueueTx(ctx, proc, FRM_PROC_CMD_HEARTBEAT, FRM_PROC_TX_FLAG_HEARTBEAT_MASK) != FRM_PROC_STATUS_OK) {
-            return;
-        }
-    }
-    if ((ctx->txStore.flags.value & FRM_PROC_TX_FLAG_DISCONNECT_MASK) != 0U) {
-        if (frmProcBuildAndQueueTx(ctx, proc, FRM_PROC_CMD_DISCONNECT, FRM_PROC_TX_FLAG_DISCONNECT_MASK) != FRM_PROC_STATUS_OK) {
-            return;
-        }
-    }
-    if ((ctx->txStore.flags.value & FRM_PROC_TX_FLAG_SELFCHECK_MASK) != 0U) {
-        if (frmProcBuildAndQueueTx(ctx, proc, FRM_PROC_CMD_SELF_CHECK, FRM_PROC_TX_FLAG_SELFCHECK_MASK) != FRM_PROC_STATUS_OK) {
-            return;
-        }
-    }
-    if ((ctx->txStore.flags.value & FRM_PROC_TX_FLAG_DEVICEINFO_MASK) != 0U) {
-        if (frmProcBuildAndQueueTx(ctx, proc, FRM_PROC_CMD_GET_DEVICE_INFO, FRM_PROC_TX_FLAG_DEVICEINFO_MASK) != FRM_PROC_STATUS_OK) {
-            return;
-        }
-    }
-    if ((ctx->txStore.flags.value & FRM_PROC_TX_FLAG_BLEINFO_MASK) != 0U) {
-        if (frmProcBuildAndQueueTx(ctx, proc, FRM_PROC_CMD_GET_BLE_INFO, FRM_PROC_TX_FLAG_BLEINFO_MASK) != FRM_PROC_STATUS_OK) {
-            return;
-        }
-    }
-    if ((ctx->txStore.flags.value & FRM_PROC_TX_FLAG_CPRDATA_MASK) != 0U) {
-        (void)frmProcBuildAndQueueTx(ctx, proc, FRM_PROC_CMD_CPR_DATA, FRM_PROC_TX_FLAG_CPRDATA_MASK);
-    }
-}
+    stFrmProcContext *context;
+    eDrvStatus lDrvStatus;
 
-static void frmProcProcessAckTimeout(eFrmProcMapType proc, stFrmProcCtx *ctx)
-{
-    uint32_t lNow;
-
-    if ((ctx == NULL) || (!ctx->ackState.isWaiting)) {
-        return;
-    }
-
-    lNow = frmProcGetTickMs(ctx);
-    if ((uint32_t)(lNow - ctx->ackState.sendTickMs) < ctx->ackState.timeoutMs) {
-        return;
-    }
-
-    if (ctx->ackState.retryCount >= ctx->ackState.maxRetryCount) {
-        LOG_W(FRM_PROC_TAG, "ACK timeout give up len=%u", (unsigned int)ctx->ackState.frameLen);
-        (void)memset(&ctx->ackState, 0, sizeof(ctx->ackState));
-        ctx->runFlags.bits.isWaitingAck = 0U;
-        return;
-    }
-
-    if (ctx->cfg.txFrame(proc, ctx->ackState.frameBuf, ctx->ackState.frameLen) == FRM_PROC_STATUS_OK) {
-        ctx->ackState.retryCount++;
-        ctx->ackState.sendTickMs = lNow;
-        LOG_W(FRM_PROC_TAG,
-              "proc=%u ack retry=%u len=%u",
-              (unsigned int)proc,
-              (unsigned int)ctx->ackState.retryCount,
-              (unsigned int)ctx->ackState.frameLen);
-    }
-}
-
-static void frmProcProcessTx(eFrmProcMapType proc, stFrmProcCtx *ctx)
-{
-    uint16_t lFrameLen;
-    stRingBuffer *lSourceRb;
-
-    if ((ctx == NULL) || (ctx->cfg.txFrame == NULL)) {
-        return;
-    }
-
-    if (ctx->runFlags.bits.hasImmediateAck != 0U) {
-        if (ctx->cfg.txFrame(proc, ctx->immediateAckBuf, ctx->immediateAckLen) == FRM_PROC_STATUS_OK) {
-            ctx->runFlags.bits.hasImmediateAck = 0U;
-            ctx->immediateAckLen = 0U;
-            return;
-        }
-        if (frmProcQueueFrame(&ctx->urgentTxRb, ctx->immediateAckBuf, ctx->immediateAckLen) == FRM_PROC_STATUS_OK) {
-            ctx->runFlags.bits.hasImmediateAck = 0U;
-            ctx->immediateAckLen = 0U;
-        }
-        return;
-    }
-
-    lSourceRb = NULL;
-    if (frmProcPeekFrame(&ctx->urgentTxRb, ctx->txPeekBuf, sizeof(ctx->txPeekBuf), ctx->txFrameBuf, sizeof(ctx->txFrameBuf), &lFrameLen)) {
-        lSourceRb = &ctx->urgentTxRb;
-    } else if (frmProcPeekFrame(&ctx->normalTxRb, ctx->txPeekBuf, sizeof(ctx->txPeekBuf), ctx->txFrameBuf, sizeof(ctx->txFrameBuf), &lFrameLen)) {
-        lSourceRb = &ctx->normalTxRb;
-    } else {
-        return;
-    }
-
-    if (ctx->ackState.isWaiting && frmProcNeedsAckByFrame(ctx->txFrameBuf, lFrameLen)) {
-        return;
-    }
-
-    if (ctx->cfg.txFrame(proc, ctx->txFrameBuf, lFrameLen) != FRM_PROC_STATUS_OK) {
-        return;
-    }
-
-    frmProcDiscardQueuedFrame(lSourceRb, lFrameLen);
-
-    if (frmProcNeedsAckByFrame(ctx->txFrameBuf, lFrameLen)) {
-        (void)memcpy(ctx->ackState.frameBuf, ctx->txFrameBuf, lFrameLen);
-        ctx->ackState.frameLen = lFrameLen;
-        ctx->ackState.retryCount = 0U;
-        ctx->ackState.maxRetryCount = ctx->cfg.ackCfg.maxRetryCount;
-        ctx->ackState.timeoutMs = ctx->cfg.ackCfg.timeoutMs;
-        ctx->ackState.sendTickMs = frmProcGetTickMs(ctx);
-        ctx->ackState.isWaiting = true;
-        ctx->runFlags.bits.isWaitingAck = 1U;
-    }
-}
-
-eFrmProcStatus frmProcGetDefCfg(eFrmProcMapType proc, stFrmProcCfg *cfg)
-{
-    return frmProcLoadPlatformDefaultCfg(proc, cfg);
-}
-
-eFrmProcStatus frmProcSetCfg(eFrmProcMapType proc, const stFrmProcCfg *cfg)
-{
-    if ((!frmProcIsValidProc(proc)) || (cfg == NULL)) {
+    context = frmProcGetContext(process);
+    if ((context == NULL) || (buffer == NULL) || (length == 0U)) {
         return FRM_PROC_STATUS_INVALID_PARAM;
     }
 
-    gFrmProcCfg[proc] = *cfg;
-    gFrmProcHasCfg[proc] = true;
-    return FRM_PROC_STATUS_OK;
-}
-
-eFrmProcStatus frmProcInit(eFrmProcMapType proc)
-{
-    stFrmProcCtx *lCtx;
-
-    if (frmProcEnsureCfgLoaded(proc) != FRM_PROC_STATUS_OK) {
-        return FRM_PROC_STATUS_ERROR;
+    if (!context->isInitialized) {
+        return FRM_PROC_STATUS_NOT_READY;
     }
 
-    lCtx = frmProcGetCtx(proc);
-    if (lCtx == NULL) {
+    frmProcRefreshState(context);
+    if (!context->info.isConfigured) {
+        return FRM_PROC_STATUS_NOT_READY;
+    }
+
+    lDrvStatus = drvUsbTransmit(DRVUSB_DEV0, DRVUSB_PORT_CDC_DATA_IN_EP, buffer, length);
+    if (lDrvStatus == DRV_STATUS_OK) {
+        context->info.txBytes += length;
+    }
+
+    return frmProcMapDrvStatus(lDrvStatus);
+}
+
+eFrmProcStatus frmProcRead(uint8_t process, uint8_t *buffer, uint16_t length, uint16_t *actualLength)
+{
+    stFrmProcContext *context;
+    uint32_t lReadLength;
+    uint32_t lUsedLength;
+
+    if (actualLength != NULL) {
+        *actualLength = 0U;
+    }
+
+    context = frmProcGetContext(process);
+    if ((context == NULL) || (buffer == NULL) || (length == 0U)) {
         return FRM_PROC_STATUS_INVALID_PARAM;
     }
 
-    if (lCtx->runFlags.bits.isInit != 0U) {
-        return FRM_PROC_STATUS_OK;
+    if (!context->isInitialized) {
+        return FRM_PROC_STATUS_NOT_READY;
     }
 
-    (void)memset(lCtx, 0, sizeof(*lCtx));
-    lCtx->cfg = gFrmProcCfg[proc];
-
-    if (frmProcPlatformInit(proc) != FRM_PROC_STATUS_OK) {
-        return FRM_PROC_STATUS_ERROR;
-    }
-    if (frmProcEnsurePlatformFmt(proc, &lCtx->cfg) != FRM_PROC_STATUS_OK) {
-        return FRM_PROC_STATUS_BUILD_ERROR;
-    }
-    if (ringBufferInit(&lCtx->urgentTxRb, lCtx->cfg.urgentQueue.storage, lCtx->cfg.urgentQueue.capacity) != RINGBUFFER_OK) {
-        return FRM_PROC_STATUS_ERROR;
-    }
-    if (ringBufferInit(&lCtx->normalTxRb, lCtx->cfg.normalQueue.storage, lCtx->cfg.normalQueue.capacity) != RINGBUFFER_OK) {
-        return FRM_PROC_STATUS_ERROR;
-    }
-    if (frmPsrInitByProtoCfg(&lCtx->parser, &lCtx->cfg.protoCfg, NULL, lCtx->cfg.rxFrameBuf, lCtx->cfg.rxFrameBufSize) != FRM_PSR_OK) {
-        return FRM_PROC_STATUS_PARSE_ERROR;
+    lUsedLength = ringBufferGetUsed(&context->rxRingBuffer);
+    if (lUsedLength == 0U) {
+        return FRM_PROC_STATUS_EMPTY;
     }
 
-    lCtx->ackState.timeoutMs = lCtx->cfg.ackCfg.timeoutMs;
-    lCtx->ackState.maxRetryCount = lCtx->cfg.ackCfg.maxRetryCount;
-    lCtx->runFlags.bits.isInit = 1U;
-    LOG_I(FRM_PROC_TAG,
-          "proc=%u init ok ackTout=%u retryMax=%u",
-          (unsigned int)proc,
-          (unsigned int)lCtx->ackState.timeoutMs,
-          (unsigned int)lCtx->ackState.maxRetryCount);
-    return FRM_PROC_STATUS_OK;
-}
-
-bool frmProcIsReady(eFrmProcMapType proc)
-{
-    stFrmProcCtx *lCtx = frmProcGetCtx(proc);
-
-    return (lCtx != NULL) && (lCtx->runFlags.bits.isInit != 0U);
-}
-
-void frmProcProcess(eFrmProcMapType proc)
-{
-    stFrmProcCtx *lCtx = frmProcGetCtx(proc);
-
-    if ((lCtx == NULL) || (lCtx->runFlags.bits.isInit == 0U)) {
-        return;
+    lReadLength = lUsedLength;
+    if (lReadLength > length) {
+        lReadLength = length;
     }
 
-    frmProcProcessRx(proc, lCtx);
-    frmProcBuildPendingTx(proc, lCtx);
-    frmProcProcessAckTimeout(proc, lCtx);
-    frmProcProcessTx(proc, lCtx);
-}
-
-eFrmProcStatus frmProcPostSelfCheck(eFrmProcMapType proc, const stFrmDataTxSelfCheck *data, bool isUrgent)
-{
-    stFrmProcCtx *lCtx = frmProcGetCtx(proc);
-
-    if ((lCtx == NULL) || (data == NULL) || (lCtx->runFlags.bits.isInit == 0U)) {
-        return FRM_PROC_STATUS_INVALID_PARAM;
-    }
-
-    lCtx->txStore.selfCheck = *data;
-    lCtx->txStore.flags.value |= FRM_PROC_TX_FLAG_SELFCHECK_MASK;
-    if (isUrgent) {
-        lCtx->txUrgentMask |= FRM_PROC_TX_FLAG_SELFCHECK_MASK;
-    } else {
-        lCtx->txUrgentMask &= ~FRM_PROC_TX_FLAG_SELFCHECK_MASK;
+    lReadLength = ringBufferRead(&context->rxRingBuffer, buffer, lReadLength);
+    if (actualLength != NULL) {
+        *actualLength = (uint16_t)lReadLength;
     }
     return FRM_PROC_STATUS_OK;
 }
 
-eFrmProcStatus frmProcPostDisconnect(eFrmProcMapType proc, bool isUrgent)
+uint16_t frmProcGetRxLength(uint8_t process)
 {
-    stFrmProcCtx *lCtx = frmProcGetCtx(proc);
+    stFrmProcContext *context;
 
-    if ((lCtx == NULL) || (lCtx->runFlags.bits.isInit == 0U)) {
-        return FRM_PROC_STATUS_INVALID_PARAM;
+    context = frmProcGetContext(process);
+    if ((context == NULL) || !context->isInitialized) {
+        return 0U;
     }
 
-    lCtx->txStore.disconnect.reserved = 0U;
-    lCtx->txStore.flags.value |= FRM_PROC_TX_FLAG_DISCONNECT_MASK;
-    if (isUrgent) {
-        lCtx->txUrgentMask |= FRM_PROC_TX_FLAG_DISCONNECT_MASK;
-    } else {
-        lCtx->txUrgentMask &= ~FRM_PROC_TX_FLAG_DISCONNECT_MASK;
-    }
-    return FRM_PROC_STATUS_OK;
+    return (uint16_t)ringBufferGetUsed(&context->rxRingBuffer);
 }
 
-eFrmProcStatus frmProcPostCprData(eFrmProcMapType proc, const stFrmDataTxCprData *data, bool isUrgent)
+const stFrmProcInfo *frmProcGetStatus(uint8_t process)
 {
-    stFrmProcCtx *lCtx = frmProcGetCtx(proc);
+    stFrmProcContext *context;
 
-    if ((lCtx == NULL) || (data == NULL) || (lCtx->runFlags.bits.isInit == 0U)) {
-        return FRM_PROC_STATUS_INVALID_PARAM;
-    }
-
-    lCtx->txStore.cprData = *data;
-    if (lCtx->txStore.cprData.timestampMs == 0U) {
-        lCtx->txStore.cprData.timestampMs = frmProcGetTickMs(lCtx);
-    }
-    lCtx->txStore.flags.value |= FRM_PROC_TX_FLAG_CPRDATA_MASK;
-    if (isUrgent) {
-        lCtx->txUrgentMask |= FRM_PROC_TX_FLAG_CPRDATA_MASK;
-    } else {
-        lCtx->txUrgentMask &= ~FRM_PROC_TX_FLAG_CPRDATA_MASK;
-    }
-    return FRM_PROC_STATUS_OK;
-}
-
-const stFrmDataRxStore *frmProcGetRxStore(eFrmProcMapType proc)
-{
-    stFrmProcCtx *lCtx = frmProcGetCtx(proc);
-
-    if (lCtx == NULL) {
+    context = frmProcGetContext(process);
+    if (context == NULL) {
         return NULL;
     }
 
-    return &lCtx->rxStore;
-}
-
-void frmProcClearRxFlags(eFrmProcMapType proc, uint32_t flags)
-{
-    stFrmProcCtx *lCtx = frmProcGetCtx(proc);
-
-    if (lCtx == NULL) {
-        return;
-    }
-
-    lCtx->rxStore.flags.value &= ~flags;
+    frmProcRefreshState(context);
+    return &context->info;
 }
 
 /**************************End of file********************************/

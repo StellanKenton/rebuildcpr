@@ -16,18 +16,18 @@
 #include "../bsp/bspuart.h"
 
 static stRingBuffer gDrvUartRingBuffer[DRVUART_MAX];
-static uint8_t gDrvUartRingStorageDebug[DRVUART_RECVLEN_DEBUGUART];
+static uint8_t gDrvUartRingStorageWifi[DRVUART_RECVLEN_WIFI];
 static uint8_t gDrvUartRingStorageAudio[DRVUART_RECVLEN_AUDIO];
 
 static stDrvUartBspInterface gDrvUartBspInterface[DRVUART_MAX] = {
-    [DRVUART_DEBUG] = {
+    [DRVUART_WIFI] = {
         .init = bspUartInit,
         .transmit = bspUartTransmit,
         .transmitIt = bspUartTransmitIt,
         .transmitDma = bspUartTransmitDma,
         .getDataLen = bspUartGetDataLen,
         .receive = bspUartReceive,
-        .Buffer = gDrvUartRingStorageDebug,
+        .Buffer = gDrvUartRingStorageWifi,
     },
     [DRVUART_AUDIO] = {
         .init = bspUartInit,
@@ -61,9 +61,9 @@ eDrvStatus drvUartGetPlatformStorageConfig(uint8_t uart, uint8_t **storage, uint
     }
 
     switch ((eDrvUartPortMap)uart) {
-        case DRVUART_DEBUG:
-            *storage = gDrvUartRingStorageDebug;
-            *capacity = sizeof(gDrvUartRingStorageDebug);
+        case DRVUART_WIFI:
+            *storage = gDrvUartRingStorageWifi;
+            *capacity = sizeof(gDrvUartRingStorageWifi);
             return DRV_STATUS_OK;
         case DRVUART_AUDIO:
             *storage = gDrvUartRingStorageAudio;

@@ -23,6 +23,8 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include "SEGGER_RTT.h"
 #include "../../User/bsp/bspuart.h"
 /* USER CODE END Includes */
 
@@ -43,6 +45,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+static uint32_t gUsbIrqTraceCount = 0U;
 
 /* USER CODE END PV */
 
@@ -53,6 +56,28 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void usbTraceIrq(const char *pTag)
+{
+  char lBuffer[96];
+
+  if (gUsbIrqTraceCount >= 16U)
+  {
+    return;
+  }
+
+  snprintf(
+      lBuffer,
+      sizeof(lBuffer),
+      "[usb] %s #%lu ISTR=%04x EP0R=%04x CNTR=%04x DADDR=%04x\r\n",
+      pTag,
+      gUsbIrqTraceCount,
+      USB->ISTR,
+      USB->EP0R,
+      USB->CNTR,
+      USB->DADDR);
+  SEGGER_RTT_WriteString(0, lBuffer);
+  gUsbIrqTraceCount++;
+}
 
 /* USER CODE END 0 */
 
@@ -294,6 +319,7 @@ void DMA1_Channel7_IRQHandler(void)
 void USB_HP_CAN1_TX_IRQHandler(void)
 {
   /* USER CODE BEGIN USB_HP_CAN1_TX_IRQn 0 */
+  usbTraceIrq("USB_HP IRQ");
 
   /* USER CODE END USB_HP_CAN1_TX_IRQn 0 */
   HAL_PCD_IRQHandler(&hpcd_USB_FS);
@@ -308,6 +334,7 @@ void USB_HP_CAN1_TX_IRQHandler(void)
 void USB_LP_CAN1_RX0_IRQHandler(void)
 {
   /* USER CODE BEGIN USB_LP_CAN1_RX0_IRQn 0 */
+  usbTraceIrq("USB_LP IRQ");
 
   /* USER CODE END USB_LP_CAN1_RX0_IRQn 0 */
   HAL_PCD_IRQHandler(&hpcd_USB_FS);
@@ -369,7 +396,7 @@ void UART4_IRQHandler(void)
   /* USER CODE END UART4_IRQn 0 */
   HAL_UART_IRQHandler(&huart4);
   /* USER CODE BEGIN UART4_IRQn 1 */
-  bspUartHandleIrq(DRVUART_DEBUG);
+  bspUartHandleIrq(DRVUART_WIFI);
 
   /* USER CODE END UART4_IRQn 1 */
 }

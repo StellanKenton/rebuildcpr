@@ -20,10 +20,11 @@
 #include "../../Core/Inc/usart.h"
 
 #include "drvgpio.h"
-#include "../../rep/service/console/log.h"
+#include "../../rep/service/log/log.h"
 
 #include "../manager/power/power.h"
 #include "../manager/selfcheck/selfcheck.h"
+#include "../manager/memory/memory.h"
 #include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
@@ -108,15 +109,24 @@ static bool systemModuleInit(void)
         LOG_E(SYSTEM_LOG_TAG, "power init fail");
     }
 
+    if (memoryInit()) {
+        selfCheckSetFlashResult(true);
+        LOG_I(SYSTEM_LOG_TAG, "memory init ok");
+    } else {
+        selfCheckSetFlashResult(false);
+        lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "memory init fail");
+    }
+
+    if (frmProcInit(FRAME_PROC0) == FRM_PROC_STATUS_OK) {
+        LOG_I(SYSTEM_LOG_TAG, "frameprocess init ok");
+    } else {
+        lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "frameprocess init fail");
+    }
+
     if (wirelessInit()) {
         LOG_I(SYSTEM_LOG_TAG, "wireless init ok");
-
-        if (frmProcInit(FRAME_PROC0) == FRM_PROC_STATUS_OK) {
-            LOG_I(SYSTEM_LOG_TAG, "frameprocess init ok");
-        } else {
-            lIsReady = false;
-            LOG_E(SYSTEM_LOG_TAG, "frameprocess init fail");
-        }
     } else {
         lIsReady = false;
         LOG_E(SYSTEM_LOG_TAG, "wireless init fail");
@@ -138,7 +148,6 @@ static void systemInitMode(void)
     LOG_I(SYSTEM_LOG_TAG, "&&&&&&&&&&&&&&&&& SYSTEM POWER UP &&&&&&&&&&&&&&&&&");
     LOG_I(SYSTEM_LOG_TAG, "System initialized.");
     LOG_I(SYSTEM_LOG_TAG, "Firmware: %s, Version: %s, Hardware: %s", FIRMWARE_NAME, FIRMWARE_VERSION, HARDWARE_VERSION);
-    
     systemInitBsp();
     
     if (!systemModuleInit()) {
@@ -158,15 +167,8 @@ static void systemInitMode(void)
 **/
 static void systemPowerupSelfCheckMode(void)
 {
-    static bool lSelfCheckCompleted = false;
-
-    // jump
-    lSelfCheckCompleted = true;
-
-    if(lSelfCheckCompleted) {
-        (void)systaskCreateWorkerTasks();
-        systemSetMode(eSYSTEM_STANDBY_MODE);
-    }
+    powerTransRawToVoltage();
+    systemSetMode(eSYSTEM_SELF_CHECK_MODE);
 }
 
 /**
@@ -196,6 +198,15 @@ static void systemNormalMode(void)
 **/
 static void systemSelfCheckMode(void)
 {
+    static bool lSelfCheckCompleted = false;
+
+    // jump
+    lSelfCheckCompleted = true;
+
+    if(lSelfCheckCompleted) {
+        (void)systaskCreateWorkerTasks();
+        systemSetMode(eSYSTEM_STANDBY_MODE);
+    }
 }
 
 /**

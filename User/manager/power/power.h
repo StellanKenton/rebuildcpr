@@ -11,6 +11,9 @@
 #define REBUILDCPR_POWER_H
 
 #include <stdbool.h>
+#include <stdint.h>
+
+#include "drvadc_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,23 +22,44 @@ extern "C" {
 typedef enum ePowerState {
     ePOWER_STATE_UNINIT = 0,
     ePOWER_STATE_READY,
-    ePOWER_STATE_ACTIVE,
-    ePOWER_STATE_LOW_POWER,
+    ePOWER_STATE_NORMAL,
     ePOWER_STATE_STOPPED,
     ePOWER_STATE_FAULT,
 } ePowerState;
 
 typedef struct stPowerStatus {
     ePowerState state;
-    bool isLowPowerRequested;
+    bool isShutDownRequested;
 } stPowerStatus;
 
+typedef struct PowerRaw {
+    uint16_t battery;
+    uint16_t dc;
+    uint16_t v5v0;
+    uint16_t v3v3;
+} PowerRaw;
+
+typedef struct PowerVoltage { // 10MV unit
+    uint16_t batteryMv;
+    uint16_t dcMv;
+    uint16_t v5v0Mv;
+    uint16_t v3v3Mv;
+} PowerVoltage;
+
+typedef struct PowerManager {
+    stPowerStatus status;
+    PowerRaw raw;
+    PowerVoltage voltage;
+} PowerManager;
+
 bool powerInit(void);
-bool powerStart(void);
-void powerStop(void);
+uint16_t powerGetVoltage(eDrvAdcPortMap channel);
+void powerTransRawToVoltage(void);
 void powerProcess(void);
-bool powerRequestLowPower(bool isEnabled);
+bool powerRequestShutDown(void);
+bool powerRequestPowerUp(void);
 const stPowerStatus *powerGetStatus(void);
+const PowerManager *powerGetManager(void);
 
 #ifdef __cplusplus
 }

@@ -160,8 +160,6 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_SystemTask */
 void SystemTask(void *argument)
 {
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN DefaultTask */
   systemTaskEntry(argument);
   /* USER CODE END SystemTask */

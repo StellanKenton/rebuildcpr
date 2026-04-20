@@ -94,6 +94,8 @@ void Error_Handler(void);
 #define MCU_LED_CLK_GPIO_Port GPIOD
 #define PCA9535_SDA_Pin GPIO_PIN_3
 #define PCA9535_SDA_GPIO_Port GPIOB
+#define Power_ON_Ctrl_Pin GPIO_PIN_3
+#define Power_ON_Ctrl_GPIO_Port GPIOC
 #define PCA9535_SCL_Pin GPIO_PIN_4
 #define PCA9535_SCL_GPIO_Port GPIOB
 #define Motor_PWM_Pin GPIO_PIN_5

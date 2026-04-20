@@ -1,8 +1,8 @@
 /***********************************************************************************
 * @file     : wireless.c
-* @brief    : Project-side FC41D wireless manager and assembly provider.
-* @details  : Provides the FC41D project binding for BLE advertising, BLE info
-*             query, and non-blocking periodic service.
+* @brief    : Project-side FC41D wireless manager.
+* @details  : Provides BLE info query and non-blocking periodic service on top of
+*             the FC41D project binding.
 * @author   : 
 * @date     : 
 * @version  : 
@@ -10,30 +10,13 @@
 **********************************************************************************/
 #include "wireless.h"
 
-#include <ctype.h>
-#include <stddef.h>
 #include <string.h>
 
-#include "usart.h"
-
-#include "drvgpio.h"
-#include "drvgpio_port.h"
 #include "drvuart.h"
 
-#include "../../../rep/comm/flowparser/flowparser_stream.h"
-#include "../../../rep/module/fc41d/fc41d_assembly.h"
-#include "../../../rep/service/console/log.h"
-#include "../../../rep/service/rtos/rtos.h"
-#include "../../../rep/tools/ringbuffer/ringbuffer.h"
+#include "../../../rep/service/log/log.h"
 #include "../../port/drvuart_port.h"
-
-static const char *const gWirelessBleInitCmdSeq[] = {
-    "AT+QBLEINIT=2",
-    "AT+QBLENAME=rumi",
-    "AT+QBLEGATTSSRV=FE60",
-    "AT+QBLEGATTSCHAR=FE61",
-    "AT+QBLEGATTSCHAR=FE62",
-};
+#include "../../port/fc41dport.h"
 
 typedef enum eWirelessInitQueryState {
     eWIRELESS_INIT_QUERY_WAIT_BLE_READY = 0,
@@ -46,37 +29,17 @@ typedef enum eWirelessInitQueryState {
 
 static eWirelessState gWirelessState = eWIRELESS_STATE_INIT;
 static bool gWirelessInitDone = false;
-static bool gWirelessTransportPrepared = false;
-static bool gWirelessBootReady = false;
-static uint8_t gWirelessBootReadyMatchLen = 0U;
-static uint32_t gWirelessBootWaitStartTick = 0U;
 static eWirelessInitQueryState gWirelessInitQueryState = eWIRELESS_INIT_QUERY_WAIT_BLE_READY;
 static stFc41dAtResp gWirelessBleAddrResp;
 static stFc41dAtResp gWirelessVersionResp;
 static bool gWirelessBleAddrLogged = false;
 static bool gWirelessVersionLogged = false;
 
-static stRingBuffer gWirelessAtRxRb;
-static uint8_t gWirelessAtRxStorage[WIRELESS_AT_RX_CAPACITY];
-static uint8_t gWirelessAtLineBuf[WIRELESS_AT_LINE_BUF_SIZE];
-static uint8_t gWirelessAtCmdBuf[WIRELESS_AT_CMD_BUF_SIZE];
-static uint8_t gWirelessAtPayloadBuf[WIRELESS_AT_PAYLOAD_BUF_SIZE];
-static uint8_t gWirelessBleRxStorage[WIRELESS_BLE_RX_CAPACITY];
-static uint8_t gWirelessUnusedRxStorage[WIRELESS_UNUSED_RX_CAPACITY];
-static uint8_t gWirelessBleAddrLineBuf[WIRELESS_AT_LINE_BUF_SIZE];
-static uint8_t gWirelessVersionLineBuf[WIRELESS_AT_LINE_BUF_SIZE];
-static uint8_t gWirelessBleFrameBuf[WIRELESS_BLE_FRAME_MAX_LEN];
-static uint16_t gWirelessBleFrameFill = 0U;
-static uint16_t gWirelessBleFrameExpectedLen = 0U;
+static uint8_t gWirelessBleAddrLineBuf[128U];
+static uint8_t gWirelessVersionLineBuf[128U];
 
 #define WIRELESS_INFO_QUERY_TIMEOUT_MS      3000U
 
-static void wirelessDelayMs(uint32_t delayMs);
-static void wirelessResetBleFrameCollector(void);
-static bool wirelessCollectRawBleByte(uint8_t byte);
-static void wirelessResetBootWaitState(void);
-static bool wirelessConsumeBootReadyByte(uint8_t byte);
-static bool wirelessWaitBootReady(void);
 static bool wirelessIsBleReadyForInitQuery(eFc41dBleState state);
 static bool wirelessShouldIgnoreInfoLine(const uint8_t *lineBuf, uint16_t lineLen);
 static void wirelessBleAddrLineCallback(void *userData, const uint8_t *lineBuf, uint16_t lineLen);
@@ -87,143 +50,6 @@ static void wirelessFinalizeBleAddrQuery(void);
 static void wirelessFinalizeVersionQuery(void);
 static void wirelessProcessInitQueries(void);
 static void wirelessUpdateState(void);
-static eDrvStatus wirelessFc41dSend(const uint8_t *buf, uint16_t len, void *userCtx);
-static bool wirelessRouteLinePayload(const uint8_t *lineBuf, uint16_t lineLen, const uint8_t **payloadBuf, uint16_t *payloadLen);
-
-static void wirelessDelayMs(uint32_t delayMs)
-{
-    if (delayMs == 0U) {
-        return;
-    }
-
-    if (repRtosIsSchedulerRunning()) {
-        (void)repRtosDelayMs(delayMs);
-        return;
-    }
-
-    HAL_Delay(delayMs);
-}
-
-static void wirelessResetBleFrameCollector(void)
-{
-    gWirelessBleFrameFill = 0U;
-    gWirelessBleFrameExpectedLen = 0U;
-}
-
-static bool wirelessCollectRawBleByte(uint8_t byte)
-{
-    uint16_t lPayloadLen;
-    stRingBuffer *lBleRxRb;
-
-    if (gWirelessBleFrameFill == 0U) {
-        if (byte != 0xFAU) {
-            return false;
-        }
-
-        gWirelessBleFrameBuf[0] = byte;
-        gWirelessBleFrameFill = 1U;
-        gWirelessBleFrameExpectedLen = 0U;
-        return true;
-    }
-
-    if (gWirelessBleFrameFill >= sizeof(gWirelessBleFrameBuf)) {
-        wirelessResetBleFrameCollector();
-        return false;
-    }
-
-    gWirelessBleFrameBuf[gWirelessBleFrameFill++] = byte;
-    if (gWirelessBleFrameFill == 2U) {
-        if (gWirelessBleFrameBuf[1] != 0xFCU) {
-            wirelessResetBleFrameCollector();
-            if (byte == 0xFAU) {
-                gWirelessBleFrameBuf[0] = byte;
-                gWirelessBleFrameFill = 1U;
-                return true;
-            }
-            return false;
-        }
-        return true;
-    }
-
-    if (gWirelessBleFrameFill == 6U) {
-        lPayloadLen = (uint16_t)(((uint16_t)gWirelessBleFrameBuf[4] << 8U) | gWirelessBleFrameBuf[5]);
-        gWirelessBleFrameExpectedLen = (uint16_t)(lPayloadLen + 8U);
-        if ((gWirelessBleFrameExpectedLen < 8U) || (gWirelessBleFrameExpectedLen > sizeof(gWirelessBleFrameBuf))) {
-            wirelessResetBleFrameCollector();
-            return false;
-        }
-    }
-
-    if ((gWirelessBleFrameExpectedLen != 0U) && (gWirelessBleFrameFill >= gWirelessBleFrameExpectedLen)) {
-        lBleRxRb = fc41dBleGetRxRingBuffer(WIRELESS_FC41D_DEVICE);
-        if ((lBleRxRb == NULL) ||
-            (ringBufferWrite(lBleRxRb, gWirelessBleFrameBuf, gWirelessBleFrameExpectedLen) != gWirelessBleFrameExpectedLen)) {
-            LOG_W(WIRELESS_LOG_TAG, "ble raw frame drop len=%u", (unsigned int)gWirelessBleFrameExpectedLen);
-        }
-        wirelessResetBleFrameCollector();
-    }
-
-    return true;
-}
-
-static void wirelessResetBootWaitState(void)
-{
-    gWirelessBootReady = false;
-    gWirelessBootReadyMatchLen = 0U;
-    gWirelessBootWaitStartTick = fc41dPlatformGetTickMs();
-    gWirelessInitQueryState = eWIRELESS_INIT_QUERY_WAIT_BLE_READY;
-    gWirelessBleAddrLogged = false;
-    gWirelessVersionLogged = false;
-    wirelessResetBleFrameCollector();
-    (void)memset(&gWirelessBleAddrResp, 0, sizeof(gWirelessBleAddrResp));
-    (void)memset(&gWirelessVersionResp, 0, sizeof(gWirelessVersionResp));
-}
-
-static bool wirelessConsumeBootReadyByte(uint8_t byte)
-{
-    static const char lReadyToken[] = "ready";
-    uint8_t lLowerByte;
-
-    lLowerByte = (uint8_t)tolower((int)byte);
-    if (lLowerByte == (uint8_t)lReadyToken[gWirelessBootReadyMatchLen]) {
-        gWirelessBootReadyMatchLen++;
-    } else if (lLowerByte == (uint8_t)lReadyToken[0]) {
-        gWirelessBootReadyMatchLen = 1U;
-    } else {
-        gWirelessBootReadyMatchLen = 0U;
-    }
-
-    if (gWirelessBootReadyMatchLen >= (uint8_t)(sizeof(lReadyToken) - 1U)) {
-        gWirelessBootReadyMatchLen = 0U;
-        return true;
-    }
-
-    return false;
-}
-
-static bool wirelessWaitBootReady(void)
-{
-    uint8_t lByte;
-
-    if (gWirelessBootReady) {
-        return true;
-    }
-
-    fc41dPlatformPollRx(WIRELESS_FC41D_DEVICE);
-    while (ringBufferRead(&gWirelessAtRxRb, &lByte, 1U) == 1U) {
-        if (wirelessConsumeBootReadyByte(lByte)) {
-            gWirelessBootReady = true;
-            LOG_I(WIRELESS_LOG_TAG, "fc41d boot ready");
-            return true;
-        }
-    }
-
-    if ((uint32_t)(fc41dPlatformGetTickMs() - gWirelessBootWaitStartTick) >= WIRELESS_BOOT_READY_TIMEOUT_MS) {
-        gWirelessState = eWIRELESS_STATE_ERROR;
-    }
-
-    return false;
-}
 
 static bool wirelessIsBleReadyForInitQuery(eFc41dBleState state)
 {
@@ -443,7 +269,7 @@ static void wirelessUpdateState(void)
 {
     stFc41dInfo lInfo;
 
-    if (!gWirelessBootReady) {
+    if (fc41dPortPollBootReady(WIRELESS_FC41D_DEVICE, WIRELESS_BOOT_READY_TIMEOUT_MS) != FC41DPORT_BOOT_READY) {
         if (gWirelessState != eWIRELESS_STATE_ERROR) {
             gWirelessState = eWIRELESS_STATE_INIT;
         }
@@ -465,46 +291,6 @@ static void wirelessUpdateState(void)
     gWirelessState = lInfo.isReady ? eWIRELESS_STATE_NORMAL : eWIRELESS_STATE_INIT;
 }
 
-static eDrvStatus wirelessFc41dSend(const uint8_t *buf, uint16_t len, void *userCtx)
-{
-    (void)userCtx;
-
-    if ((buf == NULL) || (len == 0U)) {
-        return DRV_STATUS_INVALID_PARAM;
-    }
-
-    return drvUartTransmit(DRVUART_DEBUG, buf, len, 100U);
-}
-
-static bool wirelessRouteLinePayload(const uint8_t *lineBuf, uint16_t lineLen, const uint8_t **payloadBuf, uint16_t *payloadLen)
-{
-    uint16_t lIndex;
-
-    if ((lineBuf == NULL) || (payloadBuf == NULL) || (payloadLen == NULL)) {
-        return false;
-    }
-
-    for (lIndex = 0U; lIndex < lineLen; lIndex++) {
-        if (lineBuf[lIndex] == ':') {
-            lIndex++;
-            while ((lIndex < lineLen) && ((lineBuf[lIndex] == ' ') || (lineBuf[lIndex] == '\t'))) {
-                lIndex++;
-            }
-            break;
-        }
-    }
-
-    if (lIndex >= lineLen) {
-        *payloadBuf = lineBuf;
-        *payloadLen = lineLen;
-        return true;
-    }
-
-    *payloadBuf = &lineBuf[lIndex];
-    *payloadLen = (uint16_t)(lineLen - lIndex);
-    return true;
-}
-
 bool wirelessInit(void)
 {
     stFc41dCfg lCfg;
@@ -513,9 +299,9 @@ bool wirelessInit(void)
         return gWirelessState != eWIRELESS_STATE_ERROR;
     }
 
-    if (drvUartInit(DRVUART_DEBUG) != DRV_STATUS_OK) {
+    if (drvUartInit(DRVUART_WIFI) != DRV_STATUS_OK) {
         gWirelessState = eWIRELESS_STATE_ERROR;
-        LOG_E(WIRELESS_LOG_TAG, "debug uart init fail");
+        LOG_E(WIRELESS_LOG_TAG, "wifi uart init fail");
         return false;
     }
 
@@ -534,7 +320,12 @@ bool wirelessInit(void)
         return false;
     }
 
-    wirelessResetBootWaitState();
+    fc41dPortResetBootWaitState();
+    gWirelessInitQueryState = eWIRELESS_INIT_QUERY_WAIT_BLE_READY;
+    gWirelessBleAddrLogged = false;
+    gWirelessVersionLogged = false;
+    (void)memset(&gWirelessBleAddrResp, 0, sizeof(gWirelessBleAddrResp));
+    (void)memset(&gWirelessVersionResp, 0, sizeof(gWirelessVersionResp));
     gWirelessInitDone = true;
     wirelessUpdateState();
     LOG_I(WIRELESS_LOG_TAG, "fc41d init ok ble=rumi");
@@ -547,8 +338,17 @@ void wirelessProcess(void)
         return;
     }
 
-    if (!wirelessWaitBootReady()) {
-        return;
+    switch (fc41dPortPollBootReady(WIRELESS_FC41D_DEVICE, WIRELESS_BOOT_READY_TIMEOUT_MS)) {
+        case FC41DPORT_BOOT_READY:
+            break;
+
+        case FC41DPORT_BOOT_TIMEOUT:
+            gWirelessState = eWIRELESS_STATE_ERROR;
+            return;
+
+        case FC41DPORT_BOOT_WAITING:
+        default:
+            return;
     }
 
     if (fc41dProcess(WIRELESS_FC41D_DEVICE) != FC41D_STATUS_OK) {
@@ -564,157 +364,6 @@ void wirelessProcess(void)
 const eWirelessState *wirelessGetStatus(void)
 {
     return &gWirelessState;
-}
-
-void fc41dLoadPlatformDefaultCfg(eFc41dMapType device, stFc41dCfg *cfg)
-{
-    (void)device;
-
-    if (cfg == NULL) {
-        return;
-    }
-
-    (void)memset(cfg, 0, sizeof(*cfg));
-    cfg->ble.enableRx = true;
-    cfg->ble.rxOverwriteOnFull = true;
-    cfg->ble.workMode = FC41D_BLE_WORK_MODE_PERIPHERAL;
-    cfg->ble.initCmdSeq = gWirelessBleInitCmdSeq;
-    cfg->ble.initCmdSeqLen = (uint8_t)(sizeof(gWirelessBleInitCmdSeq) / sizeof(gWirelessBleInitCmdSeq[0]));
-    cfg->wifi.enableRx = false;
-    cfg->wifi.rxOverwriteOnFull = false;
-    cfg->wifi.workMode = FC41D_WIFI_WORK_MODE_DISABLED;
-    cfg->execGuardMs = 5000U;
-    cfg->bootMode = FC41D_MODE_COMMAND;
-}
-
-bool fc41dPlatformIsValidAssemble(eFc41dMapType device)
-{
-    (void)device;
-    return huart4.Instance != NULL;
-}
-
-uint32_t fc41dPlatformGetTickMs(void)
-{
-    return repRtosIsSchedulerRunning() ? repRtosGetTickMs() : HAL_GetTick();
-}
-
-eFc41dStatus fc41dPlatformInitTransport(eFc41dMapType device)
-{
-    (void)device;
-
-    if ((huart4.Instance == NULL) || (drvUartInit(DRVUART_DEBUG) != DRV_STATUS_OK)) {
-        return FC41D_STATUS_NOT_READY;
-    }
-
-    if (!gWirelessTransportPrepared) {
-        drvGpioWrite(DRVGPIO_RESET_WIFI, DRVGPIO_PIN_RESET);
-        wirelessDelayMs(WIRELESS_RESET_ASSERT_MS);
-        drvGpioWrite(DRVGPIO_RESET_WIFI, DRVGPIO_PIN_SET);
-        wirelessDelayMs(WIRELESS_RESET_RELEASE_MS);
-        gWirelessTransportPrepared = true;
-    }
-
-    wirelessResetBootWaitState();
-    return FC41D_STATUS_OK;
-}
-
-void fc41dPlatformPollRx(eFc41dMapType device)
-{
-    uint8_t lByte;
-    uint16_t lPendingLength;
-
-    (void)device;
-    if (huart4.Instance == NULL) {
-        return;
-    }
-
-    lPendingLength = drvUartGetDataLen(DRVUART_DEBUG);
-    while (lPendingLength > 0U) {
-        if (drvUartReceive(DRVUART_DEBUG, &lByte, 1U) != DRV_STATUS_OK) {
-            break;
-        }
-
-        if (wirelessCollectRawBleByte(lByte)) {
-            lPendingLength--;
-            continue;
-        }
-
-        if (ringBufferWrite(&gWirelessAtRxRb, &lByte, 1U) != 1U) {
-            break;
-        }
-
-        lPendingLength--;
-    }
-}
-
-eFc41dStatus fc41dPlatformInitRxBuffers(eFc41dMapType device, stRingBuffer *bleRxRb, stRingBuffer *wifiRxRb)
-{
-    (void)device;
-
-    if ((bleRxRb == NULL) || (wifiRxRb == NULL)) {
-        return FC41D_STATUS_INVALID_PARAM;
-    }
-
-    if ((ringBufferInit(bleRxRb, gWirelessBleRxStorage, sizeof(gWirelessBleRxStorage)) != RINGBUFFER_OK) ||
-        (ringBufferInit(wifiRxRb, gWirelessUnusedRxStorage, sizeof(gWirelessUnusedRxStorage)) != RINGBUFFER_OK)) {
-        return FC41D_STATUS_ERROR;
-    }
-
-    return FC41D_STATUS_OK;
-}
-
-eFlowParserStrmSta fc41dPlatformInitAtStream(eFc41dMapType device, stFlowParserStream *stream,
-                                             flowparserStreamLineFunc urcHandler, void *urcUserCtx)
-{
-    stFlowParserStreamCfg lCfg;
-    static const char *const lUrcPatterns[] = {
-        "+BLE*",
-        "+QBLE*",
-    };
-
-    (void)device;
-    if (stream == NULL) {
-        return FLOWPARSER_STREAM_INVALID_ARG;
-    }
-
-    if (ringBufferInit(&gWirelessAtRxRb, gWirelessAtRxStorage, sizeof(gWirelessAtRxStorage)) != RINGBUFFER_OK) {
-        return FLOWPARSER_STREAM_INVALID_ARG;
-    }
-
-    (void)memset(&lCfg, 0, sizeof(lCfg));
-    lCfg.tokCfg.ringBuf = &gWirelessAtRxRb;
-    lCfg.tokCfg.lineBuf = gWirelessAtLineBuf;
-    lCfg.tokCfg.lineBufSize = sizeof(gWirelessAtLineBuf);
-    lCfg.cmdBuf = gWirelessAtCmdBuf;
-    lCfg.cmdBufSize = sizeof(gWirelessAtCmdBuf);
-    lCfg.payloadBuf = gWirelessAtPayloadBuf;
-    lCfg.payloadBufSize = sizeof(gWirelessAtPayloadBuf);
-    lCfg.send = wirelessFc41dSend;
-    lCfg.portUserCtx = &huart4;
-    lCfg.getTick = fc41dPlatformGetTickMs;
-    lCfg.urcPatterns = lUrcPatterns;
-    lCfg.urcPatternCnt = (uint8_t)(sizeof(lUrcPatterns) / sizeof(lUrcPatterns[0]));
-    lCfg.urcHandler = urcHandler;
-    lCfg.urcUserCtx = urcUserCtx;
-    lCfg.procBudget = 8U;
-    return flowparserStreamInit(stream, &lCfg);
-}
-
-bool fc41dPlatformRouteLine(eFc41dMapType device, const uint8_t *lineBuf, uint16_t lineLen,
-                            eFc41dRxChannel *channel, const uint8_t **payloadBuf, uint16_t *payloadLen)
-{
-    (void)device;
-
-    if ((lineBuf == NULL) || (channel == NULL) || (payloadBuf == NULL) || (payloadLen == NULL)) {
-        return false;
-    }
-
-    if ((lineLen >= 4U) && (memcmp(lineBuf, "+BLE", 4U) == 0)) {
-        *channel = FC41D_RX_CHANNEL_BLE;
-        return wirelessRouteLinePayload(lineBuf, lineLen, payloadBuf, payloadLen);
-    }
-
-    return false;
 }
 
 /**************************End of file********************************/

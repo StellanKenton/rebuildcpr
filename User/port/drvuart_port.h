@@ -15,11 +15,11 @@ extern "C" {
 #endif
 
 typedef enum eDrvUartPortMapTable {
-    DRVUART_DEBUG = 0,
+    DRVUART_WIFI = 0,
     DRVUART_AUDIO,
 } eDrvUartPortMap;
 
-#define DRVUART_RECVLEN_DEBUGUART 256U
+#define DRVUART_RECVLEN_WIFI 256U
 #define DRVUART_RECVLEN_AUDIO 256U
 
 #ifdef __cplusplus

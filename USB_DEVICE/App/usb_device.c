@@ -27,6 +27,8 @@
 #include "usbd_cdc.h"
 #include "usbd_cdc_if.h"
 
+#include "SEGGER_RTT.h"
+
 /* USER CODE BEGIN Includes */
 
 /* USER CODE END Includes */
@@ -66,6 +68,8 @@ void MX_USB_DEVICE_Init(void)
 {
   /* USER CODE BEGIN USB_DEVICE_Init_PreTreatment */
 
+  SEGGER_RTT_WriteString(0, "[usb] MX_USB_DEVICE_Init enter\r\n");
+
   /* USER CODE END USB_DEVICE_Init_PreTreatment */
 
   /* Init Device Library, add supported class and start the library. */
@@ -85,6 +89,8 @@ void MX_USB_DEVICE_Init(void)
   {
     Error_Handler();
   }
+
+  SEGGER_RTT_WriteString(0, "[usb] MX_USB_DEVICE_Init done\r\n");
 
   /* USER CODE BEGIN USB_DEVICE_Init_PostTreatment */
 
