@@ -115,7 +115,10 @@
 "cprsensor\gd25qxxx_port.o"
 "cprsensor\drvadc_debug.o"
 "cprsensor\drvanlogiic_debug.o"
+"cprsensor\drvgpio_debug.o"
 "cprsensor\drviic_debug.o"
+"cprsensor\drvspi_debug.o"
+"cprsensor\drvuart_debug.o"
 --strict --scatter "CprSensor\CprSensor.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

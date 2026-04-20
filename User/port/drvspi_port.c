@@ -13,7 +13,7 @@
 
 #include "../bsp/bspspi.h"
 
-static const stDrvSpiBspInterface gDrvSpiBspInterfaces[DRVSPI_MAX] = {
+const stDrvSpiBspInterface gDrvSpiBspInterface[DRVSPI_MAX] = {
     [DRVSPI_BUS0] = {
         .init = bspSpiInit,
         .transfer = bspSpiTransfer,
@@ -28,7 +28,7 @@ static const stDrvSpiBspInterface gDrvSpiBspInterfaces[DRVSPI_MAX] = {
 
 const stDrvSpiBspInterface *drvSpiGetPlatformBspInterfaces(void)
 {
-    return gDrvSpiBspInterfaces;
+    return gDrvSpiBspInterface;
 }
 
 /**************************End of file********************************/

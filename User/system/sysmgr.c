@@ -167,7 +167,6 @@ static void systemInitMode(void)
 **/
 static void systemPowerupSelfCheckMode(void)
 {
-    powerTransRawToVoltage();
     systemSetMode(eSYSTEM_SELF_CHECK_MODE);
 }
 

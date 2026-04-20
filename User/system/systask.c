@@ -159,9 +159,10 @@ void systemTaskEntry(void *argument)
 	(void)argument;
 	for (;;) {
 		systemManagerRun();         // System Manager
-
         /***************Background Services*********************/
         drvAdcBackground();         // ADC background processing
+        powerProcess();             // Power sampling and battery level update
+		powerLedProcess();          // Power LED state update
 		if (systemDebugBackgroundServicesInit()) {
 			systemDebugBackgroundServicesProcess();
 		}

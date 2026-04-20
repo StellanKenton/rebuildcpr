@@ -50,7 +50,10 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, EN_AUDIO_Pin|SPI_CS_Pin|USB_Select_Pin|PCA9535_RESET_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, EN_AUDIO_Pin|USB_Select_Pin|PCA9535_RESET_Pin, GPIO_PIN_RESET);
+
+  /* Keep external SPI flash deselected during early startup. */
+  HAL_GPIO_WritePin(GPIOA, SPI_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(RESET_WIFI_GPIO_Port, RESET_WIFI_Pin, GPIO_PIN_RESET);

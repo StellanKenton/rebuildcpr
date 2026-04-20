@@ -1035,9 +1035,24 @@
               <FilePath>..\rep\driver\drvanlogiic\drvanlogiic_debug.c</FilePath>
             </File>
             <File>
+              <FileName>drvgpio_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvgpio\drvgpio_debug.c</FilePath>
+            </File>
+            <File>
               <FileName>drviic_debug.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\rep\driver\drviic\drviic_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvspi_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvspi\drvspi_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>drvuart_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvuart\drvuart_debug.c</FilePath>
             </File>
           </Files>
         </Group>

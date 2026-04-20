@@ -9,15 +9,15 @@
 **********************************************************************************/
 #include "power.h"
 
+#include "main.h"
 #include "drvadc.h"
-
-typedef struct stPowerChannelMap {
-    eDrvAdcPortMap channel;
-    uint16_t *rawValue;
-    uint16_t *voltageValue;
-} stPowerChannelMap;
+#include "system.h"
+#include "../port/pca9535_port.h"
 
 static uint16_t powerCalcVoltage(eDrvAdcPortMap channel, uint16_t rawValue);
+static uint8_t powerCalcBatteryLevel(uint16_t batteryMv);
+static bool powerLedShouldDisplayInMode(eSystemMode mode, bool isCharging);
+static bool powerLedIsBlinkOn(void);
 
 static PowerManager gPowerManager = {
     .status = {
@@ -77,6 +77,45 @@ static uint16_t powerCalcVoltage(eDrvAdcPortMap channel, uint16_t rawValue)
     return (uint16_t)lVoltage;
 }
 
+static uint8_t powerCalcBatteryLevel(uint16_t batteryMv)
+{
+    if (batteryMv >= 4100U) {
+        return 5U;
+    }
+
+    if (batteryMv >= 3950U) {
+        return 4U;
+    }
+
+    if (batteryMv >= 3820U) {
+        return 3U;
+    }
+
+    if (batteryMv >= 3700U) {
+        return 2U;
+    }
+
+    if (batteryMv >= 3550U) {
+        return 1U;
+    }
+
+    return 0U;
+}
+
+static bool powerLedShouldDisplayInMode(eSystemMode mode, bool isCharging)
+{
+    if ((mode == eSYSTEM_INIT_MODE) || (mode == eSYSTEM_POWERUP_SELFCHECK_MODE)) {
+        return isCharging;
+    }
+
+    return true;
+}
+
+static bool powerLedIsBlinkOn(void)
+{
+    return ((HAL_GetTick() / POWER_LED_BLINK_HALF_PERIOD_MS) & 0x01U) == 0U;
+}
+
 bool powerInit(void)
 {
     if ((gPowerManager.status.state == ePOWER_STATE_UNINIT) || (gPowerManager.status.state == ePOWER_STATE_FAULT)) {
@@ -98,17 +137,70 @@ uint16_t powerGetVoltage(eDrvAdcPortMap channel)
     return powerCalcVoltage(channel, lAdcValue);
 }
 
+void powerBatteryUpdate(void)
+{
+    uint8_t lNewLevel = powerCalcBatteryLevel(gPowerManager.voltage.batteryMv);
+
+    if (lNewLevel < gPowerManager.BatLevel) {
+        gPowerManager.BatLevel = lNewLevel;
+        return;
+    }
+
+    if ((lNewLevel > gPowerManager.BatLevel) && (gPowerManager.voltage.dcMv > 4500U)) {
+        gPowerManager.BatLevel = lNewLevel;
+    }
+}
+
+uint8_t powerBatteryGet(void)
+{
+    return gPowerManager.BatLevel;
+}
+
+void powerLedProcess(void)
+{
+    eSystemMode lMode = systemGetMode();
+    uint16_t lDcMv = gPowerManager.voltage.dcMv;
+    uint8_t lBatteryLevel = powerBatteryGet();
+    bool lIsCharging = lDcMv > POWER_CHARGE_THRESHOLD_MV;
+    bool lIsRedOn = false;
+    bool lIsGreenOn = false;
+
+    if (!powerLedShouldDisplayInMode(lMode, lIsCharging)) {
+        (void)pca9535PortLedPowerShow(false, false, false);
+        return;
+    }
+
+    if (lIsCharging) {
+        if (lBatteryLevel >= POWER_BATTERY_FULL_LEVEL) {
+            lIsGreenOn = true;
+        } else {
+            lIsGreenOn = powerLedIsBlinkOn();
+        }
+    } else if (lBatteryLevel <= POWER_BATTERY_LOW_LEVEL_MAX) {
+        lIsRedOn = true;
+    } else {
+        lIsGreenOn = true;
+    }
+
+    (void)pca9535PortLedPowerShow(lIsRedOn, lIsGreenOn, false);
+}
+
 void powerTransRawToVoltage(void)
 {
     uint8_t lIndex;
-    uint16_t lRawValue;
+    stDrvAdcData *lAdcData;
 
-    for (lIndex = 0U; lIndex < (uint8_t)(sizeof(gPowerChannelMap) / sizeof(gPowerChannelMap[0])); lIndex++) {
-        if (drvAdcReadRaw((uint8_t)gPowerChannelMap[lIndex].channel, &lRawValue) != DRV_STATUS_OK) {
+    lAdcData = drvAdcGetPlatformData();
+    if (lAdcData == NULL) {
+        for (lIndex = 0U; lIndex < (uint8_t)(sizeof(gPowerChannelMap) / sizeof(gPowerChannelMap[0])); lIndex++) {
             *gPowerChannelMap[lIndex].rawValue = 0U;
             *gPowerChannelMap[lIndex].voltageValue = 0U;
-            continue;
         }
+        return;
+    }
+
+    for (lIndex = 0U; lIndex < (uint8_t)(sizeof(gPowerChannelMap) / sizeof(gPowerChannelMap[0])); lIndex++) {
+        uint16_t lRawValue = lAdcData[gPowerChannelMap[lIndex].channel].raw;
 
         *gPowerChannelMap[lIndex].rawValue = lRawValue;
         *gPowerChannelMap[lIndex].voltageValue = powerCalcVoltage(gPowerChannelMap[lIndex].channel, lRawValue);
@@ -124,6 +216,7 @@ void powerProcess(void)
     }
 
     powerTransRawToVoltage();
+    powerBatteryUpdate();
     gPowerManager.status.state = gPowerManager.status.isShutDownRequested ? ePOWER_STATE_STOPPED : ePOWER_STATE_NORMAL;
 }
 

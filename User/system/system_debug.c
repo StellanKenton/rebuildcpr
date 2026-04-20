@@ -15,7 +15,10 @@
 #include "../../Core/Inc/main.h"
 #include "../../rep/driver/drvadc/drvadc_debug.h"
 #include "../../rep/driver/drvanlogiic/drvanlogiic_debug.h"
+#include "../../rep/driver/drvgpio/drvgpio_debug.h"
 #include "../../rep/driver/drviic/drviic_debug.h"
+#include "../../rep/driver/drvspi/drvspi_debug.h"
+#include "../../rep/driver/drvuart/drvuart_debug.h"
 #include "../../rep/service/log/console.h"
 #include "../../rep/service/log/log.h"
 #include "../rep_config.h"
@@ -364,7 +367,19 @@ bool systemDebugBackgroundServicesInit(void)
         return false;
     }
 
+    if (!drvGpioDebugConsoleRegister()) {
+        return false;
+    }
+
     if (!drvIicDebugConsoleRegister()) {
+        return false;
+    }
+
+    if (!drvSpiDebugConsoleRegister()) {
+        return false;
+    }
+
+    if (!drvUartDebugConsoleRegister()) {
         return false;
     }
 

@@ -19,6 +19,10 @@ typedef enum eDrvUartPortMapTable {
     DRVUART_AUDIO,
 } eDrvUartPortMap;
 
+#ifndef DRVUART_WIRELESS
+#define DRVUART_WIRELESS DRVUART_WIFI
+#endif
+
 #define DRVUART_RECVLEN_WIFI 256U
 #define DRVUART_RECVLEN_AUDIO 256U
 

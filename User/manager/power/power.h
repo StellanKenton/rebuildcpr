@@ -19,6 +19,17 @@
 extern "C" {
 #endif
 
+#define POWER_CHARGE_THRESHOLD_MV              4500U
+#define POWER_BATTERY_LOW_LEVEL_MAX            2U
+#define POWER_BATTERY_FULL_LEVEL               5U
+#define POWER_LED_BLINK_HALF_PERIOD_MS         500U
+
+typedef struct stPowerChannelMap {
+    eDrvAdcPortMap channel;
+    uint16_t *rawValue;
+    uint16_t *voltageValue;
+} stPowerChannelMap;
+
 typedef enum ePowerState {
     ePOWER_STATE_UNINIT = 0,
     ePOWER_STATE_READY,
@@ -50,10 +61,14 @@ typedef struct PowerManager {
     stPowerStatus status;
     PowerRaw raw;
     PowerVoltage voltage;
+    uint8_t BatLevel;
 } PowerManager;
 
 bool powerInit(void);
 uint16_t powerGetVoltage(eDrvAdcPortMap channel);
+void powerBatteryUpdate(void);
+uint8_t powerBatteryGet(void);
+void powerLedProcess(void);
 void powerTransRawToVoltage(void);
 void powerProcess(void);
 bool powerRequestShutDown(void);

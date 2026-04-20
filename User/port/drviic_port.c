@@ -13,7 +13,7 @@
 
 #include "../bsp/bspiic.h"
 
-static const stDrvIicBspInterface gDrvIicBspInterfaces[DRVIIC_MAX] = {
+const stDrvIicBspInterface gDrvIicBspInterface[DRVIIC_MAX] = {
     [DRVIIC_BUS0] = {
         .init = bspIicInit,
         .transfer = bspIicTransfer,
@@ -30,7 +30,7 @@ static const stDrvIicBspInterface gDrvIicBspInterfaces[DRVIIC_MAX] = {
 
 const stDrvIicBspInterface *drvIicGetPlatformBspInterfaces(void)
 {
-    return gDrvIicBspInterfaces;
+    return gDrvIicBspInterface;
 }
 
 /**************************End of file********************************/
