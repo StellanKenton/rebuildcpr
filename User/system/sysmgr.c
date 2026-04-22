@@ -21,6 +21,7 @@
 
 #include "drvgpio.h"
 #include "../../rep/service/log/log.h"
+#include "../../rep/service/vfs/vfs.h"
 
 #include "../manager/power/power.h"
 #include "../manager/selfcheck/selfcheck.h"
@@ -28,14 +29,24 @@
 #include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
+#include "../port/vfs_littlefs_port.h"
 #include "systask.h"
 #include "system.h"
-#include "../manager/comm/frameprocess/frameprocess.h"
 
 #define SYSTEM_LOG_TAG "systemManager"
 
 static bool gSystemInitModeCompleted = false;
 static bool gSystemBspInitCompleted = false;
+
+static void systemEnablePreciseFaultDebug(void)
+{
+    SCB->SHCSR |= SCB_SHCSR_BUSFAULTENA_Msk;
+#if defined(SCB_ACTLR_DISDEFWBUF_Msk)
+    SCB->ACTLR |= SCB_ACTLR_DISDEFWBUF_Msk;
+#elif defined(SCnSCB_ACTLR_DISDEFWBUF_Msk)
+    SCnSCB->ACTLR |= SCnSCB_ACTLR_DISDEFWBUF_Msk;
+#endif
+}
 
 /**
 * @brief : Run the generated STM32 BSP initialization sequence.
@@ -48,11 +59,14 @@ static void systemInitBsp(void)
         return;
     }
 
+    systemEnablePreciseFaultDebug();
+
     MX_GPIO_Init();
     MX_DMA_Init();
     MX_ADC1_Init();
     MX_I2C1_Init();
     MX_I2C2_Init();
+    MX_IWDG_Init();
     MX_RTC_Init();
     MX_SPI1_Init();
     MX_TIM3_Init();
@@ -109,6 +123,13 @@ static bool systemModuleInit(void)
         LOG_E(SYSTEM_LOG_TAG, "power init fail");
     }
 
+    if (vfsInit() && vfsLittlefsPortInit()) {
+        LOG_I(SYSTEM_LOG_TAG, "vfs init ok");
+    } else {
+        lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "vfs init fail");
+    }
+
     if (memoryInit()) {
         selfCheckSetFlashResult(true);
         LOG_I(SYSTEM_LOG_TAG, "memory init ok");
@@ -116,13 +137,6 @@ static bool systemModuleInit(void)
         selfCheckSetFlashResult(false);
         lIsReady = false;
         LOG_E(SYSTEM_LOG_TAG, "memory init fail");
-    }
-
-    if (frmProcInit(FRAME_PROC0) == FRM_PROC_STATUS_OK) {
-        LOG_I(SYSTEM_LOG_TAG, "frameprocess init ok");
-    } else {
-        lIsReady = false;
-        LOG_E(SYSTEM_LOG_TAG, "frameprocess init fail");
     }
 
     if (wirelessInit()) {

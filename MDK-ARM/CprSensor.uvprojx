@@ -740,6 +740,36 @@
               <FilePath>..\User\manager\memory\memory.c</FilePath>
             </File>
             <File>
+              <FileName>memory_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\memory\memory_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>vfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\service\vfs\vfs.c</FilePath>
+            </File>
+            <File>
+              <FileName>vfs_littlefs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\service\vfs\vfs_littlefs.c</FilePath>
+            </File>
+            <File>
+              <FileName>vfs_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\service\vfs\vfs_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>lfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\lib\littlefs\lfs.c</FilePath>
+            </File>
+            <File>
+              <FileName>lfs_util.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\lib\littlefs\lfs_util.c</FilePath>
+            </File>
+            <File>
               <FileName>update.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\manager\update\update.c</FilePath>
@@ -755,54 +785,24 @@
               <FilePath>..\rep\module\fc41d\fc41d.c</FilePath>
             </File>
             <File>
-              <FileName>fc41d_at.c</FileName>
+              <FileName>fc41d_ctrl.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\rep\module\fc41d\fc41d_at.c</FilePath>
+              <FilePath>..\rep\module\fc41d\fc41d_ctrl.c</FilePath>
             </File>
             <File>
-              <FileName>fc41d_ble.c</FileName>
+              <FileName>fc41d_data.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\rep\module\fc41d\fc41d_ble.c</FilePath>
+              <FilePath>..\rep\module\fc41d\fc41d_data.c</FilePath>
             </File>
             <File>
-              <FileName>fc41d_wifi.c</FileName>
+              <FileName>flowparser.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\rep\module\fc41d\fc41d_wifi.c</FilePath>
-            </File>
-            <File>
-              <FileName>fc41d_mode.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\rep\module\fc41d\fc41d_mode.c</FilePath>
+              <FilePath>..\rep\comm\flowparser\flowparser.c</FilePath>
             </File>
             <File>
               <FileName>flowparser_stream.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\rep\comm\flowparser\flowparser_stream.c</FilePath>
-            </File>
-            <File>
-              <FileName>flowparser_tokenizer.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\rep\comm\flowparser\flowparser_tokenizer.c</FilePath>
-            </File>
-            <File>
-              <FileName>frameprocess.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\manager\comm\frameprocess\frameprocess.c</FilePath>
-            </File>
-            <File>
-              <FileName>frameprocess_data.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\manager\comm\frameprocess\frameprocess_data.c</FilePath>
-            </File>
-            <File>
-              <FileName>frameprocess_pack.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\manager\comm\frameprocess\frameprocess_pack.c</FilePath>
-            </File>
-            <File>
-              <FileName>frameprocess_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\manager\comm\frameprocess\frameprocess_port.c</FilePath>
             </File>
             <File>
               <FileName>sysmgr.c</FileName>
@@ -1019,6 +1019,11 @@
               <FileType>1</FileType>
               <FilePath>..\User\port\gd25qxxx_port.c</FilePath>
             </File>
+            <File>
+              <FileName>vfs_littlefs_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\vfs_littlefs_port.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1078,6 +1083,11 @@
 
   <LayerInfo>
     <Layers>
+      <File>
+        <FileName>memory_debug.c</FileName>
+        <FileType>1</FileType>
+        <FilePath>..\User\manager\memory\memory_debug.c</FilePath>
+      </File>
       <Layer>
         <LayName>CprSensor</LayName>
         <LayPrjMark>1</LayPrjMark>

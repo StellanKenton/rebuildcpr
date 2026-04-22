@@ -13,20 +13,11 @@
 
 #include <stdint.h>
 
-#include "../../../rep/module/fc41d/fc41d_assembly.h"
+#include "../../rep/module/fc41d/fc41d_assembly.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef enum eFc41dPortBootState {
-    FC41DPORT_BOOT_WAITING = 0,
-    FC41DPORT_BOOT_READY,
-    FC41DPORT_BOOT_TIMEOUT,
-} eFc41dPortBootState;
-
-void fc41dPortResetBootWaitState(void);
-eFc41dPortBootState fc41dPortPollBootReady(eFc41dMapType device, uint32_t timeoutMs);
 
 #ifdef __cplusplus
 }

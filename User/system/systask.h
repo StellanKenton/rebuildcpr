@@ -18,12 +18,7 @@ extern "C" {
 #endif
 
 
-#define CommTaskStackSize           8U
-#define CommTaskPriority            23U
-#define CommTaskInterval            20U
-static void commTaskEntry(void *argument);
-
-#define MemoryTaskStackSize         8U
+#define MemoryTaskStackSize         24U
 #define MemoryTaskPriority          13U
 #define MemoryTaskInterval          100U
 static void memoryTaskEntry(void *argument);
@@ -43,7 +38,7 @@ static void wirelessTaskEntry(void *argument);
 #define AudioTaskInterval           20U
 static void audioTaskEntry(void *argument);
 
-#define SystemTaskStackSize         8U
+#define SystemTaskStackSize         40U
 #define SystemTaskPriority          5U
 #define SystemTaskInterval          10U
 void systemTaskEntry(void *argument);

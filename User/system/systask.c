@@ -10,13 +10,13 @@
 
 #include "systask.h"
 
+#include "../../Core/Inc/iwdg.h"
 #include "rtos.h"
 
 #include "sysmgr.h"
 #include "system.h"
 #include "system_debug.h"
 #include "../../rep/driver/drvadc/drvadc.h"
-#include "../manager/comm/frameprocess/frameprocess.h"
 #include "../manager/memory/memory.h"
 #include "../manager/power/power.h"
 #include "../manager/wireless/wireless.h"
@@ -26,22 +26,14 @@
 #define SYSTASK_LOG_TAG "systask"
 #define SYSTASK_STACK_DEPTH_FROM_BYTES(bytes) ((uint32_t)(bytes) / (uint32_t)sizeof(uint32_t))
 
+volatile uint32_t gSystemFaultTraceStage = 0U;
+
 static bool gSystaskWorkerTasksCreated = false;
 
-static repRtosTaskHandle gSystemCommTaskHandle = NULL;
 static repRtosTaskHandle gSystemMemoryTaskHandle = NULL;
 static repRtosTaskHandle gSystemPowerTaskHandle = NULL;
 static repRtosTaskHandle gSystemWirelessTaskHandle = NULL;
 static repRtosTaskHandle gSystemAudioTaskHandle = NULL;
-
-static const stRepRtosTaskConfig gSystemCommTaskConfig = {
-	.name = "commTask",
-	.entry = commTaskEntry,
-	.argument = NULL,
-	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * CommTaskStackSize),
-	.priority = CommTaskPriority,
-	.handle = &gSystemCommTaskHandle,
-};
 
 static const stRepRtosTaskConfig gSystemMemoryTaskConfig = {
 	.name = "memorytask",
@@ -78,17 +70,6 @@ static const stRepRtosTaskConfig gSystemAudioTaskConfig = {
 	.priority = AudioTaskPriority,
 	.handle = &gSystemAudioTaskHandle,
 };
-
-
-static void commTaskEntry(void *argument)
-{
-	(void)argument;
-
-	for (;;) {
-		frmProcProcess(FRAME_PROC0);
-		(void)repRtosDelayMs(CommTaskInterval);
-	}
-}
 
 static void memoryTaskEntry(void *argument)
 {
@@ -136,14 +117,12 @@ bool systaskCreateWorkerTasks(void)
 		return true;
 	}
 
-	(void)repRtosTaskCreate(&gSystemCommTaskConfig);
 	(void)repRtosTaskCreate(&gSystemMemoryTaskConfig);
 	(void)repRtosTaskCreate(&gSystemPowerTaskConfig);
 	(void)repRtosTaskCreate(&gSystemWirelessTaskConfig);
 	(void)repRtosTaskCreate(&gSystemAudioTaskConfig);
 
-	if ((gSystemCommTaskHandle == NULL) ||
-		(gSystemMemoryTaskHandle == NULL) ||
+	if ((gSystemMemoryTaskHandle == NULL) ||
 		(gSystemPowerTaskHandle == NULL) ||
 		(gSystemWirelessTaskHandle == NULL) ||
 		(gSystemAudioTaskHandle == NULL)) {
@@ -159,14 +138,16 @@ void systemTaskEntry(void *argument)
 	(void)argument;
 	for (;;) {
 		systemManagerRun();         // System Manager
-        /***************Background Services*********************/
+        /*************** Background Services **********************/
         drvAdcBackground();         // ADC background processing
         powerProcess();             // Power sampling and battery level update
 		powerLedProcess();          // Power LED state update
 		if (systemDebugBackgroundServicesInit()) {
 			systemDebugBackgroundServicesProcess();
 		}
-        /*******************************************************/
+        /******************   Watch Dog  *************************/
+        (void)HAL_IWDG_Refresh(&hiwdg);
+        /*********************************************************/
 		(void)repRtosDelayMs(SystemTaskInterval);
 	}
 }

@@ -35,6 +35,10 @@
 #define REP_LOG_OUTPUT_PORT 1U
 #endif
 
+#ifndef CONSOLE_MAX_COMMANDS
+#define CONSOLE_MAX_COMMANDS 24U
+#endif
+
 #ifndef DRVIIC_MAX
 #define DRVIIC_MAX 2U
 #endif

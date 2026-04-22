@@ -23,10 +23,16 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include "SEGGER_RTT.h"
 #include "../../User/bsp/bspuart.h"
 /* USER CODE END Includes */
+
+extern volatile uint32_t gSystemFaultTraceStage;
+extern volatile uint32_t gDrvAdcFaultTraceStage;
+extern volatile uint32_t gDrvAdcFaultTraceAdc;
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
@@ -56,6 +62,144 @@ static uint32_t gUsbIrqTraceCount = 0U;
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static volatile uint32_t gHardFaultReported = 0U;
+static char gHardFaultLineBuffer[128];
+
+static char *faultAppendString(char *cursor, const char *text)
+{
+  while ((*text != '\0') && ((cursor - gHardFaultLineBuffer) < (ptrdiff_t)(sizeof(gHardFaultLineBuffer) - 1U)))
+  {
+    *cursor = *text;
+    cursor++;
+    text++;
+  }
+
+  return cursor;
+}
+
+static char *faultAppendHex32(char *cursor, uint32_t value)
+{
+  static const char lDigits[] = "0123456789ABCDEF";
+  int32_t lShift;
+
+  cursor = faultAppendString(cursor, "0x");
+  for (lShift = 28; lShift >= 0; lShift -= 4)
+  {
+    if ((cursor - gHardFaultLineBuffer) >= (ptrdiff_t)(sizeof(gHardFaultLineBuffer) - 1U))
+    {
+      break;
+    }
+
+    *cursor = lDigits[(value >> (uint32_t)lShift) & 0x0FU];
+    cursor++;
+  }
+
+  return cursor;
+}
+
+static void faultWriteLine(const char *label, uint32_t value)
+{
+  char *lCursor = gHardFaultLineBuffer;
+
+  lCursor = faultAppendString(lCursor, "[fault] ");
+  lCursor = faultAppendString(lCursor, label);
+  lCursor = faultAppendString(lCursor, "=");
+  lCursor = faultAppendHex32(lCursor, value);
+  lCursor = faultAppendString(lCursor, "\r\n");
+  *lCursor = '\0';
+  SEGGER_RTT_WriteString(0, gHardFaultLineBuffer);
+}
+
+static bool faultStackPointerIsValid(const uint32_t *stack)
+{
+  uintptr_t lAddress = (uintptr_t)stack;
+
+  return (lAddress >= 0x20000000UL) &&
+         (lAddress <= (0x20010000UL - (8UL * sizeof(uint32_t))));
+}
+
+static void faultWriteStackFrame(const char *label, const uint32_t *stack)
+{
+  faultWriteLine(label, (uint32_t)(uintptr_t)stack);
+  if (!faultStackPointerIsValid(stack))
+  {
+    SEGGER_RTT_WriteString(0, "[fault] stack frame invalid\r\n");
+    return;
+  }
+
+  faultWriteLine("r0", stack[0]);
+  faultWriteLine("r1", stack[1]);
+  faultWriteLine("r2", stack[2]);
+  faultWriteLine("r3", stack[3]);
+  faultWriteLine("r12", stack[4]);
+  faultWriteLine("stack_lr", stack[5]);
+  faultWriteLine("stack_pc", stack[6]);
+  faultWriteLine("stack_xpsr", stack[7]);
+}
+
+static void hardFaultReport(void)
+{
+  const uint32_t *lMsp = (const uint32_t *)(uintptr_t)__get_MSP();
+  const uint32_t *lPsp = (const uint32_t *)(uintptr_t)__get_PSP();
+
+  if (gHardFaultReported != 0U)
+  {
+    return;
+  }
+
+  gHardFaultReported = 1U;
+  SEGGER_RTT_WriteString(0, "\r\n[fault] HardFault\r\n");
+  faultWriteLine("MSP", (uint32_t)(uintptr_t)lMsp);
+  faultWriteLine("PSP", (uint32_t)(uintptr_t)lPsp);
+  faultWriteLine("ICSR", SCB->ICSR);
+  faultWriteLine("SHCSR", SCB->SHCSR);
+  faultWriteLine("CFSR", SCB->CFSR);
+  faultWriteLine("HFSR", SCB->HFSR);
+  faultWriteLine("DFSR", SCB->DFSR);
+  faultWriteLine("AFSR", SCB->AFSR);
+  faultWriteLine("MMFAR", SCB->MMFAR);
+  faultWriteLine("BFAR", SCB->BFAR);
+  
+  faultWriteLine("sys_stage", gSystemFaultTraceStage);
+  faultWriteLine("adc_stage", gDrvAdcFaultTraceStage);
+  faultWriteLine("adc_idx", gDrvAdcFaultTraceAdc);
+  SEGGER_RTT_WriteString(0, "[fault] MSP frame\r\n");
+  faultWriteStackFrame("msp_sp", lMsp);
+  SEGGER_RTT_WriteString(0, "[fault] PSP frame\r\n");
+  faultWriteStackFrame("psp_sp", lPsp);
+}
+
+static void busFaultReport(void)
+{
+  const uint32_t *lMsp = (const uint32_t *)(uintptr_t)__get_MSP();
+  const uint32_t *lPsp = (const uint32_t *)(uintptr_t)__get_PSP();
+
+  if (gHardFaultReported != 0U)
+  {
+    return;
+  }
+
+  gHardFaultReported = 1U;
+  SEGGER_RTT_WriteString(0, "\r\n[fault] BusFault\r\n");
+  faultWriteLine("MSP", (uint32_t)(uintptr_t)lMsp);
+  faultWriteLine("PSP", (uint32_t)(uintptr_t)lPsp);
+  faultWriteLine("ICSR", SCB->ICSR);
+  faultWriteLine("SHCSR", SCB->SHCSR);
+  faultWriteLine("CFSR", SCB->CFSR);
+  faultWriteLine("HFSR", SCB->HFSR);
+  faultWriteLine("DFSR", SCB->DFSR);
+  faultWriteLine("AFSR", SCB->AFSR);
+  faultWriteLine("MMFAR", SCB->MMFAR);
+  faultWriteLine("BFAR", SCB->BFAR);
+  faultWriteLine("sys_stage", gSystemFaultTraceStage);
+  faultWriteLine("adc_stage", gDrvAdcFaultTraceStage);
+  faultWriteLine("adc_idx", gDrvAdcFaultTraceAdc);
+  SEGGER_RTT_WriteString(0, "[fault] MSP frame\r\n");
+  faultWriteStackFrame("msp_sp", lMsp);
+  SEGGER_RTT_WriteString(0, "[fault] PSP frame\r\n");
+  faultWriteStackFrame("psp_sp", lPsp);
+}
+
 static void usbTraceIrq(const char *pTag)
 {
   char lBuffer[96];
@@ -127,6 +271,7 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+  hardFaultReport();
 
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
@@ -157,6 +302,7 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
+  busFaultReport();
 
   /* USER CODE END BusFault_IRQn 0 */
   while (1)

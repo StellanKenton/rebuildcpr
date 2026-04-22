@@ -21,6 +21,7 @@
 #include "../../rep/driver/drvuart/drvuart_debug.h"
 #include "../../rep/service/log/console.h"
 #include "../../rep/service/log/log.h"
+#include "../manager/memory/memory_debug.h"
 #include "../rep_config.h"
 #include "system.h"
 
@@ -412,6 +413,10 @@ bool systemDebugConsoleRegister(void)
         return false;
     }
 
+    if (!memoryDebugConsoleRegister()) {
+        return false;
+    }
+
     if (!logRegisterConsole(&gSystemTaskUsageConsoleCommand)) {
         return false;
     }
@@ -427,6 +432,10 @@ bool systemDebugConsoleRegister(void)
     }
 
     if (!logRegisterConsole(&gSystemRebootConsoleCommand)) {
+        return false;
+    }
+
+    if (!memoryDebugConsoleRegister()) {
         return false;
     }
 
