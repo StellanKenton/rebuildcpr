@@ -68,6 +68,8 @@ dkms.conf
 *.uvguix.*
 MDK-ARM/DebugConfig/
 MDK-ARM/CprSensor/
+build/
+.tools/
 
 # Local project packs and generated exports
 project/**/build/

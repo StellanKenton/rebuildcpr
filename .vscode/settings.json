@@ -10,7 +10,7 @@
   ],
   "cmake.configureSettings": {
     "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/cmake/toolchains/arm-none-eabi.cmake",
-    "ARM_GNU_TOOLCHAIN_BIN_DIR": "/Applications/ArmGNUToolchain/15.2.rel1/arm-none-eabi/bin",
+    "ARM_GNU_TOOLCHAIN_BIN_DIR": "${config:cpr.tools.armToolchainBinDir}",
     "CMAKE_BUILD_TYPE": "Debug",
     "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
   },
@@ -20,35 +20,56 @@
   "files.associations": {
     "*.ld": "ld"
   },
-  "cpr.tools.armToolchainBinDir": "${env:ARM_GNU_TOOLCHAIN_BIN_DIR}",
-  "cpr.tools.armGdbPath": "${env:ARM_GNU_TOOLCHAIN_BIN_DIR}/arm-none-eabi-gdb.exe",
-  "cpr.tools.jlinkGdbServer": "${env:JLINK_PATH}/JLinkGDBServerCL.exe",
+  "cpr.tools.armToolchainBinDir": "${workspaceFolder}/.tools/arm-gnu-toolchain/bin",
+  "cpr.tools.armGdbPath": "${workspaceFolder}/.tools/arm-gnu-toolchain/bin/arm-none-eabi-gdb",
+  "cpr.tools.jlinkExe": "JLinkExe",
+  "cpr.tools.jlinkGdbServer": "JLinkGDBServer",
   "cpr.target.device": "STM32F103RE",
   "cpr.target.interface": "SWD",
   "cpr.target.speed": "4000",
+  "cpr.target.gdbPort": "2331",
+  "cpr.target.swoPort": "2332",
+  "cpr.target.telnetPort": "2333",
+  "cpr.target.rttTelnetPort": "19021",
+  "cpr.rttServer.gdbPort": "2341",
+  "cpr.rttServer.swoPort": "2342",
+  "cpr.rttServer.telnetPort": "2343",
+  "cpr.rttServer.rttTelnetPort": "19031",
   "commands.workspaceCommands": {
+    "Cpr Configure": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "Firmware: Configure",
+      "icon": "gear",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Configure",
+        "name": "Cpr Configure",
+        "priority": 401,
+        "tooltip": "Configure the CMake build directory on macOS."
+      }
+    },
     "Cpr Build": {
       "command": "workbench.action.tasks.runTask",
-      "args": "Keil: Build",
+      "args": "Firmware: Build",
       "icon": "tools",
       "statusBar": {
         "alignment": "left",
         "text": " Build",
         "name": "Cpr Build",
         "priority": 400,
-        "tooltip": "Run the Keil build task in the integrated terminal."
+        "tooltip": "Build with Keil on Windows or CMake on macOS."
       }
     },
     "Cpr Rebuild": {
       "command": "workbench.action.tasks.runTask",
-      "args": "Keil: Rebuild",
+      "args": "Firmware: Rebuild",
       "icon": "refresh",
       "statusBar": {
         "alignment": "left",
         "text": " Rebuild",
         "name": "Cpr Rebuild",
         "priority": 399,
-        "tooltip": "Run the Keil rebuild task in the integrated terminal."
+        "tooltip": "Rebuild with the host-specific toolchain."
       }
     },
     "Cpr Flash": {
@@ -60,7 +81,7 @@
         "text": " Flash",
         "name": "Cpr Flash",
         "priority": 398,
-        "tooltip": "Build and flash the target with the J-Link task."
+        "tooltip": "Build and flash the target with J-Link."
       }
     },
     "Cpr Reset": {
@@ -72,28 +93,30 @@
         "text": " Reset",
         "name": "Cpr Reset",
         "priority": 397,
-        "tooltip": "Reset the target with J-Link."
+        "tooltip": "Reset and run the target with J-Link."
       }
     },
-    "Cpr RTT IO": {
+    "Cpr RTT": {
+      "command": "workbench.action.tasks.runTask",
+      "args": "J-Link: RTT",
       "icon": "terminal",
-      "sequence": [
-        {
-          "command": "workbench.action.tasks.runTask",
-          "args": "J-Link: RTT Server"
-        },
-        {
-          "command": "workbench.action.tasks.runTask",
-          "args": "J-Link: RTT Terminal",
-          "delay": 800
-        }
-      ],
       "statusBar": {
         "alignment": "left",
         "text": " RTT",
-        "name": "Cpr RTT IO",
+        "name": "Cpr RTT",
         "priority": 396,
-        "tooltip": "Start the J-Link RTT server, then open the RTT terminal for read and write I/O."
+        "tooltip": "Open RTT logging for the current host."
+      }
+    },
+    "Cpr Stop": {
+      "command": "workbench.action.tasks.terminate",
+      "icon": "stop-circle",
+      "statusBar": {
+        "alignment": "left",
+        "text": " Stop",
+        "name": "Cpr Stop",
+        "priority": 395,
+        "tooltip": "Stop a running build, flash, or RTT task."
       }
     },
     "Cpr Serial Monitor": {
@@ -104,9 +127,10 @@
         "alignment": "left",
         "text": " Serial",
         "name": "Cpr Serial Monitor",
-        "priority": 395,
-        "tooltip": "Open the UART serial monitor. If needed, VS Code will prompt for the COM port."
+        "priority": 394,
+        "tooltip": "Open the Windows UART serial monitor."
       }
     }
   }
 }
+

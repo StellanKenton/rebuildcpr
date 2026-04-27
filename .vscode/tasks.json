@@ -2,201 +2,24 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Keil: Build",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/vscode/keil-build.ps1",
-        "-Mode",
-        "Build"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": [
-        "$keil-armcc"
-      ],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "Keil: Rebuild",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/vscode/keil-build.ps1",
-        "-Mode",
-        "Rebuild"
-      ],
-      "problemMatcher": [
-        "$keil-armcc"
-      ],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "J-Link: Flash",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/vscode/jlink.ps1",
-        "-Action",
-        "Flash"
-      ],
-      "dependsOn": [
-        "Keil: Build"
-      ],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "J-Link: Reset",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/vscode/jlink.ps1",
-        "-Action",
-        "Reset"
-      ],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "J-Link: RTT Server",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/vscode/jlink.ps1",
-        "-Action",
-        "RttServer"
-      ],
-      "isBackground": true,
-      "problemMatcher": [
-        "$jlink-rtt-server"
-      ],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "clear": true
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "J-Link: RTT Terminal",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/vscode/jlink.ps1",
-        "-Action",
-        "RttClient"
-      ],
-      "presentation": {
-        "reveal": "always",
-        "focus": true,
-        "panel": "dedicated",
-        "clear": true
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
-    },
-    {
-      "label": "J-Link: RTT Open",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "J-Link: RTT Server",
-        "J-Link: RTT Terminal"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "Serial: Monitor",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/vscode/serial-monitor.ps1",
-        "-PortName",
-        "${input:serialPortName}"
-      ],
-      "presentation": {
-        "reveal": "always",
-        "focus": true,
-        "panel": "dedicated",
-        "clear": true
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "Firmware: Configure",
       "type": "shell",
-      "command": "${workspaceFolder}/.vscode/scripts/cmake_configure.sh",
+      "command": "echo",
       "args": [
-        "${workspaceFolder}",
-        "${workspaceFolder}/build/Debug",
-        "Ninja",
-        "${workspaceFolder}/cmake/toolchains/arm-none-eabi.cmake",
-        "${config:cpr.tools.armToolchainBinDir}",
-        "Debug",
-        "ON"
+        "Configure is only needed on macOS CMake builds."
       ],
+      "osx": {
+        "command": "${workspaceFolder}/.vscode/scripts/cmake_configure.sh",
+        "args": [
+          "${workspaceFolder}",
+          "${workspaceFolder}/build/Debug",
+          "Ninja",
+          "${workspaceFolder}/cmake/toolchains/arm-none-eabi.cmake",
+          "${config:cpr.tools.armToolchainBinDir}",
+          "Debug",
+          "ON"
+        ]
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -210,17 +33,39 @@
     {
       "label": "Firmware: Build",
       "type": "shell",
-      "command": "cmake",
+      "command": "echo",
       "args": [
-        "--build",
-        "${workspaceFolder}/build/Debug",
-        "--parallel"
+        "Unsupported host for this workspace."
       ],
-      "dependsOn": "Firmware: Configure",
-      "dependsOrder": "sequence",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/vscode/keil-build.ps1",
+          "-Mode",
+          "Build"
+        ],
+        "problemMatcher": [
+          "$keil-armcc"
+        ]
+      },
+      "osx": {
+        "command": "cmake",
+        "args": [
+          "--build",
+          "${workspaceFolder}/build/Debug",
+          "--parallel"
+        ],
+        "dependsOn": "Firmware: Configure",
+        "dependsOrder": "sequence",
+        "problemMatcher": []
+      },
       "group": {
         "kind": "build",
-        "isDefault": false
+        "isDefault": true
       },
       "problemMatcher": [],
       "presentation": {
@@ -235,15 +80,37 @@
     {
       "label": "Firmware: Rebuild",
       "type": "shell",
-      "command": "cmake",
+      "command": "echo",
       "args": [
-        "--build",
-        "${workspaceFolder}/build/Debug",
-        "--clean-first",
-        "--parallel"
+        "Unsupported host for this workspace."
       ],
-      "dependsOn": "Firmware: Configure",
-      "dependsOrder": "sequence",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/vscode/keil-build.ps1",
+          "-Mode",
+          "Rebuild"
+        ],
+        "problemMatcher": [
+          "$keil-armcc"
+        ]
+      },
+      "osx": {
+        "command": "cmake",
+        "args": [
+          "--build",
+          "${workspaceFolder}/build/Debug",
+          "--clean-first",
+          "--parallel"
+        ],
+        "dependsOn": "Firmware: Configure",
+        "dependsOrder": "sequence",
+        "problemMatcher": []
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -264,6 +131,14 @@
         "--target",
         "clean"
       ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "if (Test-Path '${workspaceFolder}/MDK-ARM/CprSensor') { Remove-Item '${workspaceFolder}/MDK-ARM/CprSensor' -Recurse -Force }"
+        ]
+      },
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -275,22 +150,158 @@
       }
     },
     {
-      "label": "Firmware: Bootstrap",
+      "label": "J-Link: Flash",
       "type": "shell",
-      "command": "${workspaceFolder}/.vscode/scripts/bootstrap_cmake_env.sh",
+      "command": "echo",
       "args": [
-        "${workspaceFolder}",
-        "${workspaceFolder}/build/Debug",
-        "Ninja",
-        "${workspaceFolder}/cmake/toolchains/arm-none-eabi.cmake",
-        "${config:cpr.tools.armToolchainBinDir}",
-        "Debug",
-        "ON"
+        "Unsupported host for this workspace."
       ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/vscode/jlink.ps1",
+          "-Action",
+          "Flash"
+        ]
+      },
+      "osx": {
+        "command": "${workspaceFolder}/.vscode/scripts/jlink_flash.sh",
+        "args": [
+          "${config:cpr.target.device}",
+          "${config:cpr.target.interface}",
+          "${config:cpr.target.speed}",
+          "${workspaceFolder}/build/Debug/CprSensor.hex",
+          "${config:cpr.tools.jlinkExe}"
+        ]
+      },
+      "dependsOn": "Firmware: Build",
+      "dependsOrder": "sequence",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
         "panel": "shared",
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "J-Link: Reset",
+      "type": "shell",
+      "command": "echo",
+      "args": [
+        "Unsupported host for this workspace."
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/vscode/jlink.ps1",
+          "-Action",
+          "Reset"
+        ]
+      },
+      "osx": {
+        "command": "${workspaceFolder}/.vscode/scripts/jlink_reset.sh",
+        "args": [
+          "${config:cpr.target.device}",
+          "${config:cpr.target.interface}",
+          "${config:cpr.target.speed}",
+          "${config:cpr.tools.jlinkExe}"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "J-Link: RTT",
+      "type": "shell",
+      "command": "echo",
+      "args": [
+        "Unsupported host for this workspace."
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/vscode/jlink.ps1",
+          "-Action",
+          "RttServer"
+        ],
+        "isBackground": true,
+        "problemMatcher": [
+          "$jlink-rtt-server"
+        ]
+      },
+      "osx": {
+        "command": "${workspaceFolder}/.vscode/scripts/jlink_rtt_console.sh",
+        "args": [
+          "${config:cpr.target.device}",
+          "${config:cpr.target.interface}",
+          "${config:cpr.target.speed}",
+          "${config:cpr.rttServer.gdbPort}",
+          "${config:cpr.rttServer.swoPort}",
+          "${config:cpr.rttServer.telnetPort}",
+          "${config:cpr.rttServer.rttTelnetPort}",
+          "${config:cpr.tools.jlinkGdbServer}"
+        ],
+        "problemMatcher": []
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": false,
+        "showReuseMessage": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Serial: Monitor",
+      "type": "shell",
+      "command": "echo",
+      "args": [
+        "Serial monitor is configured for Windows PowerShell."
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/vscode/serial-monitor.ps1",
+          "-PortName",
+          "${input:serialPortName}"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
         "clear": true
       },
       "options": {
@@ -347,3 +358,4 @@
     }
   ]
 }
+
