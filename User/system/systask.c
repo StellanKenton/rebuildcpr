@@ -14,14 +14,12 @@
 #include "rtos.h"
 
 #include "sysmgr.h"
-#include "system.h"
 #include "system_debug.h"
+#include "../../rep/service/log/log.h"
 #include "../../rep/driver/drvadc/drvadc.h"
 #include "../manager/memory/memory.h"
 #include "../manager/power/power.h"
 #include "../manager/wireless/wireless.h"
-#include "../port/pca9535_port.h"
-#include "../port/tm1651_port.h"
 
 #define SYSTASK_LOG_TAG "systask"
 #define SYSTASK_STACK_DEPTH_FROM_BYTES(bytes) ((uint32_t)(bytes) / (uint32_t)sizeof(uint32_t))
@@ -34,6 +32,11 @@ static repRtosTaskHandle gSystemMemoryTaskHandle = NULL;
 static repRtosTaskHandle gSystemPowerTaskHandle = NULL;
 static repRtosTaskHandle gSystemWirelessTaskHandle = NULL;
 static repRtosTaskHandle gSystemAudioTaskHandle = NULL;
+
+static void memoryTaskEntry(void *argument);
+static void powerTaskEntry(void *argument);
+static void wirelessTaskEntry(void *argument);
+static void audioTaskEntry(void *argument);
 
 static const stRepRtosTaskConfig gSystemMemoryTaskConfig = {
 	.name = "memorytask",
@@ -113,23 +116,42 @@ static void audioTaskEntry(void *argument)
 
 bool systaskCreateWorkerTasks(void)
 {
+	static bool lCreateFailedLogged = false;
+	eRepRtosStatus memoryStatus;
+	eRepRtosStatus powerStatus;
+	eRepRtosStatus wirelessStatus;
+	eRepRtosStatus audioStatus;
+
 	if (gSystaskWorkerTasksCreated) {
 		return true;
 	}
 
-	(void)repRtosTaskCreate(&gSystemMemoryTaskConfig);
-	(void)repRtosTaskCreate(&gSystemPowerTaskConfig);
-	(void)repRtosTaskCreate(&gSystemWirelessTaskConfig);
-	(void)repRtosTaskCreate(&gSystemAudioTaskConfig);
+	memoryStatus = repRtosTaskCreate(&gSystemMemoryTaskConfig);
+	powerStatus = repRtosTaskCreate(&gSystemPowerTaskConfig);
+	wirelessStatus = repRtosTaskCreate(&gSystemWirelessTaskConfig);
+	audioStatus = repRtosTaskCreate(&gSystemAudioTaskConfig);
 
 	if ((gSystemMemoryTaskHandle == NULL) ||
 		(gSystemPowerTaskHandle == NULL) ||
 		(gSystemWirelessTaskHandle == NULL) ||
 		(gSystemAudioTaskHandle == NULL)) {
+		if (!lCreateFailedLogged) {
+			lCreateFailedLogged = true;
+			LOG_E(SYSTASK_LOG_TAG, "worker create fail mem=%d power=%d wireless=%d audio=%d handles=%p/%p/%p/%p",
+				  (int)memoryStatus,
+				  (int)powerStatus,
+				  (int)wirelessStatus,
+				  (int)audioStatus,
+				  gSystemMemoryTaskHandle,
+				  gSystemPowerTaskHandle,
+				  gSystemWirelessTaskHandle,
+				  gSystemAudioTaskHandle);
+		}
 		return false;
 	}
 
 	gSystaskWorkerTasksCreated = true;
+	LOG_I(SYSTASK_LOG_TAG, "worker tasks ready");
 	return true;
 }
 

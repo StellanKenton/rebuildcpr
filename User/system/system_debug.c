@@ -22,6 +22,7 @@
 #include "../../rep/service/log/console.h"
 #include "../../rep/service/log/log.h"
 #include "../manager/memory/memory_debug.h"
+#include "../manager/wireless/wireless.h"
 #include "../rep_config.h"
 #include "system.h"
 
@@ -55,6 +56,7 @@ static void systemDebugTaskUsageSampler(void *parameter);
 static eConsoleCommandResult systemDebugConsoleVersionHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleStatusHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleRebootHandler(uint32_t transport, int argc, char *argv[]);
+static eConsoleCommandResult systemDebugConsoleWirelessHandler(uint32_t transport, int argc, char *argv[]);
 static bool gSystemDebugBackgroundServicesReady = false;
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
@@ -83,6 +85,13 @@ static const stConsoleCommand gSystemRebootConsoleCommand = {
     .helpText = "reboot - software reset the MCU",
     .ownerTag = "system",
     .handler = systemDebugConsoleRebootHandler,
+};
+
+static const stConsoleCommand gSystemWirelessConsoleCommand = {
+    .commandName = "wireless",
+    .helpText = "wireless <status|ble_on|ble_off|wifi_on|wifi_off|wifi_connect|mqtt_on|mqtt_off>",
+    .ownerTag = "wireless",
+    .handler = systemDebugConsoleWirelessHandler,
 };
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
@@ -346,6 +355,141 @@ static eConsoleCommandResult systemDebugConsoleRebootHandler(uint32_t transport,
     return CONSOLE_COMMAND_RESULT_OK;
 }
 
+static const char *systemDebugWirelessStateText(eWirelessState state)
+{
+    switch (state) {
+        case eWIRELESS_STATE_INIT:
+            return "init";
+        case eWIRELESS_STATE_NORMAL:
+            return "normal";
+        case eWIRELESS_STATE_ERROR:
+            return "error";
+        default:
+            return "unknown";
+    }
+}
+
+static const char *systemDebugWirelessWifiStateText(eWirelessWifiState state)
+{
+    switch (state) {
+        case WIRELESS_WIFI_IDLE:
+            return "idle";
+        case WIRELESS_WIFI_INITIALIZING:
+            return "initializing";
+        case WIRELESS_WIFI_READY:
+            return "ready";
+        case WIRELESS_WIFI_WAITING_CONNECTION:
+            return "waiting";
+        case WIRELESS_WIFI_CONNECTED:
+            return "connected";
+        case WIRELESS_WIFI_ERROR:
+            return "error";
+        default:
+            return "unknown";
+    }
+}
+
+static const char *systemDebugWirelessIotStateText(eWirelessIotState state)
+{
+    switch (state) {
+        case WIRELESS_IOT_IDLE:
+            return "idle";
+        case WIRELESS_IOT_WAIT_WIFI:
+            return "wait_wifi";
+        case WIRELESS_IOT_WAIT_AUTH:
+            return "wait_auth";
+        case WIRELESS_IOT_AUTH_READY:
+            return "auth_ready";
+        case WIRELESS_IOT_MQTT_CONNECTING:
+            return "mqtt_connecting";
+        case WIRELESS_IOT_MQTT_READY:
+            return "mqtt_ready";
+        case WIRELESS_IOT_ERROR:
+            return "error";
+        default:
+            return "unknown";
+    }
+}
+
+static eConsoleCommandResult systemDebugWirelessReplyStatus(uint32_t transport)
+{
+    const eWirelessState *lState = wirelessGetStatus();
+    eWirelessWifiState lWifiState = wirelessGetWifiState();
+    eWirelessIotState lIotState = wirelessGetIotState();
+    uint16_t lBleRxLen = wirelessGetBleRxLength();
+    uint16_t lWifiRxLen = wirelessGetWifiRxLength();
+
+    if (lState == NULL) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    if (logConsoleReply(transport,
+        "state=%s wifi=%s iot=%s ble_rx=%u wifi_rx=%u\nOK",
+        systemDebugWirelessStateText(*lState),
+        systemDebugWirelessWifiStateText(lWifiState),
+        systemDebugWirelessIotStateText(lIotState),
+        (unsigned int)lBleRxLen,
+        (unsigned int)lWifiRxLen) <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    return CONSOLE_COMMAND_RESULT_OK;
+}
+
+static eConsoleCommandResult systemDebugConsoleWirelessHandler(uint32_t transport, int argc, char *argv[])
+{
+    if ((argc < 2) || (argv == NULL)) {
+        return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+    }
+
+    if (strcmp(argv[1], "status") == 0) {
+        if (argc != 2) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+        return systemDebugWirelessReplyStatus(transport);
+    }
+    if (strcmp(argv[1], "ble_on") == 0) {
+        if ((argc != 2) || !wirelessSetBleEnabled(true)) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+    } else if (strcmp(argv[1], "ble_off") == 0) {
+        if ((argc != 2) || !wirelessSetBleEnabled(false)) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+    } else if (strcmp(argv[1], "wifi_on") == 0) {
+        if ((argc != 2) || !wirelessSetWifiEnabled(true)) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+    } else if (strcmp(argv[1], "wifi_off") == 0) {
+        if ((argc != 2) || !wirelessSetWifiEnabled(false)) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+    } else if (strcmp(argv[1], "wifi_connect") == 0) {
+        if ((argc != 4) || !wirelessSetWifiCredentials((const uint8_t *)argv[2],
+                                                       (uint8_t)strlen(argv[2]),
+                                                       (const uint8_t *)argv[3],
+                                                       (uint8_t)strlen(argv[3]))) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+    } else if (strcmp(argv[1], "mqtt_on") == 0) {
+        if ((argc != 2) || !wirelessSetMqttEnabled(true)) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+    } else if (strcmp(argv[1], "mqtt_off") == 0) {
+        if ((argc != 2) || !wirelessSetMqttEnabled(false)) {
+            return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+        }
+    } else {
+        return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+    }
+
+    if (logConsoleReply(transport, "OK") <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    return CONSOLE_COMMAND_RESULT_OK;
+}
+
 bool systemDebugBackgroundServicesInit(void)
 {
     if (gSystemDebugBackgroundServicesReady) {
@@ -413,6 +557,10 @@ bool systemDebugConsoleRegister(void)
         return false;
     }
 
+    if (!logRegisterConsole(&gSystemWirelessConsoleCommand)) {
+        return false;
+    }
+
     if (!memoryDebugConsoleRegister()) {
         return false;
     }
@@ -432,6 +580,10 @@ bool systemDebugConsoleRegister(void)
     }
 
     if (!logRegisterConsole(&gSystemRebootConsoleCommand)) {
+        return false;
+    }
+
+    if (!logRegisterConsole(&gSystemWirelessConsoleCommand)) {
         return false;
     }
 

@@ -108,6 +108,9 @@ add_executable(${TARGET_NAME}
   rep/module/fc41d/fc41d.c
   rep/module/fc41d/fc41d_ctrl.c
   rep/module/fc41d/fc41d_data.c
+  rep/module/fc41d/fc41d_http.c
+  rep/module/fc41d/fc41d_mqtt.c
+  rep/module/fc41d/fc41d_wifi.c
   rep/comm/flowparser/flowparser.c
   rep/comm/flowparser/flowparser_stream.c
   rep/driver/drvadc/drvadc.c
@@ -121,6 +124,8 @@ add_executable(${TARGET_NAME}
   rep/module/pca9535/pca9535.c
   rep/module/tm1651/tm1651.c
   rep/tools/ringbuffer/ringbuffer.c
+  rep/tools/jsonparser/jsonparser.c
+  rep/tools/md5/md5.c
   rep/comm/frameparser/framepareser.c
   rep/service/log/console.c
   rep/service/log/log.c
