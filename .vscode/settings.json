@@ -2,6 +2,7 @@
   "files.encoding": "utf8",
   "files.autoGuessEncoding": false,
   "cmake.generator": "Ninja",
+  "cmake.cmakePath": "/Users/rumi/Library/Python/3.9/bin/cmake",
   "cmake.configureOnOpen": true,
   "cmake.buildDirectory": "${workspaceFolder}/build/Debug",
   "cmake.sourceDirectory": "${workspaceFolder}",
@@ -10,6 +11,7 @@
   ],
   "cmake.configureSettings": {
     "CMAKE_TOOLCHAIN_FILE": "${workspaceFolder}/cmake/toolchains/arm-none-eabi.cmake",
+    "CMAKE_MAKE_PROGRAM": "/Users/rumi/Library/Python/3.9/bin/ninja",
     "ARM_GNU_TOOLCHAIN_BIN_DIR": "${config:cpr.tools.armToolchainBinDir}",
     "CMAKE_BUILD_TYPE": "Debug",
     "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
@@ -22,8 +24,10 @@
   },
   "cpr.tools.armToolchainBinDir": "${workspaceFolder}/.tools/arm-gnu-toolchain/bin",
   "cpr.tools.armGdbPath": "${workspaceFolder}/.tools/arm-gnu-toolchain/bin/arm-none-eabi-gdb",
-  "cpr.tools.jlinkExe": "JLinkExe",
-  "cpr.tools.jlinkGdbServer": "JLinkGDBServer",
+  "cpr.tools.cmakePath": "/Users/rumi/Library/Python/3.9/bin/cmake",
+  "cpr.tools.ninjaPath": "/Users/rumi/Library/Python/3.9/bin/ninja",
+  "cpr.tools.jlinkExe": "/usr/local/bin/JLinkExe",
+  "cpr.tools.jlinkGdbServer": "/usr/local/bin/JLinkGDBServer",
   "cpr.target.device": "STM32F103RE",
   "cpr.target.interface": "SWD",
   "cpr.target.speed": "4000",
@@ -133,4 +137,3 @@
     }
   }
 }
-

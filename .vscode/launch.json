@@ -15,15 +15,10 @@
       "armToolchainPath": "${config:cpr.tools.armToolchainBinDir}",
       "runToEntryPoint": "main",
       "preLaunchTask": "Firmware: Build",
+      "showDevDebugOutput": "raw",
       "serverArgs": [
         "-speed",
-        "${config:cpr.target.speed}",
-        "-port",
-        "${config:cpr.target.gdbPort}",
-        "-swoport",
-        "${config:cpr.target.swoPort}",
-        "-telnetport",
-        "${config:cpr.target.telnetPort}"
+        "${config:cpr.target.speed}"
       ],
       "postLaunchCommands": [
         "monitor reset",

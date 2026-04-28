@@ -53,20 +53,20 @@
         ]
       },
       "osx": {
-        "command": "cmake",
+        "command": "${config:cpr.tools.cmakePath}",
         "args": [
           "--build",
           "${workspaceFolder}/build/Debug",
           "--parallel"
         ],
-        "dependsOn": "Firmware: Configure",
-        "dependsOrder": "sequence",
         "problemMatcher": []
       },
       "group": {
         "kind": "build",
         "isDefault": true
       },
+      "dependsOn": "Firmware: Configure",
+      "dependsOrder": "sequence",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -100,17 +100,17 @@
         ]
       },
       "osx": {
-        "command": "cmake",
+        "command": "${config:cpr.tools.cmakePath}",
         "args": [
           "--build",
           "${workspaceFolder}/build/Debug",
           "--clean-first",
           "--parallel"
         ],
-        "dependsOn": "Firmware: Configure",
-        "dependsOrder": "sequence",
         "problemMatcher": []
       },
+      "dependsOn": "Firmware: Configure",
+      "dependsOrder": "sequence",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -137,6 +137,15 @@
           "-NoProfile",
           "-Command",
           "if (Test-Path '${workspaceFolder}/MDK-ARM/CprSensor') { Remove-Item '${workspaceFolder}/MDK-ARM/CprSensor' -Recurse -Force }"
+        ]
+      },
+      "osx": {
+        "command": "${config:cpr.tools.cmakePath}",
+        "args": [
+          "--build",
+          "${workspaceFolder}/build/Debug",
+          "--target",
+          "clean"
         ]
       },
       "problemMatcher": [],
@@ -358,4 +367,3 @@
     }
   ]
 }
-
