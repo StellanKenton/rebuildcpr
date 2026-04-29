@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F103xE,DRVGPIO_LOG_SUPPORT=0,DRVGPIO_CONSOLE_SUPPORT=0</Define>
               <Undefine></Undefine>
-              <IncludePath>..;../Core/Inc;../User;../User/manager;../User/system;../User/port;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../rep/driver/drviic;../rep/driver/drvspi;../rep/driver/drvuart;../rep/driver/drvgpio;../rep/driver/drvadc;../rep/driver/drvusb;../rep/driver/drvanlogiic;../rep/module/mpu6050;../rep/module/w25qxxx;../rep/module/pca9535;../rep/module/tm1651;../rep/module/lsm6;../rep/service/rtos;../rep/tools/ringbuffer;../SEGGER</IncludePath>
+              <IncludePath>..;../Core/Inc;../User;../User/manager;../User/system;../User/port;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../rep/driver/drviic;../rep/driver/drvspi;../rep/driver/drvuart;../rep/driver/drvgpio;../rep/driver/drvadc;../rep/driver/drvusb;../rep/driver/drvanlogiic;../rep/module/mpu6050;../rep/module/w25qxxx;../rep/module/pca9535;../rep/module/tm1651;../rep/module/lsm6;../rep/service/rtos;../rep/tools/ringbuffer;../rep/tools/jsonparser;../rep/tools/md5;../rep/tools/aes;../SEGGER</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -775,9 +775,34 @@
               <FilePath>..\User\manager\update\update.c</FilePath>
             </File>
             <File>
+              <FileName>cprsensor_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\iotmanager\cprsensor_protocol.c</FilePath>
+            </File>
+            <File>
+              <FileName>iotmanager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\iotmanager\iotmanager.c</FilePath>
+            </File>
+            <File>
+              <FileName>protcolmgr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\iotmanager\protcolmgr.c</FilePath>
+            </File>
+            <File>
               <FileName>wireless.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\manager\wireless\wireless.c</FilePath>
+            </File>
+            <File>
+              <FileName>wireless_ble.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\wireless\wireless_ble.c</FilePath>
+            </File>
+            <File>
+              <FileName>wireless_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\wireless\wireless_wifi.c</FilePath>
             </File>
             <File>
               <FileName>fc41d.c</FileName>
@@ -928,6 +953,21 @@
               <FileName>ringbuffer.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\rep\tools\ringbuffer\ringbuffer.c</FilePath>
+            </File>
+            <File>
+              <FileName>jsonparser.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\tools\jsonparser\jsonparser.c</FilePath>
+            </File>
+            <File>
+              <FileName>md5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\tools\md5\md5.c</FilePath>
+            </File>
+            <File>
+              <FileName>aes.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\tools\aes\aes.c</FilePath>
             </File>
             <File>
               <FileName>framepareser.c</FileName>

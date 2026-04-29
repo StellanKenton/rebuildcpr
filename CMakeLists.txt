@@ -74,7 +74,12 @@ add_executable(${TARGET_NAME}
   User/manager/memory/memory.c
   User/manager/memory/memory_debug.c
   User/manager/update/update.c
+  User/manager/iotmanager/cprsensor_protocol.c
+  User/manager/iotmanager/iotmanager.c
+  User/manager/iotmanager/protcolmgr.c
+  User/manager/wireless/wireless_ble.c
   User/manager/wireless/wireless.c
+  User/manager/wireless/wireless_wifi.c
   User/system/sysmgr.c
   User/system/systask.c
   User/system/system.c
@@ -126,6 +131,7 @@ add_executable(${TARGET_NAME}
   rep/tools/ringbuffer/ringbuffer.c
   rep/tools/jsonparser/jsonparser.c
   rep/tools/md5/md5.c
+  rep/tools/aes/aes.c
   rep/comm/frameparser/framepareser.c
   rep/service/log/console.c
   rep/service/log/log.c
@@ -177,6 +183,8 @@ target_include_directories(${TARGET_NAME} PRIVATE
   rep/service/rtos
   rep/service/vfs
   rep/tools/ringbuffer
+  rep/tools/aes
+  rep/tools/md5
 )
 
 target_compile_definitions(${TARGET_NAME} PRIVATE
