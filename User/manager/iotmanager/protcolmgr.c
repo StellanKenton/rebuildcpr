@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "cprsensor_protocol.h"
+#include "../cpralg/cpralgmgr.h"
 #include "../wireless/wireless.h"
 #include "../../../rep/service/log/log.h"
 #include "../../../rep/service/rtos/rtos.h"
@@ -92,6 +93,7 @@ static void protcolMgrFlushDisconnectReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushDevInfoReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushBleInfoReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushWifiSettingReply(eIotManagerLinkId linkId);
+static void protcolMgrFlushTimeSyncReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushBatteryReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushLanguageReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushVolumeReply(eIotManagerLinkId linkId);
@@ -109,6 +111,7 @@ static const struct {
 	{ CPRSENSOR_PROTOCOL_REPLY_SLOT_DEV_INFO, protcolMgrFlushDevInfoReply },
 	{ CPRSENSOR_PROTOCOL_REPLY_SLOT_BLE_INFO, protcolMgrFlushBleInfoReply },
 	{ CPRSENSOR_PROTOCOL_REPLY_SLOT_WIFI_SETTING, protcolMgrFlushWifiSettingReply },
+	{ CPRSENSOR_PROTOCOL_REPLY_SLOT_TIME_SYNC, protcolMgrFlushTimeSyncReply },
 	{ CPRSENSOR_PROTOCOL_REPLY_SLOT_BATTERY, protcolMgrFlushBatteryReply },
 	{ CPRSENSOR_PROTOCOL_REPLY_SLOT_LANGUAGE, protcolMgrFlushLanguageReply },
 	{ CPRSENSOR_PROTOCOL_REPLY_SLOT_VOLUME, protcolMgrFlushVolumeReply },
@@ -278,6 +281,8 @@ static eCprsensorProtocolReplySlot protcolMgrGetReplySlot(eCprsensorProtocolCmd 
 		return CPRSENSOR_PROTOCOL_REPLY_SLOT_BLE_INFO;
 	case CPRSENSOR_PROTOCOL_CMD_WIFI_SETTING:
 		return CPRSENSOR_PROTOCOL_REPLY_SLOT_WIFI_SETTING;
+	case CPRSENSOR_PROTOCOL_CMD_TIME_SYNC:
+		return CPRSENSOR_PROTOCOL_REPLY_SLOT_TIME_SYNC;
 	case CPRSENSOR_PROTOCOL_CMD_BATTERY:
 		return CPRSENSOR_PROTOCOL_REPLY_SLOT_BATTERY;
 	case CPRSENSOR_PROTOCOL_CMD_LANGUAGE:
@@ -671,6 +676,11 @@ static void protcolMgrHandleFrame(eIotManagerLinkId linkId, const stCprsensorPro
 			return;
 		}
 		(void)memcpy(&gProtcolMgrTimeSyncPayload, frameView->payload, sizeof(gProtcolMgrTimeSyncPayload));
+		if (!cprAlgMgrSetRtcTime(cprsensorProtocolReadU32Be(gProtcolMgrTimeSyncPayload.worldTimeBe))) {
+			LOG_W(gProtcolMgrLogTag, "set rtc failed");
+			return;
+		}
+		protcolMgrSetReplyFlag(frameView->cmd);
 		break;
 	case CPRSENSOR_PROTOCOL_CMD_LANGUAGE:
 		if ((frameView->payload == NULL) || (frameView->payloadLen < sizeof(gProtcolMgrLanguagePayload))) {
@@ -927,6 +937,16 @@ static void protcolMgrFlushBatteryReply(eIotManagerLinkId linkId)
 					 (const uint8_t *)&lBatteryPayload,
 					 (uint16_t)sizeof(lBatteryPayload))) {
 		protcolMgrClearReplyPending(CPRSENSOR_PROTOCOL_REPLY_SLOT_BATTERY);
+	}
+}
+
+static void protcolMgrFlushTimeSyncReply(eIotManagerLinkId linkId)
+{
+	if (protcolMgrBuildAndSendReply(linkId,
+					 CPRSENSOR_PROTOCOL_CMD_TIME_SYNC,
+					 (const uint8_t *)&gProtcolMgrTimeSyncPayload,
+					 (uint16_t)sizeof(gProtcolMgrTimeSyncPayload))) {
+		protcolMgrClearReplyPending(CPRSENSOR_PROTOCOL_REPLY_SLOT_TIME_SYNC);
 	}
 }
 

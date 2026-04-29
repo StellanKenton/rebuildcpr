@@ -14,13 +14,13 @@ typedef struct
     uint8_t Freq;
     uint8_t RealseDepth;  
     uint32_t TimeStamp;
+    uint32_t BootTimeStamp;
 }CPR_Data_Typedef;
 
 typedef struct 
 {
     bool IsPressing;
     bool DataReady;
-    uint32_t BootTimeStamp;
     uint32_t IntervalTime;
 }CPR_Manager_Typedef;
 
@@ -46,6 +46,8 @@ bool cprAlgMgrInit(void);
 void cprAlgMgrProcess(void);
 void cprAlgMgrGetData(CPR_Data_Typedef *data);
 void cprAlgMgrGetManager(CPR_Manager_Typedef *manager);
+uint32_t cprAlgMgrGetRtcTime(void);
+bool cprAlgMgrSetRtcTime(uint32_t timestamp);
 
 #ifdef __cplusplus
 }

@@ -2,11 +2,16 @@
 
 #include "CprFeedback_C.h"
 #include "../sensor/sensor.h"
+#include "../../../rep/service/log/log.h"
+#include "rtc.h"
 #include "rtos.h"
 
 #include <stddef.h>
 
 #define CPR_ALG_MGR_INTERVAL_MS 50U
+#define CPR_ALG_MGR_RTC_BASE_YEAR 2025U
+
+static const char gCprAlgMgrLogTag[] = "cpralg";
 
 CPR_Data_Typedef s_CPR_Data = {0};
 CPR_Manager_Typedef s_CPR_Manager = {0};
@@ -23,6 +28,110 @@ CPR_Alarm_Limit_Typedef s_CPR_Alarm_Limit = {
 };
 
 static bool s_CPR_Alg_Initialized = false;
+
+static bool cprAlgMgrIsLeapYear(uint16_t year)
+{
+    return (((year % 4U) == 0U) && ((year % 100U) != 0U)) || ((year % 400U) == 0U);
+}
+
+static void cprAlgMgrTimestampToDateTime(uint32_t timestamp,
+                                         uint16_t *year,
+                                         uint8_t *month,
+                                         uint8_t *day,
+                                         uint8_t *hour,
+                                         uint8_t *minute,
+                                         uint8_t *second)
+{
+    static const uint8_t lDaysInMonth[2][12] = {
+        {31U, 28U, 31U, 30U, 31U, 30U, 31U, 31U, 30U, 31U, 30U, 31U},
+        {31U, 29U, 31U, 30U, 31U, 30U, 31U, 31U, 30U, 31U, 30U, 31U},
+    };
+    uint32_t lTotalDays;
+    uint16_t lYear;
+    uint8_t lMonth;
+    uint8_t lLeap;
+
+    if ((year == NULL) || (month == NULL) || (day == NULL) ||
+        (hour == NULL) || (minute == NULL) || (second == NULL)) {
+        return;
+    }
+
+    *second = (uint8_t)(timestamp % 60U);
+    timestamp /= 60U;
+    *minute = (uint8_t)(timestamp % 60U);
+    timestamp /= 60U;
+    *hour = (uint8_t)(timestamp % 24U);
+    lTotalDays = timestamp / 24U;
+
+    lYear = CPR_ALG_MGR_RTC_BASE_YEAR;
+    while (lTotalDays >= (cprAlgMgrIsLeapYear(lYear) ? 366U : 365U)) {
+        lTotalDays -= cprAlgMgrIsLeapYear(lYear) ? 366U : 365U;
+        lYear++;
+    }
+
+    lLeap = cprAlgMgrIsLeapYear(lYear) ? 1U : 0U;
+    for (lMonth = 0U; lMonth < 12U; lMonth++) {
+        if (lTotalDays < lDaysInMonth[lLeap][lMonth]) {
+            break;
+        }
+        lTotalDays -= lDaysInMonth[lLeap][lMonth];
+    }
+
+    *year = lYear;
+    *month = (uint8_t)(lMonth + 1U);
+    *day = (uint8_t)(lTotalDays + 1U);
+}
+
+static void cprAlgMgrLogBootRtcTime(uint32_t bootTimeStamp)
+{
+    uint16_t lYear;
+    uint8_t lMonth;
+    uint8_t lDay;
+    uint8_t lHour;
+    uint8_t lMinute;
+    uint8_t lSecond;
+
+    cprAlgMgrTimestampToDateTime(bootTimeStamp, &lYear, &lMonth, &lDay, &lHour, &lMinute, &lSecond);
+    LOG_I(gCprAlgMgrLogTag, "boot rtc timestamp=0x%08lX", (unsigned long)bootTimeStamp);
+    LOG_I(gCprAlgMgrLogTag,
+          "boot rtc date=%04u-%02u-%02u %02u:%02u:%02u",
+          (unsigned int)lYear,
+          (unsigned int)lMonth,
+          (unsigned int)lDay,
+          (unsigned int)lHour,
+          (unsigned int)lMinute,
+          (unsigned int)lSecond);
+}
+
+static bool cprAlgMgrRtcWaitReady(void)
+{
+    uint32_t lTickStart = HAL_GetTick();
+
+    while ((hrtc.Instance->CRL & RTC_CRL_RTOFF) == (uint32_t)RESET) {
+        if ((HAL_GetTick() - lTickStart) > RTC_TIMEOUT_VALUE) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static uint32_t cprAlgMgrRtcReadCounter(void)
+{
+    uint16_t lHigh1;
+    uint16_t lHigh2;
+    uint16_t lLow;
+
+    lHigh1 = READ_REG(hrtc.Instance->CNTH & RTC_CNTH_RTC_CNT);
+    lLow = READ_REG(hrtc.Instance->CNTL & RTC_CNTL_RTC_CNT);
+    lHigh2 = READ_REG(hrtc.Instance->CNTH & RTC_CNTH_RTC_CNT);
+
+    if (lHigh1 != lHigh2) {
+        lLow = READ_REG(hrtc.Instance->CNTL & RTC_CNTL_RTC_CNT);
+    }
+
+    return (((uint32_t)lHigh2 << 16U) | lLow);
+}
 
 static uint8_t cprAlgMgrClampToU8(int16_t value)
 {
@@ -52,6 +161,7 @@ bool cprAlgMgrInit(void)
 {
     CPR_ALG_CONFIG lAlgConfig;
     CPR_ALG_ALARM_LIMIT lAlarmLimit;
+    uint32_t lBootTimeStamp;
 
     if (s_CPR_Alg_Initialized) {
         return true;
@@ -70,16 +180,20 @@ bool cprAlgMgrInit(void)
     CprFeedback_init(lAlgConfig);
     CprFeedback_set_alarmlimit(lAlarmLimit);
 
+    lBootTimeStamp = cprAlgMgrGetRtcTime();
+
     repRtosEnterCritical();
     s_CPR_Data.Depth = 0U;
     s_CPR_Data.Freq = 0U;
     s_CPR_Data.RealseDepth = 0U;
     s_CPR_Data.TimeStamp = 0U;
+    s_CPR_Data.BootTimeStamp = lBootTimeStamp;
     s_CPR_Manager.IsPressing = false;
     s_CPR_Manager.DataReady = false;
-    s_CPR_Manager.BootTimeStamp = repRtosGetTickMs();
     s_CPR_Manager.IntervalTime = 0U;
     repRtosExitCritical();
+
+    cprAlgMgrLogBootRtcTime(lBootTimeStamp);
 
     s_CPR_Alg_Initialized = true;
     return true;
@@ -115,9 +229,6 @@ void cprAlgMgrProcess(void)
     }
 
     repRtosEnterCritical();
-    if (!lDataReady) {
-        s_CPR_Manager.DataReady = false;
-    }
     cprAlgMgrUpdateInterval();
     repRtosExitCritical();
 }
@@ -142,4 +253,35 @@ void cprAlgMgrGetManager(CPR_Manager_Typedef *manager)
     repRtosEnterCritical();
     *manager = s_CPR_Manager;
     repRtosExitCritical();
+}
+
+uint32_t cprAlgMgrGetRtcTime(void)
+{
+    uint32_t lTimestamp;
+
+    repRtosEnterCritical();
+    lTimestamp = cprAlgMgrRtcReadCounter();
+    repRtosExitCritical();
+
+    return lTimestamp;
+}
+
+bool cprAlgMgrSetRtcTime(uint32_t timestamp)
+{
+    bool lResult = false;
+
+    if (!cprAlgMgrRtcWaitReady()) {
+        return false;
+    }
+
+    repRtosEnterCritical();
+    __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
+    WRITE_REG(hrtc.Instance->CNTH, (timestamp >> 16U));
+    WRITE_REG(hrtc.Instance->CNTL, (timestamp & RTC_CNTL_RTC_CNT));
+    __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
+    repRtosExitCritical();
+
+    lResult = cprAlgMgrRtcWaitReady();
+
+    return lResult;
 }
