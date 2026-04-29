@@ -775,6 +775,16 @@
               <FilePath>..\User\manager\update\update.c</FilePath>
             </File>
             <File>
+              <FileName>cpralgmgr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\cpralg\cpralgmgr.c</FilePath>
+            </File>
+            <File>
+              <FileName>cpr_alg.lib</FileName>
+              <FileType>4</FileType>
+              <FilePath>..\User\manager\cpralg\cpr_alg.lib</FilePath>
+            </File>
+            <File>
               <FileName>cprsensor_protocol.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\manager\iotmanager\cprsensor_protocol.c</FilePath>

@@ -30,6 +30,14 @@ extern "C" {
 #define WirelessTaskPriority        23U
 #define WirelessTaskInterval        5U
 
+#define SensorTaskStackSize         8U
+#define SensorTaskPriority          18U
+#define SensorTaskInterval          10U
+
+#define CprAlgTaskStackSize         16U
+#define CprAlgTaskPriority          17U
+#define CprAlgTaskInterval          50U
+
 #define AudioTaskStackSize          4U
 #define AudioTaskPriority           8U
 #define AudioTaskInterval           20U

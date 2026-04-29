@@ -1134,10 +1134,10 @@ static void wirelessUpdateState(void)
 
 bool wirelessInit(void)
 {
+    (void)wirelessLoadStorageConfig();
     if (!wirelessConfigureIfNeeded()) {
         return false;
     }
-    (void)wirelessLoadStorageConfig();
     gWirelessTargetMode = wirelessResolveTargetMode();
     if (!wirelessStartTargetMode()) {
         return false;
@@ -1151,10 +1151,10 @@ void wirelessProcess(void)
     eFc41dStatus status;
     uint32_t nowTickMs;
 
+    (void)wirelessLoadStorageConfig();
     if (!wirelessConfigureIfNeeded()) {
         return;
     }
-    (void)wirelessLoadStorageConfig();
     gWirelessTargetMode = wirelessResolveTargetMode();
     if (!wirelessStartTargetMode()) {
         return;
@@ -1384,6 +1384,14 @@ uint16_t wirelessReadWifiData(uint8_t *buffer, uint16_t bufferSize)
 bool wirelessGetMacAddress(char *buffer, uint16_t bufferSize)
 {
     return fc41dGetCachedMac(WIRELESS_FC41D_DEVICE, buffer, bufferSize);
+}
+
+const char *wirelessGetIotSn(void)
+{
+    if (gWirelessIotSn[0] != '\0') {
+        return gWirelessIotSn;
+    }
+    return NULL;
 }
 
 /**************************End of file********************************/

@@ -104,6 +104,7 @@ bool wirelessSendWifiData(const uint8_t *buffer, uint16_t length);
 uint16_t wirelessGetWifiRxLength(void);
 uint16_t wirelessReadWifiData(uint8_t *buffer, uint16_t bufferSize);
 bool wirelessGetMacAddress(char *buffer, uint16_t bufferSize);
+const char *wirelessGetIotSn(void);
 
 #ifdef __cplusplus
 }

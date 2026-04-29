@@ -19,6 +19,8 @@
 #include "../../rep/driver/drvadc/drvadc.h"
 #include "../manager/memory/memory.h"
 #include "../manager/power/power.h"
+#include "../manager/cpralg/cpralgmgr.h"
+#include "../manager/sensor/sensor.h"
 #include "../manager/wireless/wireless.h"
 
 #define SYSTASK_LOG_TAG "systask"
@@ -30,11 +32,15 @@ static bool gSystaskWorkerTasksCreated = false;
 
 static repRtosTaskHandle gSystemMemoryTaskHandle = NULL;
 static repRtosTaskHandle gSystemPowerTaskHandle = NULL;
+static repRtosTaskHandle gSystemSensorTaskHandle = NULL;
+static repRtosTaskHandle gSystemCprAlgTaskHandle = NULL;
 static repRtosTaskHandle gSystemWirelessTaskHandle = NULL;
 static repRtosTaskHandle gSystemAudioTaskHandle = NULL;
 
 static void memoryTaskEntry(void *argument);
 static void powerTaskEntry(void *argument);
+static void sensorTaskEntry(void *argument);
+static void cprAlgTaskEntry(void *argument);
 static void wirelessTaskEntry(void *argument);
 static void audioTaskEntry(void *argument);
 
@@ -54,6 +60,24 @@ static const stRepRtosTaskConfig gSystemPowerTaskConfig = {
 	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * PowerTaskStackSize),
 	.priority = PowerTaskPriority,
 	.handle = &gSystemPowerTaskHandle,
+};
+
+static const stRepRtosTaskConfig gSystemSensorTaskConfig = {
+	.name = "sensorTask",
+	.entry = sensorTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * SensorTaskStackSize),
+	.priority = SensorTaskPriority,
+	.handle = &gSystemSensorTaskHandle,
+};
+
+static const stRepRtosTaskConfig gSystemCprAlgTaskConfig = {
+	.name = "cpralgTask",
+	.entry = cprAlgTaskEntry,
+	.argument = NULL,
+	.stackSize = SYSTASK_STACK_DEPTH_FROM_BYTES(128U * CprAlgTaskStackSize),
+	.priority = CprAlgTaskPriority,
+	.handle = &gSystemCprAlgTaskHandle,
 };
 
 static const stRepRtosTaskConfig gSystemWirelessTaskConfig = {
@@ -94,6 +118,27 @@ static void powerTaskEntry(void *argument)
 	}
 }
 
+static void sensorTaskEntry(void *argument)
+{
+	(void)argument;
+
+	for (;;) {
+		sensorProcess();
+		(void)repRtosDelayMs(SensorTaskInterval);
+	}
+}
+
+static void cprAlgTaskEntry(void *argument)
+{
+	(void)argument;
+	(void)cprAlgMgrInit();
+
+	for (;;) {
+		cprAlgMgrProcess();
+		(void)repRtosDelayMs(CprAlgTaskInterval);
+	}
+}
+
 static void wirelessTaskEntry(void *argument)
 {
 	(void)argument;
@@ -119,6 +164,8 @@ bool systaskCreateWorkerTasks(void)
 	static bool lCreateFailedLogged = false;
 	eRepRtosStatus memoryStatus;
 	eRepRtosStatus powerStatus;
+	eRepRtosStatus sensorStatus;
+	eRepRtosStatus cprAlgStatus;
 	eRepRtosStatus wirelessStatus;
 	eRepRtosStatus audioStatus;
 
@@ -128,22 +175,30 @@ bool systaskCreateWorkerTasks(void)
 
 	memoryStatus = repRtosTaskCreate(&gSystemMemoryTaskConfig);
 	powerStatus = repRtosTaskCreate(&gSystemPowerTaskConfig);
+	sensorStatus = repRtosTaskCreate(&gSystemSensorTaskConfig);
+	cprAlgStatus = repRtosTaskCreate(&gSystemCprAlgTaskConfig);
 	wirelessStatus = repRtosTaskCreate(&gSystemWirelessTaskConfig);
 	audioStatus = repRtosTaskCreate(&gSystemAudioTaskConfig);
 
 	if ((gSystemMemoryTaskHandle == NULL) ||
 		(gSystemPowerTaskHandle == NULL) ||
+		(gSystemSensorTaskHandle == NULL) ||
+		(gSystemCprAlgTaskHandle == NULL) ||
 		(gSystemWirelessTaskHandle == NULL) ||
 		(gSystemAudioTaskHandle == NULL)) {
 		if (!lCreateFailedLogged) {
 			lCreateFailedLogged = true;
-			LOG_E(SYSTASK_LOG_TAG, "worker create fail mem=%d power=%d wireless=%d audio=%d handles=%p/%p/%p/%p",
+			LOG_E(SYSTASK_LOG_TAG, "worker create fail mem=%d power=%d sensor=%d cpralg=%d wireless=%d audio=%d handles=%p/%p/%p/%p/%p/%p",
 				  (int)memoryStatus,
 				  (int)powerStatus,
+				  (int)sensorStatus,
+				  (int)cprAlgStatus,
 				  (int)wirelessStatus,
 				  (int)audioStatus,
 				  gSystemMemoryTaskHandle,
 				  gSystemPowerTaskHandle,
+				  gSystemSensorTaskHandle,
+				  gSystemCprAlgTaskHandle,
 				  gSystemWirelessTaskHandle,
 				  gSystemAudioTaskHandle);
 		}

@@ -24,6 +24,7 @@
 #include "../../rep/service/vfs/vfs.h"
 
 #include "../manager/power/power.h"
+#include "../manager/sensor/sensor.h"
 #include "../manager/selfcheck/selfcheck.h"
 #include "../manager/memory/memory.h"
 #include "../manager/wireless/wireless.h"
@@ -121,6 +122,13 @@ static bool systemModuleInit(void)
         selfCheckSetPowerResult(false);
         lIsReady = false;
         LOG_E(SYSTEM_LOG_TAG, "power init fail");
+    }
+
+    if (sensorInit()) {
+        LOG_I(SYSTEM_LOG_TAG, "sensor init ok");
+    } else {
+        lIsReady = false;
+        LOG_E(SYSTEM_LOG_TAG, "sensor init fail");
     }
 
     if (vfsInit() && vfsLittlefsPortInit()) {

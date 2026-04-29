@@ -74,6 +74,8 @@ add_executable(${TARGET_NAME}
   User/manager/memory/memory.c
   User/manager/memory/memory_debug.c
   User/manager/update/update.c
+  User/manager/sensor/sensor.c
+  User/manager/cpralg/cpralgmgr.c
   User/manager/iotmanager/cprsensor_protocol.c
   User/manager/iotmanager/iotmanager.c
   User/manager/iotmanager/protcolmgr.c
@@ -97,6 +99,7 @@ add_executable(${TARGET_NAME}
   User/port/drvspi_port.c
   User/port/drvuart_port.c
   User/port/fc41dport.c
+  User/port/lis2hh12_port.c
   User/port/drvusb_port.c
   User/port/log_port.c
   User/port/pca9535_port.c
@@ -116,6 +119,7 @@ add_executable(${TARGET_NAME}
   rep/module/fc41d/fc41d_http.c
   rep/module/fc41d/fc41d_mqtt.c
   rep/module/fc41d/fc41d_wifi.c
+  rep/module/lis2hh12/lis2hh12.c
   rep/comm/flowparser/flowparser.c
   rep/comm/flowparser/flowparser_stream.c
   rep/driver/drvadc/drvadc.c
@@ -142,6 +146,10 @@ add_executable(${TARGET_NAME}
   rep/driver/drviic/drviic_debug.c
   rep/driver/drvspi/drvspi_debug.c
   rep/driver/drvuart/drvuart_debug.c
+)
+
+target_link_libraries(${TARGET_NAME} PRIVATE
+  ${CMAKE_SOURCE_DIR}/User/manager/cpralg/cpr_alg.lib
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
@@ -176,6 +184,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
   rep/driver/drvusb
   rep/lib/littlefs
   rep/module/fc41d
+  rep/module/lis2hh12
   rep/module/gd25qxxx
   rep/module/pca9535
   rep/module/tm1651
@@ -199,6 +208,7 @@ target_compile_options(${TARGET_NAME} PRIVATE
   -mthumb
   -ffunction-sections
   -fdata-sections
+  -fshort-wchar
   -Wall
   -Wno-unused-parameter
   $<$<COMPILE_LANGUAGE:C>:-fno-common>
@@ -207,9 +217,11 @@ target_compile_options(${TARGET_NAME} PRIVATE
 target_link_options(${TARGET_NAME} PRIVATE
   -mcpu=cortex-m3
   -mthumb
+  -fshort-wchar
   -T${LINKER_SCRIPT}
   -Wl,-Map=${CMAKE_BINARY_DIR}/${TARGET_NAME}.map
   -Wl,--gc-sections
+  -Wl,--no-wchar-size-warning
   -Wl,--print-memory-usage
   --specs=nano.specs
   --specs=nosys.specs
