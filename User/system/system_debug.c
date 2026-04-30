@@ -19,10 +19,14 @@
 #include "../../rep/driver/drviic/drviic_debug.h"
 #include "../../rep/driver/drvspi/drvspi_debug.h"
 #include "../../rep/driver/drvuart/drvuart_debug.h"
+#include "../../rep/driver/drvadc/drvadc.h"
 #include "../../rep/service/log/console.h"
 #include "../../rep/service/log/log.h"
+#include "../../rep/module/lis2hh12/lis2hh12.h"
 #include "../manager/memory/memory_debug.h"
 #include "../manager/wireless/wireless.h"
+#include "../port/drvadc_port.h"
+#include "../port/lis2hh12_port.h"
 #include "../rep_config.h"
 #include "system.h"
 
@@ -57,6 +61,7 @@ static eConsoleCommandResult systemDebugConsoleVersionHandler(uint32_t transport
 static eConsoleCommandResult systemDebugConsoleStatusHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleRebootHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleWirelessHandler(uint32_t transport, int argc, char *argv[]);
+static eConsoleCommandResult systemDebugConsoleSensorHandler(uint32_t transport, int argc, char *argv[]);
 static bool gSystemDebugBackgroundServicesReady = false;
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
@@ -92,6 +97,13 @@ static const stConsoleCommand gSystemWirelessConsoleCommand = {
     .helpText = "wireless <status|ble_on|ble_off|wifi_on|wifi_off|wifi_connect|mqtt_on|mqtt_off>",
     .ownerTag = "wireless",
     .handler = systemDebugConsoleWirelessHandler,
+};
+
+static const stConsoleCommand gSystemSensorConsoleCommand = {
+    .commandName = "sensor",
+    .helpText = "sensor - read accelerometer x/y/z and force ADC raw values",
+    .ownerTag = "sensor",
+    .handler = systemDebugConsoleSensorHandler,
 };
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
@@ -490,6 +502,57 @@ static eConsoleCommandResult systemDebugConsoleWirelessHandler(uint32_t transpor
     return CONSOLE_COMMAND_RESULT_OK;
 }
 
+static eConsoleCommandResult systemDebugConsoleSensorHandler(uint32_t transport, int argc, char *argv[])
+{
+    stLis2hh12Sample lAccSample;
+    uint16_t lForceRaw = 0U;
+    eDrvStatus lAccStatus;
+    eDrvStatus lForceStatus;
+
+    (void)argv;
+
+    if ((argc == 2) && (strcmp(argv[1], "help") == 0)) {
+        if (consoleReply(transport,
+            "sensor\n"
+            "  read accelerometer x/y/z and force ADC raw value once\n"
+            "sensor help\n"
+            "  show this help\n"
+            "OK") <= 0) {
+            return CONSOLE_COMMAND_RESULT_ERROR;
+        }
+        return CONSOLE_COMMAND_RESULT_OK;
+    }
+
+    if (argc != 1) {
+        return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+    }
+
+    lAccStatus = lis2hh12ReadRaw(LIS2HH12_DEV0, &lAccSample);
+    lForceStatus = drvAdcReadRaw(DRVADC_FORCE, &lForceRaw);
+
+    if (consoleReply(transport,
+        "acc: status=%d x=%d y=%d z=%d",
+        (int)lAccStatus,
+        (int)lAccSample.x,
+        (int)lAccSample.y,
+        (int)lAccSample.z) <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    if (consoleReply(transport,
+        "force: status=%d raw=%u",
+        (int)lForceStatus,
+        (unsigned int)lForceRaw) <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    if (consoleReply(transport, "OK") <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    return CONSOLE_COMMAND_RESULT_OK;
+}
+
 bool systemDebugBackgroundServicesInit(void)
 {
     if (gSystemDebugBackgroundServicesReady) {
@@ -561,6 +624,10 @@ bool systemDebugConsoleRegister(void)
         return false;
     }
 
+    if (!logRegisterConsole(&gSystemSensorConsoleCommand)) {
+        return false;
+    }
+
     if (!memoryDebugConsoleRegister()) {
         return false;
     }
@@ -584,6 +651,10 @@ bool systemDebugConsoleRegister(void)
     }
 
     if (!logRegisterConsole(&gSystemWirelessConsoleCommand)) {
+        return false;
+    }
+
+    if (!logRegisterConsole(&gSystemSensorConsoleCommand)) {
         return false;
     }
 

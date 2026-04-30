@@ -19,12 +19,14 @@ DEFAULT_SERVICE_UUID = "0000fe60-0000-1000-8000-00805f9b34fb"
 DEFAULT_WRITE_CHAR_UUID = "0000fe61-0000-1000-8000-00805f9b34fb"
 DEFAULT_NOTIFY_CHAR_UUID = "0000fe62-0000-1000-8000-00805f9b34fb"
 DEFAULT_CHAR_UUID = DEFAULT_WRITE_CHAR_UUID
+TEST_HANDSHAKE_MAC_ADDRESS = "3C:1A:CC:4B:26:B2"
 
 CMD_HANDSHAKE = 0x01
 CMD_HEARTBEAT = 0x03
 CMD_DISCONNECT = 0x04
 CMD_GET_DEVICE_INFO = 0x11
 CMD_GET_BLE_INFO = 0x13
+CMD_TIME_SYNC = 0x33
 
 class BLEApp:
     def __init__(self, root):
@@ -263,8 +265,10 @@ class BLEApp:
                 self.devices_listbox.delete(0, tk.END)
                 for i, entry in devices.items():
                     device = entry["device"]
+                    if not device.name:
+                        continue
                     advertisement = entry["advertisement"]
-                    name = device.name if device.name else "未知设备"
+                    name = device.name
                     uuids = ",".join(advertisement.service_uuids or [])
                     suffix = f" RSSI={advertisement.rssi}"
                     if uuids:
@@ -455,6 +459,11 @@ class BLEDeviceManager:
         self.tcp_client = None  # TCP客户端套接字
 
     def get_handshake_seed(self):
+        fixed_seed = self.parse_mac_seed(TEST_HANDSHAKE_MAC_ADDRESS)
+        if fixed_seed is not None:
+            self.update_callback(f"使用固定握手MAC: {TEST_HANDSHAKE_MAC_ADDRESS}")
+            return fixed_seed
+
         if not self.connected_device:
             return None
 
@@ -473,8 +482,29 @@ class BLEDeviceManager:
 
         return None
 
+    def parse_mac_seed(self, mac_text):
+        if not mac_text:
+            return None
+
+        address_hex = mac_text.replace(':', '').replace('-', '').replace(' ', '')
+        if len(address_hex) != 12:
+            return None
+
+        try:
+            return bytes.fromhex(address_hex)
+        except ValueError:
+            return None
+
     def create_heartbeat_packet(self):
         return self.create_data_packet(b'', CMD_HEARTBEAT, encrypt=False)
+
+    def create_time_sync_packet(self):
+        CST = datetime.timezone(datetime.timedelta(hours=8))
+        RTC_BASE = datetime.datetime(2025, 1, 1, tzinfo=CST)
+        timestamp = int((datetime.datetime.now(CST) - RTC_BASE).total_seconds()) & 0xFFFFFFFF
+        payload = timestamp.to_bytes(4, byteorder='big')
+        self.update_callback(f"时间同步: {timestamp}")
+        return self.create_data_packet(payload, CMD_TIME_SYNC, encrypt=True)
     
     # 扫描BLE设备
     async def scan_devices(self, timeout=5):
@@ -720,6 +750,40 @@ class BLEDeviceManager:
         except Exception as e:
             self.update_callback(f"解析数据包错误: {e}")
             return None
+
+    def get_frame_cmd(self, data):
+        try:
+            if len(data) < 8 or data[0] != 0xFA or data[1] != 0xFC:
+                return None
+
+            data_len = (data[4] << 8) + data[5]
+            frame_len = 6 + data_len + 2
+            if len(data) < frame_len:
+                return None
+
+            received_crc = (data[6 + data_len] << 8) + data[7 + data_len]
+            calculated_crc = self.crc16_compute(data[3:6 + data_len])
+            if received_crc != calculated_crc:
+                return None
+
+            return data[3]
+        except Exception:
+            return None
+
+    def send_time_sync_after_handshake(self):
+        if self.handshake_completed:
+            return
+
+        self.handshake_completed = True
+        packet = self.create_time_sync_packet()
+        if not packet:
+            return
+
+        asyncio.run_coroutine_threadsafe(
+            self.send_data(packet, DEFAULT_SERVICE_UUID, self.write_characteristic_uuid),
+            self.loop
+        )
+        self.update_callback("握手成功，已发送0x33时间同步")
     
     # 通知处理函数
     def notification_handler(self, characteristic: BleakGATTCharacteristic, data: bytearray):
@@ -730,6 +794,9 @@ class BLEDeviceManager:
             else:
                 hex_data = data.hex()
                 self.update_callback(f"收到原始数据: {hex_data}")
+
+            if self.get_frame_cmd(data) == CMD_HANDSHAKE:
+                self.send_time_sync_after_handshake()
         except Exception as e:
             self.update_callback(f"处理通知错误: {e}")
     

@@ -31,6 +31,7 @@
 #include "usb_device.h"
 #include "gpio.h"
 #include "usb_device.h"
+#include "../../SEGGER/SEGGER_RTT.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -83,6 +84,9 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+
+  /* Early RTT init for boot diagnostics */
+  SEGGER_RTT_Init();
 
   /* USER CODE BEGIN Init */
 

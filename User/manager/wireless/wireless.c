@@ -6,6 +6,7 @@
 **********************************************************************************/
 #include "wireless.h"
 #include "wireless_ble.h"
+#include "wireless_internal.h"
 #include "wireless_wifi.h"
 
 #include <stdio.h>
@@ -15,115 +16,97 @@
 #include "../iotmanager/cprsensor_protocol.h"
 #include "../iotmanager/iotmanager.h"
 #include "../iotmanager/protcolmgr.h"
-#include "../../../rep/module/fc41d/fc41d_http.h"
-#include "../../../rep/module/fc41d/fc41d_mqtt.h"
-#include "../../../rep/module/fc41d/fc41d_wifi.h"
 #include "../../../rep/service/log/log.h"
 #include "../../../rep/service/rtos/rtos.h"
-#include "../../../rep/tools/jsonparser/jsonparser.h"
+#include "../../../rep/tools/aes/aes.h"
 #include "../../../rep/tools/md5/md5.h"
 #include "../memory/memory.h"
 #include "../../port/drvuart_port.h"
 
-#define WIRELESS_RETRY_LOG_MS            1000U
-#define WIRELESS_TX_BUFFER_SIZE          640U
-#define WIRELESS_IOT_MD5_HEX_LEN         33U
-#define WIRELESS_MODE_SWITCH_DELAY_MS    500U
-#define WIRELESS_BLE_DISCONNECT_WAIT_MS  2000U
-#define WIRELESS_ROLE_SWITCH_SETTLE_MS   500U
+eWirelessState gWirelessState = eWIRELESS_STATE_INIT;
+eWirelessWifiState gWirelessWifiState = WIRELESS_WIFI_IDLE;
+eWirelessIotState gWirelessIotState = WIRELESS_IOT_IDLE;
+bool gWirelessConfigured = false;
+bool gWirelessStarted = false;
+bool gWirelessBleEnabled = true;
+bool gWirelessWifiEnabled = false;
+bool gWirelessMqttEnabled = false;
+bool gWirelessWifiConfigValid = false;
+bool gWirelessWifiConnected = false;
+bool gWirelessWifiGotIp = false;
+bool gWirelessWifiJoinPending = false;
+bool gWirelessIotStorageLoaded = false;
+bool gWirelessIotKeyReady = false;
+bool gWirelessIotHttpPending = false;
+bool gWirelessIotMqttUserCfgPending = false;
+bool gWirelessIotMqttConnPending = false;
+bool gWirelessIotMqttQueryPending = false;
+bool gWirelessIotMqttSubPending = false;
+bool gWirelessIotMqttUserCfgReady = false;
+bool gWirelessIotMqttReady = false;
+bool gWirelessIotMqttSubReady = false;
+bool gWirelessIotMqttConnectedUrcSeen = false;
+bool gWirelessRoleStartPending = false;
+bool gWirelessWifiPrioritySwitchPending = false;
+bool gWirelessWifiPriorityDisconnectPending = false;
+bool gWirelessCipherReady = false;
+bool gWirelessProtocolHandshakeDone = false;
+uint8_t gWirelessIotMqttState = 0U;
+uint8_t gWirelessIotMqttCfgStep = 0U;
+uint8_t gWirelessIotHttpStep = 0U;
+uint32_t gWirelessLastWarnTick = 0U;
+uint32_t gWirelessIotNextRetryTick = 0U;
+uint32_t gWirelessRoleStartTick = 0U;
+uint32_t gWirelessWifiPrioritySwitchTick = 0U;
+uint32_t gWirelessWifiPriorityDisconnectDeadline = 0U;
+eWirelessMode gWirelessMode = WIRELESS_MODE_BLE;
+eWirelessMode gWirelessTargetMode = WIRELESS_MODE_BLE;
+char gWirelessWifiSsid[WIRELESS_WIFI_SSID_MAX_LEN + 1U];
+char gWirelessWifiPassword[WIRELESS_WIFI_PASSWORD_MAX_LEN + 1U];
+char gWirelessIotSn[WIRELESS_IOT_SN_MAX_LEN + 1U];
+char gWirelessIotKey[WIRELESS_IOT_KEY_MAX_LEN + 1U];
+char gWirelessIotHttpUrl[WIRELESS_IOT_URL_MAX_LEN + 1U];
+char gWirelessIotMqttHost[WIRELESS_IOT_HOST_MAX_LEN + 1U];
+char gWirelessIotMqttTopic[WIRELESS_IOT_TOPIC_MAX_LEN + 1U];
+char gWirelessIotMqttSubTopic[WIRELESS_IOT_TOPIC_MAX_LEN + 1U];
+char gWirelessCommandText[WIRELESS_IOT_CMD_MAX_LEN];
+char gWirelessMqttUsername[64];
+char gWirelessMqttPassword[WIRELESS_IOT_MD5_HEX_LEN];
+char gWirelessIotHttpPayload[WIRELESS_IOT_HTTP_PAYLOAD_LEN];
+char gWirelessIotHttpResponse[WIRELESS_IOT_HTTP_RESPONSE_LEN + 1U];
+uint16_t gWirelessIotHttpResponseLen = 0U;
+uint16_t gWirelessIotMqttPort = 1883U;
+uint8_t gWirelessMqttTxBuffer[WIRELESS_TX_BUFFER_SIZE];
+uint16_t gWirelessMqttTxLen = 0U;
+uint8_t gWirelessWifiRxBuffer[WIRELESS_TX_BUFFER_SIZE];
+uint8_t gWirelessProtocolRxBuffer[WIRELESS_TX_BUFFER_SIZE];
+uint8_t gWirelessAesKey[WIRELESS_AES_KEY_SIZE];
+uint16_t gWirelessWifiRxHead = 0U;
+uint16_t gWirelessWifiRxTail = 0U;
+uint16_t gWirelessWifiRxUsed = 0U;
 
-static eWirelessState gWirelessState = eWIRELESS_STATE_INIT;
-static eWirelessWifiState gWirelessWifiState = WIRELESS_WIFI_IDLE;
-static eWirelessIotState gWirelessIotState = WIRELESS_IOT_IDLE;
-static bool gWirelessConfigured = false;
-static bool gWirelessStarted = false;
-static bool gWirelessBleEnabled = true;
-static bool gWirelessWifiEnabled = false;
-static bool gWirelessMqttEnabled = false;
-static bool gWirelessWifiConfigValid = false;
-static bool gWirelessWifiConnected = false;
-static bool gWirelessWifiGotIp = false;
-static bool gWirelessWifiJoinPending = false;
-static bool gWirelessIotStorageLoaded = false;
-static bool gWirelessIotKeyReady = false;
-static bool gWirelessIotHttpPending = false;
-static bool gWirelessIotMqttUserCfgPending = false;
-static bool gWirelessIotMqttConnPending = false;
-static bool gWirelessIotMqttQueryPending = false;
-static bool gWirelessIotMqttSubPending = false;
-static bool gWirelessIotMqttUserCfgReady = false;
-static bool gWirelessIotMqttReady = false;
-static bool gWirelessIotMqttSubReady = false;
-static bool gWirelessIotMqttConnectedUrcSeen = false;
-static bool gWirelessRoleStartPending = false;
-static bool gWirelessWifiPrioritySwitchPending = false;
-static bool gWirelessWifiPriorityDisconnectPending = false;
-static uint8_t gWirelessIotMqttState = 0U;
-static uint8_t gWirelessIotMqttCfgStep = 0U;
-static uint8_t gWirelessIotHttpStep = 0U;
-static uint32_t gWirelessLastWarnTick = 0U;
-static uint32_t gWirelessIotNextRetryTick = 0U;
-static uint32_t gWirelessRoleStartTick = 0U;
-static uint32_t gWirelessWifiPrioritySwitchTick = 0U;
-static uint32_t gWirelessWifiPriorityDisconnectDeadline = 0U;
-static eWirelessMode gWirelessMode = WIRELESS_MODE_BLE;
-static eWirelessMode gWirelessTargetMode = WIRELESS_MODE_BLE;
-static char gWirelessWifiSsid[WIRELESS_WIFI_SSID_MAX_LEN + 1U];
-static char gWirelessWifiPassword[WIRELESS_WIFI_PASSWORD_MAX_LEN + 1U];
-static char gWirelessIotSn[WIRELESS_IOT_SN_MAX_LEN + 1U];
-static char gWirelessIotKey[WIRELESS_IOT_KEY_MAX_LEN + 1U];
-static char gWirelessIotHttpUrl[WIRELESS_IOT_URL_MAX_LEN + 1U];
-static char gWirelessIotMqttHost[WIRELESS_IOT_HOST_MAX_LEN + 1U];
-static char gWirelessIotMqttTopic[WIRELESS_IOT_TOPIC_MAX_LEN + 1U];
-static char gWirelessIotMqttSubTopic[WIRELESS_IOT_TOPIC_MAX_LEN + 1U];
-static char gWirelessCommandText[WIRELESS_IOT_CMD_MAX_LEN];
-static char gWirelessMqttUsername[64];
-static char gWirelessMqttPassword[WIRELESS_IOT_MD5_HEX_LEN];
-static char gWirelessIotHttpPayload[WIRELESS_IOT_HTTP_PAYLOAD_LEN];
-static char gWirelessIotHttpResponse[WIRELESS_IOT_HTTP_RESPONSE_LEN + 1U];
-static uint16_t gWirelessIotHttpResponseLen = 0U;
-static uint16_t gWirelessIotMqttPort = 1883U;
-static uint8_t gWirelessMqttTxBuffer[WIRELESS_TX_BUFFER_SIZE];
-static uint16_t gWirelessMqttTxLen = 0U;
-static uint8_t gWirelessWifiRxBuffer[WIRELESS_TX_BUFFER_SIZE];
-static uint8_t gWirelessProtocolRxBuffer[WIRELESS_TX_BUFFER_SIZE];
-static uint16_t gWirelessWifiRxHead = 0U;
-static uint16_t gWirelessWifiRxTail = 0U;
-static uint16_t gWirelessWifiRxUsed = 0U;
-
-static bool wirelessCopyText(char *buffer, uint16_t bufferSize, const char *text);
-static bool wirelessCopyBytesAsText(char *buffer, uint16_t bufferSize, const uint8_t *text, uint16_t textLen);
-static void wirelessTrimText(char *text);
-static bool wirelessIsValidSnText(const char *text);
-static bool wirelessReadTextFile(const char *path, char *buffer, uint16_t bufferSize);
-static bool wirelessWriteTextFile(const char *path, const char *text);
-static bool wirelessTryParseU16Text(const char *text, uint16_t *value);
-static void wirelessFillDefaultStorageConfig(void);
-static bool wirelessLoadStorageConfig(void);
-static bool wirelessMatchPrefix(const uint8_t *buffer, uint16_t length, const char *text);
-static bool wirelessCopyMacCompact(char *buffer, uint16_t bufferSize, const char *macText);
-static bool wirelessBuildHttpAuthPayload(char *buffer, uint16_t bufferSize);
-static bool wirelessBuildMqttLogin(char *username, uint16_t usernameSize, char *password, uint16_t passwordSize);
-static bool wirelessTryParseHttpKey(void);
-static void wirelessWifiJoinLineHandler(void *userData, const uint8_t *lineBuf, uint16_t lineLen);
-static void wirelessIotHttpLineHandler(void *userData, const uint8_t *lineBuf, uint16_t lineLen);
-static bool wirelessFc41dUrcMatcher(void *userData, const uint8_t *lineBuf, uint16_t lineLen);
-static void wirelessFc41dUrcHandler(void *userData, const uint8_t *lineBuf, uint16_t lineLen);
+static void wirelessFillRawCodec(stCprsensorProtocolCodecCfg *codecCfg);
+static void wirelessFillCipherCodec(stCprsensorProtocolCodecCfg *codecCfg);
+static bool wirelessAesTransform(void *userData, uint8_t *buffer, uint16_t length, bool encryptMode);
+static bool wirelessAesEncrypt(void *userData, uint8_t *buffer, uint16_t length);
+static bool wirelessAesDecrypt(void *userData, uint8_t *buffer, uint16_t length);
+static bool wirelessParseMacString(const char *text, uint8_t *mac, uint16_t macSize);
+static bool wirelessTryInitCipherKey(void);
+static bool wirelessParseIncomingFrame(const uint8_t *buffer,
+                                       uint16_t length,
+                                       stCprsensorProtocolFrameView *frameView,
+                                       uint8_t *payloadBuffer,
+                                       uint16_t payloadBufferSize);
+static bool wirelessValidateHandshakePayload(const stCprsensorProtocolFrameView *frameView);
+static bool wirelessForwardProtocolFrame(const uint8_t *buffer, uint16_t length);
 static eFc41dRawMatchSta wirelessProtocolRawMatcher(void *userData, const uint8_t *buf, uint16_t availLen, uint16_t *frameLen);
 static bool wirelessConfigureIfNeeded(void);
 static bool wirelessStartTargetMode(void);
-static void wirelessResetIotRuntime(void);
-static void wirelessStoreWifiRx(const uint8_t *buffer, uint16_t length);
-static bool wirelessSubmitSimpleCommand(const char *cmdText);
-static void wirelessServiceWifi(void);
-static void wirelessServiceIot(void);
 static void wirelessServiceProtocol(void);
 static void wirelessUpdateProtocolLinks(void);
-static void wirelessServicePrioritySwitch(void);
-static eWirelessMode wirelessResolveTargetMode(void);
 static void wirelessUpdateState(void);
 
-static bool wirelessCopyText(char *buffer, uint16_t bufferSize, const char *text)
+bool wirelessCopyText(char *buffer, uint16_t bufferSize, const char *text)
 {
     uint16_t length;
 
@@ -140,7 +123,7 @@ static bool wirelessCopyText(char *buffer, uint16_t bufferSize, const char *text
     return true;
 }
 
-static bool wirelessCopyBytesAsText(char *buffer, uint16_t bufferSize, const uint8_t *text, uint16_t textLen)
+bool wirelessCopyBytesAsText(char *buffer, uint16_t bufferSize, const uint8_t *text, uint16_t textLen)
 {
     if ((buffer == NULL) || (bufferSize == 0U) || (text == NULL) || (textLen >= bufferSize)) {
         return false;
@@ -153,7 +136,7 @@ static bool wirelessCopyBytesAsText(char *buffer, uint16_t bufferSize, const uin
     return true;
 }
 
-static void wirelessTrimText(char *text)
+void wirelessTrimText(char *text)
 {
     uint16_t length;
 
@@ -173,7 +156,7 @@ static void wirelessTrimText(char *text)
     }
 }
 
-static bool wirelessIsValidSnText(const char *text)
+bool wirelessIsValidSnText(const char *text)
 {
     uint16_t length;
     char ch;
@@ -197,7 +180,7 @@ static bool wirelessIsValidSnText(const char *text)
     return true;
 }
 
-static bool wirelessReadTextFile(const char *path, char *buffer, uint16_t bufferSize)
+bool wirelessReadTextFile(const char *path, char *buffer, uint16_t bufferSize)
 {
     uint32_t actualSize;
 
@@ -218,7 +201,7 @@ static bool wirelessReadTextFile(const char *path, char *buffer, uint16_t buffer
     return buffer[0] != '\0';
 }
 
-static bool wirelessWriteTextFile(const char *path, const char *text)
+bool wirelessWriteTextFile(const char *path, const char *text)
 {
     if ((path == NULL) || (text == NULL) || (text[0] == '\0')) {
         return false;
@@ -226,7 +209,7 @@ static bool wirelessWriteTextFile(const char *path, const char *text)
     return memoryWriteFile(path, text, (uint32_t)strlen(text));
 }
 
-static bool wirelessTryParseU16Text(const char *text, uint16_t *value)
+bool wirelessTryParseU16Text(const char *text, uint16_t *value)
 {
     uint32_t parsed = 0U;
 
@@ -249,324 +232,245 @@ static bool wirelessTryParseU16Text(const char *text, uint16_t *value)
     return true;
 }
 
-static void wirelessFillDefaultStorageConfig(void)
+static void wirelessFillRawCodec(stCprsensorProtocolCodecCfg *codecCfg)
 {
-    (void)memoryMkdir(WIRELESS_NET_DIR_PATH);
+    if (codecCfg == NULL) {
+        return;
+    }
 
-    if (gWirelessWifiSsid[0] == '\0') {
-        (void)wirelessCopyText(gWirelessWifiSsid, (uint16_t)sizeof(gWirelessWifiSsid), wirelessWifiGetDefaultSsid());
-        (void)wirelessWriteTextFile(WIRELESS_WIFI_SSID_PATH, gWirelessWifiSsid);
-    }
-    if (gWirelessWifiPassword[0] == '\0') {
-        (void)wirelessCopyText(gWirelessWifiPassword,
-                               (uint16_t)sizeof(gWirelessWifiPassword),
-                               wirelessWifiGetDefaultPassword());
-        (void)wirelessWriteTextFile(WIRELESS_WIFI_PASSWORD_PATH, gWirelessWifiPassword);
-    }
-    if (!wirelessIsValidSnText(gWirelessIotSn)) {
-        (void)wirelessCopyText(gWirelessIotSn, (uint16_t)sizeof(gWirelessIotSn), wirelessWifiGetDefaultSn());
-        (void)wirelessWriteTextFile(WIRELESS_IOT_SN_PATH, gWirelessIotSn);
-    }
-    if (gWirelessIotHttpUrl[0] == '\0') {
-        (void)wirelessCopyText(gWirelessIotHttpUrl, (uint16_t)sizeof(gWirelessIotHttpUrl), wirelessWifiGetDefaultHttpUrl());
-        (void)wirelessWriteTextFile(WIRELESS_IOT_HTTP_URL_PATH, gWirelessIotHttpUrl);
-    }
-    if (gWirelessIotMqttHost[0] == '\0') {
-        (void)wirelessCopyText(gWirelessIotMqttHost, (uint16_t)sizeof(gWirelessIotMqttHost), wirelessWifiGetDefaultMqttHost());
-        (void)wirelessWriteTextFile(WIRELESS_IOT_MQTT_HOST_PATH, gWirelessIotMqttHost);
-    }
-    if (!memoryExists(WIRELESS_IOT_MQTT_PORT_PATH)) {
-        (void)wirelessWriteTextFile(WIRELESS_IOT_MQTT_PORT_PATH, wirelessWifiGetDefaultMqttPortText());
-    }
+    (void)memset(codecCfg, 0, sizeof(*codecCfg));
+    codecCfg->crc.polynomial = 0x1021U;
+    codecCfg->crc.initValue = 0xFFFFU;
+    codecCfg->crc.xorOut = 0U;
+    codecCfg->crc.reflectInput = false;
+    codecCfg->crc.reflectOutput = false;
+    codecCfg->cipher.enabled = false;
+    codecCfg->cipher.blockSize = CPRSENSOR_PROTOCOL_AES_ALIGN_SIZE;
 }
 
-static bool wirelessLoadStorageConfig(void)
+static void wirelessFillCipherCodec(stCprsensorProtocolCodecCfg *codecCfg)
 {
-    char portText[8];
-
-    if (gWirelessIotStorageLoaded) {
-        return true;
+    wirelessFillRawCodec(codecCfg);
+    if (codecCfg == NULL) {
+        return;
     }
-    if (!memoryIsReady() && !memoryInit()) {
+
+    codecCfg->cipher.enabled = gWirelessCipherReady;
+    codecCfg->cipher.blockSize = CPRSENSOR_PROTOCOL_AES_ALIGN_SIZE;
+    codecCfg->cipher.encrypt = wirelessAesEncrypt;
+    codecCfg->cipher.decrypt = wirelessAesDecrypt;
+    codecCfg->cipher.userData = gWirelessAesKey;
+}
+
+static bool wirelessAesTransform(void *userData, uint8_t *buffer, uint16_t length, bool encryptMode)
+{
+    stAesContext context;
+
+    if ((userData == NULL) || (buffer == NULL) || (length == 0U) ||
+        ((length % CPRSENSOR_PROTOCOL_AES_ALIGN_SIZE) != 0U)) {
         return false;
     }
 
-    (void)wirelessReadTextFile(WIRELESS_WIFI_SSID_PATH, gWirelessWifiSsid, (uint16_t)sizeof(gWirelessWifiSsid));
-    (void)wirelessReadTextFile(WIRELESS_WIFI_PASSWORD_PATH, gWirelessWifiPassword, (uint16_t)sizeof(gWirelessWifiPassword));
-    (void)wirelessReadTextFile(WIRELESS_IOT_SN_PATH, gWirelessIotSn, (uint16_t)sizeof(gWirelessIotSn));
-    (void)wirelessReadTextFile(WIRELESS_IOT_HTTP_URL_PATH, gWirelessIotHttpUrl, (uint16_t)sizeof(gWirelessIotHttpUrl));
-    (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_KEY_PATH, gWirelessIotKey, (uint16_t)sizeof(gWirelessIotKey));
-    (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_HOST_PATH, gWirelessIotMqttHost, (uint16_t)sizeof(gWirelessIotMqttHost));
-    (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_TOPIC_PATH, gWirelessIotMqttTopic, (uint16_t)sizeof(gWirelessIotMqttTopic));
-    (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_SUB_TOPIC_PATH, gWirelessIotMqttSubTopic, (uint16_t)sizeof(gWirelessIotMqttSubTopic));
-    if (wirelessReadTextFile(WIRELESS_IOT_MQTT_PORT_PATH, portText, (uint16_t)sizeof(portText))) {
-        (void)wirelessTryParseU16Text(portText, &gWirelessIotMqttPort);
-    }
-
-    wirelessFillDefaultStorageConfig();
-    gWirelessWifiConfigValid = gWirelessWifiSsid[0] != '\0';
-    gWirelessBleEnabled = wirelessBleDefaultEnabled();
-    gWirelessWifiEnabled = wirelessWifiDefaultEnabled();
-    gWirelessMqttEnabled = wirelessMqttDefaultEnabled();
-    gWirelessIotKeyReady = gWirelessIotKey[0] != '\0';
-    if (gWirelessIotMqttTopic[0] == '\0') {
-        (void)snprintf(gWirelessIotMqttTopic, sizeof(gWirelessIotMqttTopic), "CPR/%s/event/transfer", gWirelessIotSn);
-    }
-    if (gWirelessIotMqttSubTopic[0] == '\0') {
-        (void)snprintf(gWirelessIotMqttSubTopic, sizeof(gWirelessIotMqttSubTopic), "CPR/%s/cmd/transfer", gWirelessIotSn);
-    }
-
-    gWirelessIotStorageLoaded = true;
-    LOG_I(WIRELESS_LOG_TAG,
-          "net cfg sn=%s wifi=%u key=%u host=%s port=%u",
-          gWirelessIotSn,
-          gWirelessWifiConfigValid ? 1U : 0U,
-          gWirelessIotKeyReady ? 1U : 0U,
-          gWirelessIotMqttHost,
-          (unsigned int)gWirelessIotMqttPort);
-    return true;
-}
-
-static bool wirelessMatchPrefix(const uint8_t *buffer, uint16_t length, const char *text)
-{
-    uint16_t textLen;
-
-    if ((buffer == NULL) || (text == NULL)) {
+    if (aesInit(&context, AES_TYPE_128, AES_MODE_ECB, (const uint8_t *)userData, NULL) != AES_STATUS_OK) {
         return false;
     }
 
-    textLen = (uint16_t)strlen(text);
-    return (length >= textLen) && (memcmp(buffer, text, textLen) == 0);
+    if (encryptMode) {
+        return aesEncrypt(&context, buffer, buffer, (uint32_t)length) == AES_STATUS_OK;
+    }
+    return aesDecrypt(&context, buffer, buffer, (uint32_t)length) == AES_STATUS_OK;
 }
 
-static bool wirelessCopyMacCompact(char *buffer, uint16_t bufferSize, const char *macText)
+static bool wirelessAesEncrypt(void *userData, uint8_t *buffer, uint16_t length)
 {
-    uint16_t outIndex = 0U;
+    return wirelessAesTransform(userData, buffer, length, true);
+}
+
+static bool wirelessAesDecrypt(void *userData, uint8_t *buffer, uint16_t length)
+{
+    return wirelessAesTransform(userData, buffer, length, false);
+}
+
+static bool wirelessParseMacString(const char *text, uint8_t *mac, uint16_t macSize)
+{
+    uint16_t index;
+    uint8_t highNibble;
+    uint8_t value;
     char ch;
+    bool highReady;
 
-    if ((buffer == NULL) || (bufferSize < 13U) || (macText == NULL)) {
+    if ((text == NULL) || (mac == NULL) || (macSize < CPRSENSOR_PROTOCOL_MAC_LEN)) {
         return false;
     }
 
-    while (*macText != '\0') {
-        ch = *macText++;
+    index = 0U;
+    highNibble = 0U;
+    highReady = false;
+    while (*text != '\0') {
+        ch = *text++;
         if ((ch == ':') || (ch == '-') || (ch == ' ')) {
             continue;
         }
-        if ((ch >= 'a') && (ch <= 'f')) {
-            ch = (char)(ch - ('a' - 'A'));
-        }
-        if (!(((ch >= '0') && (ch <= '9')) || ((ch >= 'A') && (ch <= 'F'))) || (outIndex >= 12U)) {
+
+        if ((ch >= '0') && (ch <= '9')) {
+            value = (uint8_t)(ch - '0');
+        } else if ((ch >= 'a') && (ch <= 'f')) {
+            value = (uint8_t)(ch - 'a' + 10);
+        } else if ((ch >= 'A') && (ch <= 'F')) {
+            value = (uint8_t)(ch - 'A' + 10);
+        } else {
             return false;
         }
-        buffer[outIndex++] = ch;
+
+        if (!highReady) {
+            highNibble = (uint8_t)(value << 4U);
+            highReady = true;
+        } else {
+            if (index >= CPRSENSOR_PROTOCOL_MAC_LEN) {
+                return false;
+            }
+            mac[index++] = (uint8_t)(highNibble | value);
+            highReady = false;
+        }
     }
-    buffer[outIndex] = '\0';
-    return outIndex == 12U;
+
+    return (!highReady) && (index == CPRSENSOR_PROTOCOL_MAC_LEN);
 }
 
-static bool wirelessBuildHttpAuthPayload(char *buffer, uint16_t bufferSize)
+static bool wirelessTryInitCipherKey(void)
 {
-    char macText[FC41D_MAC_ADDRESS_TEXT_MAX_LENGTH + 1U];
-    char macCompact[13];
-    char signSource[128];
-    char signHex[WIRELESS_IOT_MD5_HEX_LEN];
-    int length;
+    char macText[32];
+    uint8_t macBytes[CPRSENSOR_PROTOCOL_MAC_LEN];
 
-    if ((buffer == NULL) || (bufferSize == 0U) || (gWirelessIotSn[0] == '\0')) {
+    if (gWirelessCipherReady) {
+        return true;
+    }
+
+    if (!wirelessGetMacAddress(macText, (uint16_t)sizeof(macText)) ||
+        !wirelessParseMacString(macText, macBytes, (uint16_t)sizeof(macBytes)) ||
+        (md5CalcData(macBytes, (uint32_t)sizeof(macBytes), gWirelessAesKey) != MD5_STATUS_OK)) {
+        return false;
+    }
+
+    gWirelessCipherReady = true;
+    (void)protcolMgrTryInitCipherKey();
+    return true;
+}
+
+static bool wirelessParseIncomingFrame(const uint8_t *buffer,
+                                       uint16_t length,
+                                       stCprsensorProtocolFrameView *frameView,
+                                       uint8_t *payloadBuffer,
+                                       uint16_t payloadBufferSize)
+{
+    stCprsensorProtocolCodecCfg rawCodec;
+    stCprsensorProtocolCodecCfg cipherCodec;
+    stCprsensorProtocolFrameView cipherView;
+
+    if ((buffer == NULL) || (frameView == NULL) || (payloadBuffer == NULL) || (payloadBufferSize == 0U)) {
+        return false;
+    }
+
+    wirelessFillRawCodec(&rawCodec);
+    if (cprsensorProtocolParseFrame(buffer,
+                                    length,
+                                    &rawCodec,
+                                    payloadBuffer,
+                                    payloadBufferSize,
+                                    frameView) != CPRSENSOR_PROTOCOL_STATUS_OK) {
+        return false;
+    }
+
+    if (!wirelessTryInitCipherKey()) {
+        return frameView->cmd == CPRSENSOR_PROTOCOL_CMD_HANDSHAKE;
+    }
+
+    if ((frameView->encodedPayloadLen == 0U) ||
+        ((frameView->encodedPayloadLen % CPRSENSOR_PROTOCOL_AES_ALIGN_SIZE) != 0U)) {
+        return true;
+    }
+
+    wirelessFillCipherCodec(&cipherCodec);
+    if (cprsensorProtocolParseFrame(buffer,
+                                    length,
+                                    &cipherCodec,
+                                    payloadBuffer,
+                                    payloadBufferSize,
+                                    &cipherView) == CPRSENSOR_PROTOCOL_STATUS_OK) {
+        *frameView = cipherView;
+    }
+
+    return true;
+}
+
+static bool wirelessValidateHandshakePayload(const stCprsensorProtocolFrameView *frameView)
+{
+    char macText[32];
+    uint8_t macBytes[CPRSENSOR_PROTOCOL_MAC_LEN];
+    uint16_t index;
+
+    if ((frameView == NULL) || (frameView->cmd != CPRSENSOR_PROTOCOL_CMD_HANDSHAKE) ||
+        (frameView->payload == NULL) ||
+        (frameView->encodedPayloadLen != CPRSENSOR_PROTOCOL_AES_ALIGN_SIZE) ||
+        (frameView->payloadLen != CPRSENSOR_PROTOCOL_AES_ALIGN_SIZE)) {
         return false;
     }
 
     if (!wirelessGetMacAddress(macText, (uint16_t)sizeof(macText)) ||
-        !wirelessCopyMacCompact(macCompact, (uint16_t)sizeof(macCompact), macText)) {
-        (void)wirelessCopyText(macCompact, (uint16_t)sizeof(macCompact), "000000000000");
-    }
-
-    length = snprintf(signSource, sizeof(signSource), "%s%s%s%s",
-                      gWirelessIotSn, macCompact, WIRELESS_IOT_HTTP_RANDOM, WIRELESS_IOT_PRODUCT_SECRET);
-    if ((length <= 0) || ((uint16_t)length >= sizeof(signSource)) ||
-        (md5StringToHex32(signSource, signHex, 1U) != MD5_STATUS_OK)) {
+        !wirelessParseMacString(macText, macBytes, (uint16_t)sizeof(macBytes))) {
         return false;
     }
 
-    length = snprintf(buffer, bufferSize,
-                      "{\"deviceId\":\"%s\",\"moduleId\":\"%s\",\"random\":\"%s\",\"sign\":\"%s\"}",
-                      gWirelessIotSn, macCompact, WIRELESS_IOT_HTTP_RANDOM, signHex);
-    return (length > 0) && ((uint16_t)length < bufferSize);
-}
-
-static bool wirelessBuildMqttLogin(char *username, uint16_t usernameSize, char *password, uint16_t passwordSize)
-{
-    char signSource[160];
-    uint32_t timestampMs;
-    int length;
-
-    if ((username == NULL) || (password == NULL) || (gWirelessIotSn[0] == '\0') || (gWirelessIotKey[0] == '\0')) {
+    if (memcmp(frameView->payload, macBytes, CPRSENSOR_PROTOCOL_MAC_LEN) != 0) {
         return false;
     }
 
-    timestampMs = repRtosGetTickMs();
-    length = snprintf(username, usernameSize, "%s|%lu", gWirelessIotSn, (unsigned long)timestampMs);
-    if ((length <= 0) || ((uint16_t)length >= usernameSize)) {
-        return false;
-    }
-    length = snprintf(signSource, sizeof(signSource), "%s|%s", username, gWirelessIotKey);
-    if ((length <= 0) || ((uint16_t)length >= sizeof(signSource))) {
-        return false;
-    }
-    return md5StringToHex32(signSource, password, 0U) == MD5_STATUS_OK;
-}
-
-static bool wirelessTryParseHttpKey(void)
-{
-    static const char *const keyNames[] = {"result", "deviceSecret", "device_secret", "mqtt_key", "key", "token", "password", "secret"};
-    uint32_t index;
-    uint16_t responseLen;
-
-    responseLen = (uint16_t)strlen(gWirelessIotHttpResponse);
-    for (index = 0U; index < (uint32_t)(sizeof(keyNames) / sizeof(keyNames[0])); index++) {
-        if (jsonParserFindString(gWirelessIotHttpResponse,
-                                 responseLen,
-                                 keyNames[index],
-                                 gWirelessIotKey,
-                                 (uint16_t)sizeof(gWirelessIotKey),
-                                 NULL) == JSON_PARSER_STATUS_OK) {
-            gWirelessIotKeyReady = true;
-            (void)wirelessWriteTextFile(WIRELESS_IOT_MQTT_KEY_PATH, gWirelessIotKey);
-            LOG_I(WIRELESS_LOG_TAG, "iot key cached field=%s", keyNames[index]);
-            return true;
+    for (index = CPRSENSOR_PROTOCOL_MAC_LEN; index < frameView->payloadLen; ++index) {
+        if (frameView->payload[index] != 0U) {
+            return false;
         }
     }
-    return false;
+
+    return true;
 }
 
-static void wirelessWifiJoinLineHandler(void *userData, const uint8_t *lineBuf, uint16_t lineLen)
+static bool wirelessForwardProtocolFrame(const uint8_t *buffer, uint16_t length)
 {
-    (void)userData;
-    if ((lineBuf == NULL) || (lineLen == 0U)) {
-        return;
-    }
-    LOG_I(WIRELESS_LOG_TAG, "wifi join rsp=%.*s", (int)lineLen, (const char *)lineBuf);
-}
+    stCprsensorProtocolFrameView frameView;
+    uint8_t payloadBuffer[WIRELESS_TX_BUFFER_SIZE];
 
-static void wirelessIotHttpLineHandler(void *userData, const uint8_t *lineBuf, uint16_t lineLen)
-{
-    uint16_t copyLen;
-
-    (void)userData;
-    if ((lineBuf == NULL) || (lineLen == 0U)) {
-        return;
-    }
-    LOG_I(WIRELESS_LOG_TAG, "http rsp=%.*s", (int)lineLen, (const char *)lineBuf);
-    if (wirelessMatchPrefix(lineBuf, lineLen, "OK") || wirelessMatchPrefix(lineBuf, lineLen, "ERROR") ||
-        wirelessMatchPrefix(lineBuf, lineLen, "CONNECT") || wirelessMatchPrefix(lineBuf, lineLen, "+QHTTPPOST:") ||
-        wirelessMatchPrefix(lineBuf, lineLen, "+QHTTPREAD:")) {
-        return;
+    if (!wirelessParseIncomingFrame(buffer,
+                                    length,
+                                    &frameView,
+                                    payloadBuffer,
+                                    (uint16_t)sizeof(payloadBuffer))) {
+        LOG_W(WIRELESS_LOG_TAG, "ignore invalid protocol frame len=%u", (unsigned int)length);
+        return false;
     }
 
-    copyLen = lineLen;
-    if (copyLen > (uint16_t)(WIRELESS_IOT_HTTP_RESPONSE_LEN - gWirelessIotHttpResponseLen)) {
-        copyLen = (uint16_t)(WIRELESS_IOT_HTTP_RESPONSE_LEN - gWirelessIotHttpResponseLen);
-    }
-    if (copyLen == 0U) {
-        return;
-    }
-    (void)memcpy(&gWirelessIotHttpResponse[gWirelessIotHttpResponseLen], lineBuf, copyLen);
-    gWirelessIotHttpResponseLen = (uint16_t)(gWirelessIotHttpResponseLen + copyLen);
-    gWirelessIotHttpResponse[gWirelessIotHttpResponseLen] = '\0';
-}
+    if (!gWirelessProtocolHandshakeDone) {
+        if (frameView.cmd != CPRSENSOR_PROTOCOL_CMD_HANDSHAKE) {
+            LOG_W(WIRELESS_LOG_TAG,
+                  "ignore cmd=0x%02X before handshake",
+                  (unsigned int)frameView.cmd);
+            return false;
+        }
 
-static bool wirelessFc41dUrcMatcher(void *userData, const uint8_t *lineBuf, uint16_t lineLen)
-{
-    (void)userData;
-    return fc41dWifiIsUrc(lineBuf, lineLen) || fc41dMqttIsUrc(lineBuf, lineLen);
-}
+        if (!wirelessValidateHandshakePayload(&frameView)) {
+            LOG_W(WIRELESS_LOG_TAG, "ignore invalid handshake payload");
+            return false;
+        }
 
-static void wirelessFc41dUrcHandler(void *userData, const uint8_t *lineBuf, uint16_t lineLen)
-{
-    const uint8_t *payload;
-    uint16_t payloadLen;
-
-    (void)userData;
-    if ((lineBuf == NULL) || (lineLen == 0U)) {
-        return;
+        gWirelessProtocolHandshakeDone = true;
+        LOG_I(WIRELESS_LOG_TAG, "ble protocol handshake ok");
     }
 
-    if (wirelessMatchPrefix(lineBuf, lineLen, "WIFI CONNECTED")) {
-        gWirelessWifiConnected = true;
-        gWirelessWifiState = WIRELESS_WIFI_WAITING_CONNECTION;
-        return;
-    }
-    if (wirelessMatchPrefix(lineBuf, lineLen, "WIFI GOT IP")) {
-        gWirelessWifiConnected = true;
-        gWirelessWifiGotIp = true;
-        gWirelessWifiJoinPending = false;
-        gWirelessWifiState = WIRELESS_WIFI_CONNECTED;
-        LOG_I(WIRELESS_LOG_TAG, "wifi got ip");
-        return;
-    }
-    if (wirelessMatchPrefix(lineBuf, lineLen, "+QSTASTAT:WLAN_CONNECTED")) {
-        gWirelessWifiConnected = true;
-        gWirelessWifiGotIp = true;
-        gWirelessWifiJoinPending = false;
-        gWirelessWifiState = WIRELESS_WIFI_CONNECTED;
-        LOG_I(WIRELESS_LOG_TAG, "wifi connected");
-        return;
-    }
-    if (wirelessMatchPrefix(lineBuf, lineLen, "WIFI DISCONNECT") ||
-        wirelessMatchPrefix(lineBuf, lineLen, "WIFI DISCONNECTED") ||
-        wirelessMatchPrefix(lineBuf, lineLen, "+CWJAP:") ||
-        wirelessMatchPrefix(lineBuf, lineLen, "+QSTASTAT:WLAN_DISCONNECTED")) {
-        gWirelessWifiConnected = false;
-        gWirelessWifiGotIp = false;
-        gWirelessWifiJoinPending = false;
-        gWirelessIotMqttReady = false;
-        gWirelessIotMqttSubReady = false;
-        gWirelessWifiState = gWirelessWifiConfigValid ? WIRELESS_WIFI_READY : WIRELESS_WIFI_IDLE;
-        return;
+    if (!protcolMgrPushReceivedData(IOT_MANAGER_LINK_BLE, buffer, length)) {
+        LOG_W(WIRELESS_LOG_TAG, "ble rx forward failed len=%u", (unsigned int)length);
+        return false;
     }
 
-    if (wirelessMatchPrefix(lineBuf, lineLen, "+MQTTCONNECTED:")) {
-        gWirelessIotMqttConnectedUrcSeen = true;
-        gWirelessIotMqttReady = true;
-        gWirelessIotMqttState = 4U;
-        gWirelessIotState = WIRELESS_IOT_MQTT_READY;
-        LOG_I(WIRELESS_LOG_TAG, "mqtt broker connected");
-        return;
-    }
-    if (wirelessMatchPrefix(lineBuf, lineLen, "+QMTCONN: 0,0,0")) {
-        gWirelessIotMqttUserCfgReady = true;
-        gWirelessIotMqttConnectedUrcSeen = true;
-        gWirelessIotMqttReady = true;
-        gWirelessIotMqttState = 4U;
-        gWirelessIotMqttConnPending = false;
-        gWirelessIotState = WIRELESS_IOT_MQTT_READY;
-        LOG_I(WIRELESS_LOG_TAG, "mqtt broker connected");
-        return;
-    }
-    if (wirelessMatchPrefix(lineBuf, lineLen, "+MQTTDISCONNECTED:")) {
-        gWirelessIotMqttConnectedUrcSeen = false;
-        gWirelessIotMqttReady = false;
-        gWirelessIotMqttSubReady = false;
-        gWirelessIotMqttState = 3U;
-        gWirelessIotState = gWirelessMqttEnabled ? WIRELESS_IOT_AUTH_READY : WIRELESS_IOT_IDLE;
-        LOG_W(WIRELESS_LOG_TAG, "mqtt broker disconnected");
-        return;
-    }
-    if (fc41dMqttTryParseSubRecv(lineBuf, lineLen, &payload, &payloadLen)) {
-        wirelessStoreWifiRx(payload, payloadLen);
-        (void)protcolMgrPushReceivedData(IOT_MANAGER_LINK_WIFI, payload, payloadLen);
-        LOG_I(WIRELESS_LOG_TAG, "mqtt rx len=%u", (unsigned int)payloadLen);
-        return;
-    }
-    if (wirelessMatchPrefix(lineBuf, lineLen, "+MQTTSUB:")) {
-        gWirelessIotMqttSubPending = false;
-        gWirelessIotMqttSubReady = true;
-    }
-    if (wirelessMatchPrefix(lineBuf, lineLen, "+QMTSUB: 0,1,0")) {
-        gWirelessIotMqttSubPending = false;
-        gWirelessIotMqttSubReady = true;
-    }
+    return true;
 }
 
 static eFc41dRawMatchSta wirelessProtocolRawMatcher(void *userData,
@@ -687,324 +591,6 @@ static bool wirelessStartTargetMode(void)
     return true;
 }
 
-static void wirelessResetIotRuntime(void)
-{
-    gWirelessIotHttpPending = false;
-    gWirelessIotMqttUserCfgPending = false;
-    gWirelessIotMqttConnPending = false;
-    gWirelessIotMqttQueryPending = false;
-    gWirelessIotMqttSubPending = false;
-    gWirelessIotMqttUserCfgReady = false;
-    gWirelessIotMqttReady = false;
-    gWirelessIotMqttSubReady = false;
-    gWirelessIotMqttConnectedUrcSeen = false;
-    gWirelessIotMqttState = 0U;
-    gWirelessIotMqttCfgStep = 0U;
-    gWirelessIotState = WIRELESS_IOT_IDLE;
-}
-
-static void wirelessStoreWifiRx(const uint8_t *buffer, uint16_t length)
-{
-    uint16_t index;
-
-    if ((buffer == NULL) || (length == 0U)) {
-        return;
-    }
-
-    if (length >= (uint16_t)sizeof(gWirelessWifiRxBuffer)) {
-        buffer = &buffer[length - (uint16_t)sizeof(gWirelessWifiRxBuffer)];
-        length = (uint16_t)sizeof(gWirelessWifiRxBuffer);
-    }
-
-    repRtosEnterCritical();
-    for (index = 0U; index < length; index++) {
-        if (gWirelessWifiRxUsed >= (uint16_t)sizeof(gWirelessWifiRxBuffer)) {
-            gWirelessWifiRxTail = (uint16_t)((gWirelessWifiRxTail + 1U) % (uint16_t)sizeof(gWirelessWifiRxBuffer));
-            gWirelessWifiRxUsed--;
-        }
-        gWirelessWifiRxBuffer[gWirelessWifiRxHead] = buffer[index];
-        gWirelessWifiRxHead = (uint16_t)((gWirelessWifiRxHead + 1U) % (uint16_t)sizeof(gWirelessWifiRxBuffer));
-        gWirelessWifiRxUsed++;
-    }
-    repRtosExitCritical();
-}
-
-static bool wirelessSubmitSimpleCommand(const char *cmdText)
-{
-    return fc41dSubmitTextCommand(WIRELESS_FC41D_DEVICE, cmdText) == FC41D_STATUS_OK;
-}
-
-static void wirelessServiceWifi(void)
-{
-    const stFc41dInfo *info;
-    eFc41dStatus status;
-
-    if ((gWirelessMode != WIRELESS_MODE_WIFI) || !fc41dIsReady(WIRELESS_FC41D_DEVICE)) {
-        return;
-    }
-
-    info = fc41dGetInfo(WIRELESS_FC41D_DEVICE);
-    if ((info == NULL) || info->isBusy || !gWirelessWifiEnabled || !gWirelessWifiConfigValid || gWirelessWifiGotIp ||
-        (gWirelessWifiState == WIRELESS_WIFI_WAITING_CONNECTION)) {
-        return;
-    }
-
-    if (gWirelessWifiJoinPending) {
-        if (!info->isBusy && info->hasLastResult) {
-            gWirelessWifiJoinPending = false;
-            if (info->lastResult == FLOWPARSER_RESULT_OK) {
-                gWirelessWifiState = WIRELESS_WIFI_WAITING_CONNECTION;
-            } else {
-                gWirelessWifiState = WIRELESS_WIFI_READY;
-            }
-        }
-        return;
-    }
-
-    status = fc41dWifiBuildJoinCommand(gWirelessWifiSsid, gWirelessWifiPassword, gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText));
-    if (status == FC41D_STATUS_OK) {
-        status = fc41dSubmitTextCommandEx(WIRELESS_FC41D_DEVICE, gWirelessCommandText, wirelessWifiJoinLineHandler, NULL);
-    }
-    if (status == FC41D_STATUS_OK) {
-        gWirelessWifiJoinPending = true;
-        gWirelessWifiState = WIRELESS_WIFI_WAITING_CONNECTION;
-    } else if ((status != FC41D_STATUS_BUSY) && (status != FC41D_STATUS_NOT_READY)) {
-        gWirelessWifiState = WIRELESS_WIFI_ERROR;
-    }
-}
-
-static bool wirelessSubmitHttpAuth(void)
-{
-    if (fc41dHttpBuildHeaderCommand(gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText)) != FC41D_STATUS_OK) {
-        return false;
-    }
-    if (fc41dSubmitTextCommandEx(WIRELESS_FC41D_DEVICE, gWirelessCommandText, wirelessIotHttpLineHandler, NULL) == FC41D_STATUS_OK) {
-        gWirelessIotHttpStep = 1U;
-        gWirelessIotHttpPending = true;
-        gWirelessIotState = WIRELESS_IOT_WAIT_AUTH;
-        return true;
-    }
-    return false;
-}
-
-static bool wirelessSubmitHttpUrl(void)
-{
-    if (fc41dHttpBuildUrlCommand(gWirelessIotHttpUrl, gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText)) != FC41D_STATUS_OK) {
-        return false;
-    }
-    if (fc41dSubmitTextCommandEx(WIRELESS_FC41D_DEVICE, gWirelessCommandText, wirelessIotHttpLineHandler, NULL) == FC41D_STATUS_OK) {
-        gWirelessIotHttpStep = 2U;
-        gWirelessIotHttpPending = true;
-        return true;
-    }
-    return false;
-}
-
-static bool wirelessSubmitHttpPost(void)
-{
-    uint16_t payloadLen;
-
-    if (!wirelessBuildHttpAuthPayload(gWirelessIotHttpPayload, (uint16_t)sizeof(gWirelessIotHttpPayload))) {
-        return false;
-    }
-    payloadLen = (uint16_t)strlen(gWirelessIotHttpPayload);
-    if (fc41dHttpBuildPostJsonCommand(gWirelessIotHttpUrl, payloadLen, gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText)) != FC41D_STATUS_OK) {
-        return false;
-    }
-
-    gWirelessIotHttpResponseLen = 0U;
-    gWirelessIotHttpResponse[0] = '\0';
-    if (fc41dSubmitPromptCommandEx(WIRELESS_FC41D_DEVICE,
-                                   gWirelessCommandText,
-                                   (const uint8_t *)gWirelessIotHttpPayload,
-                                   payloadLen,
-                                   wirelessIotHttpLineHandler,
-                                   NULL) == FC41D_STATUS_OK) {
-        gWirelessIotHttpStep = 3U;
-        gWirelessIotHttpPending = true;
-        return true;
-    }
-    return false;
-}
-
-static bool wirelessSubmitHttpRead(void)
-{
-    if (fc41dHttpBuildReadCommand(gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText)) != FC41D_STATUS_OK) {
-        return false;
-    }
-    gWirelessIotHttpResponseLen = 0U;
-    gWirelessIotHttpResponse[0] = '\0';
-    if (fc41dSubmitTextCommandEx(WIRELESS_FC41D_DEVICE, gWirelessCommandText, wirelessIotHttpLineHandler, NULL) == FC41D_STATUS_OK) {
-        gWirelessIotHttpStep = 4U;
-        gWirelessIotHttpPending = true;
-        return true;
-    }
-    return false;
-}
-
-static bool wirelessSubmitMqttUserCfg(void)
-{
-    eFc41dStatus status;
-
-    if (!wirelessBuildMqttLogin(gWirelessMqttUsername, (uint16_t)sizeof(gWirelessMqttUsername), gWirelessMqttPassword, (uint16_t)sizeof(gWirelessMqttPassword))) {
-        return false;
-    }
-
-    if (gWirelessIotMqttCfgStep == 0U) {
-        status = fc41dMqttBuildUserCfgCommand(gWirelessIotSn,
-                                              gWirelessMqttUsername,
-                                              gWirelessMqttPassword,
-                                              gWirelessCommandText,
-                                              (uint16_t)sizeof(gWirelessCommandText));
-    } else if (gWirelessIotMqttCfgStep == 1U) {
-        status = fc41dMqttBuildRecvModeCommand(0U, gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText));
-    } else {
-        status = fc41dMqttBuildConnectCommand(gWirelessIotMqttHost,
-                                              gWirelessIotMqttPort,
-                                              gWirelessCommandText,
-                                              (uint16_t)sizeof(gWirelessCommandText));
-    }
-
-    if (status != FC41D_STATUS_OK) {
-        return false;
-    }
-
-    if (fc41dSubmitTextCommand(WIRELESS_FC41D_DEVICE, gWirelessCommandText) == FC41D_STATUS_OK) {
-        gWirelessIotMqttUserCfgPending = true;
-        gWirelessIotState = WIRELESS_IOT_MQTT_CONNECTING;
-        return true;
-    }
-    return false;
-}
-
-static bool wirelessSubmitMqttConnect(void)
-{
-    if (fc41dMqttBuildLoginCommand(gWirelessIotSn, gWirelessMqttUsername, gWirelessMqttPassword, gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText)) != FC41D_STATUS_OK) {
-        return false;
-    }
-    if (fc41dSubmitTextCommand(WIRELESS_FC41D_DEVICE, gWirelessCommandText) == FC41D_STATUS_OK) {
-        gWirelessIotMqttConnPending = true;
-        gWirelessIotState = WIRELESS_IOT_MQTT_CONNECTING;
-        return true;
-    }
-    return false;
-}
-
-static bool wirelessSubmitMqttSubscribe(void)
-{
-    if (fc41dMqttBuildSubscribeCommand(gWirelessIotMqttSubTopic, 1U, gWirelessCommandText, (uint16_t)sizeof(gWirelessCommandText)) != FC41D_STATUS_OK) {
-        return false;
-    }
-    if (fc41dSubmitTextCommand(WIRELESS_FC41D_DEVICE, gWirelessCommandText) == FC41D_STATUS_OK) {
-        gWirelessIotMqttSubPending = true;
-        return true;
-    }
-    return false;
-}
-
-static void wirelessServiceIot(void)
-{
-    const stFc41dInfo *info;
-    uint32_t nowTick;
-
-    if (!gWirelessMqttEnabled) {
-        return;
-    }
-    if (gWirelessWifiState != WIRELESS_WIFI_CONNECTED) {
-        gWirelessIotState = WIRELESS_IOT_WAIT_WIFI;
-        return;
-    }
-
-    info = fc41dGetInfo(WIRELESS_FC41D_DEVICE);
-    if ((info == NULL) || info->isBusy) {
-        return;
-    }
-    nowTick = repRtosGetTickMs();
-
-    if (gWirelessIotHttpPending) {
-        gWirelessIotHttpPending = false;
-        if (!info->hasLastResult || (info->lastResult != FLOWPARSER_RESULT_OK)) {
-            gWirelessIotState = WIRELESS_IOT_ERROR;
-            gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-        } else if (gWirelessIotHttpStep == 1U) {
-            (void)wirelessSubmitHttpUrl();
-        } else if (gWirelessIotHttpStep == 2U) {
-            (void)wirelessSubmitHttpPost();
-        } else if (gWirelessIotHttpStep == 3U) {
-            (void)wirelessSubmitHttpRead();
-        } else if (!wirelessTryParseHttpKey()) {
-            gWirelessIotHttpStep = 0U;
-            gWirelessIotState = WIRELESS_IOT_ERROR;
-            gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-        } else {
-            gWirelessIotHttpStep = 0U;
-        }
-        return;
-    }
-    if (gWirelessIotMqttUserCfgPending) {
-        gWirelessIotMqttUserCfgPending = false;
-        if (info->hasLastResult && (info->lastResult == FLOWPARSER_RESULT_OK)) {
-            gWirelessIotMqttCfgStep++;
-            gWirelessIotMqttUserCfgReady = gWirelessIotMqttCfgStep >= 3U;
-            if (gWirelessIotMqttUserCfgReady) {
-                gWirelessIotMqttCfgStep = 0U;
-            }
-        } else {
-            gWirelessIotMqttCfgStep = 0U;
-            gWirelessIotMqttUserCfgReady = false;
-            gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-        }
-        return;
-    }
-    if (gWirelessIotMqttConnPending) {
-        gWirelessIotMqttConnPending = false;
-        if ((info->hasLastResult && (info->lastResult == FLOWPARSER_RESULT_OK)) || gWirelessIotMqttConnectedUrcSeen) {
-            gWirelessIotMqttUserCfgReady = true;
-            gWirelessIotMqttConnectedUrcSeen = true;
-            gWirelessIotMqttReady = true;
-            gWirelessIotMqttState = 4U;
-            gWirelessIotState = WIRELESS_IOT_MQTT_READY;
-            LOG_I(WIRELESS_LOG_TAG, "mqtt broker connected");
-        } else {
-            gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-        }
-        return;
-    }
-    if (gWirelessIotMqttQueryPending) {
-        gWirelessIotMqttQueryPending = false;
-        return;
-    }
-    if (gWirelessIotMqttSubPending) {
-        gWirelessIotMqttSubPending = false;
-        if (info->hasLastResult && (info->lastResult == FLOWPARSER_RESULT_OK)) {
-            gWirelessIotMqttSubReady = true;
-        }
-        return;
-    }
-    if ((int32_t)(nowTick - gWirelessIotNextRetryTick) < 0) {
-        return;
-    }
-    if (!gWirelessIotKeyReady) {
-        if (!wirelessSubmitHttpAuth()) {
-            gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-        }
-        return;
-    }
-    if (!gWirelessIotMqttUserCfgReady) {
-        if (!wirelessSubmitMqttUserCfg()) {
-            gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-        }
-        return;
-    }
-    if (!gWirelessIotMqttReady && !wirelessSubmitMqttConnect()) {
-        gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-        return;
-    }
-    if (gWirelessIotMqttReady && !gWirelessIotMqttSubReady && !wirelessSubmitMqttSubscribe()) {
-        gWirelessIotNextRetryTick = nowTick + WIRELESS_IOT_RETRY_MS;
-    }
-}
-
 static void wirelessServiceProtocol(void)
 {
     uint16_t length;
@@ -1012,7 +598,7 @@ static void wirelessServiceProtocol(void)
     if (gWirelessMode == WIRELESS_MODE_BLE) {
         length = wirelessReadBleData(gWirelessProtocolRxBuffer, (uint16_t)sizeof(gWirelessProtocolRxBuffer));
         if (length > 0U) {
-            (void)protcolMgrPushReceivedData(IOT_MANAGER_LINK_BLE, gWirelessProtocolRxBuffer, length);
+            (void)wirelessForwardProtocolFrame(gWirelessProtocolRxBuffer, length);
         }
     }
 
@@ -1030,7 +616,10 @@ static void wirelessUpdateProtocolLinks(void)
     runtime.installed = true;
     runtime.enabled = gWirelessBleEnabled || (gWirelessMode == WIRELESS_MODE_BLE);
     runtime.moduleReady = (state != NULL) && state->isReady && (gWirelessMode == WIRELESS_MODE_BLE);
-    runtime.peerConnected = (state != NULL) && state->isBleConnected;
+    if ((state == NULL) || !state->isBleConnected || (gWirelessMode != WIRELESS_MODE_BLE)) {
+        gWirelessProtocolHandshakeDone = false;
+    }
+    runtime.peerConnected = (state != NULL) && state->isBleConnected && gWirelessProtocolHandshakeDone;
     runtime.state = !runtime.enabled ? IOT_MANAGER_LINK_STATE_DISABLED :
         (runtime.peerConnected ? IOT_MANAGER_LINK_STATE_SERVICE_READY :
          (runtime.moduleReady ? IOT_MANAGER_LINK_STATE_READY : IOT_MANAGER_LINK_STATE_INITING));
@@ -1054,50 +643,7 @@ static void wirelessUpdateProtocolLinks(void)
     (void)iotManagerUpdateLinkState(IOT_MANAGER_LINK_WIFI, &runtime);
 }
 
-static void wirelessServicePrioritySwitch(void)
-{
-    const stFc41dState *state;
-    const stFc41dInfo *info;
-    uint32_t nowTick;
-    eFc41dStatus status;
-
-    if (!gWirelessWifiPrioritySwitchPending) {
-        return;
-    }
-
-    nowTick = repRtosGetTickMs();
-    if ((int32_t)(nowTick - gWirelessWifiPrioritySwitchTick) < 0) {
-        return;
-    }
-
-    if (gWirelessMode == WIRELESS_MODE_BLE) {
-        state = fc41dGetState(WIRELESS_FC41D_DEVICE);
-        info = fc41dGetInfo(WIRELESS_FC41D_DEVICE);
-        if ((state != NULL) && state->isBleConnected) {
-            if (!gWirelessWifiPriorityDisconnectPending && ((info == NULL) || !info->isBusy)) {
-                status = fc41dDisconnectBle(WIRELESS_FC41D_DEVICE);
-                if (status == FC41D_STATUS_OK) {
-                    gWirelessWifiPriorityDisconnectPending = true;
-                    gWirelessWifiPriorityDisconnectDeadline = nowTick + WIRELESS_BLE_DISCONNECT_WAIT_MS;
-                }
-            }
-            if (!gWirelessWifiPriorityDisconnectPending ||
-                ((int32_t)(nowTick - gWirelessWifiPriorityDisconnectDeadline) < 0)) {
-                return;
-            }
-        }
-    }
-
-    gWirelessBleEnabled = false;
-    gWirelessWifiEnabled = gWirelessWifiConfigValid;
-    gWirelessMqttEnabled = gWirelessWifiConfigValid;
-    gWirelessTargetMode = gWirelessWifiConfigValid ? WIRELESS_MODE_WIFI : WIRELESS_MODE_BLE;
-    gWirelessWifiPrioritySwitchPending = false;
-    gWirelessWifiPriorityDisconnectPending = false;
-    LOG_I(WIRELESS_LOG_TAG, "priority switch to wifi cfg=%u", gWirelessWifiConfigValid ? 1U : 0U);
-}
-
-static eWirelessMode wirelessResolveTargetMode(void)
+eWirelessMode wirelessResolveTargetMode(void)
 {
     if (gWirelessBleEnabled) {
         return WIRELESS_MODE_BLE;
@@ -1178,220 +724,6 @@ void wirelessProcess(void)
 const eWirelessState *wirelessGetStatus(void)
 {
     return &gWirelessState;
-}
-
-eWirelessWifiState wirelessGetWifiState(void)
-{
-    return gWirelessWifiState;
-}
-
-eWirelessIotState wirelessGetIotState(void)
-{
-    return gWirelessIotState;
-}
-
-bool wirelessSetBleEnabled(bool enabled)
-{
-    gWirelessBleEnabled = enabled;
-    if (enabled) {
-        gWirelessWifiEnabled = false;
-        gWirelessMqttEnabled = false;
-    } else if (!gWirelessWifiEnabled && gWirelessWifiConfigValid) {
-        gWirelessWifiEnabled = true;
-        gWirelessMqttEnabled = true;
-    }
-    gWirelessTargetMode = wirelessResolveTargetMode();
-    return true;
-}
-
-bool wirelessGetBleEnabled(void)
-{
-    return gWirelessBleEnabled;
-}
-
-bool wirelessSetWifiEnabled(bool enabled)
-{
-    if (enabled && !gWirelessWifiConfigValid) {
-        return false;
-    }
-
-    gWirelessWifiEnabled = enabled;
-    if (enabled) {
-        gWirelessBleEnabled = false;
-        gWirelessMqttEnabled = true;
-        gWirelessTargetMode = WIRELESS_MODE_WIFI;
-        gWirelessWifiState = WIRELESS_WIFI_INITIALIZING;
-    } else {
-        gWirelessBleEnabled = true;
-        gWirelessMqttEnabled = false;
-        gWirelessTargetMode = WIRELESS_MODE_BLE;
-        gWirelessWifiState = WIRELESS_WIFI_IDLE;
-        wirelessResetIotRuntime();
-    }
-    return true;
-}
-
-bool wirelessGetWifiEnabled(void)
-{
-    return gWirelessWifiEnabled;
-}
-
-bool wirelessSetMqttEnabled(bool enabled)
-{
-    if (enabled && (gWirelessWifiState != WIRELESS_WIFI_CONNECTED)) {
-        return false;
-    }
-    gWirelessMqttEnabled = enabled;
-    if (!enabled) {
-        (void)wirelessSubmitSimpleCommand("AT+MQTTCLEAN=0\r\n");
-        wirelessResetIotRuntime();
-    }
-    return true;
-}
-
-bool wirelessGetMqttEnabled(void)
-{
-    return gWirelessMqttEnabled;
-}
-
-bool wirelessRequestWifiPrioritySwitch(void)
-{
-    if (!gWirelessWifiConfigValid) {
-        return false;
-    }
-
-    gWirelessWifiPrioritySwitchPending = true;
-    gWirelessWifiPriorityDisconnectPending = false;
-    gWirelessWifiPrioritySwitchTick = repRtosGetTickMs() + WIRELESS_MODE_SWITCH_DELAY_MS;
-    return true;
-}
-
-bool wirelessSetWifiCredentials(const uint8_t *ssid, uint8_t ssidLen, const uint8_t *password, uint8_t passwordLen)
-{
-    if ((ssid == NULL) || (ssidLen > WIRELESS_WIFI_SSID_MAX_LEN) ||
-        ((password == NULL) && (passwordLen > 0U)) || (passwordLen > WIRELESS_WIFI_PASSWORD_MAX_LEN)) {
-        return false;
-    }
-    if (!wirelessCopyBytesAsText(gWirelessWifiSsid, (uint16_t)sizeof(gWirelessWifiSsid), ssid, ssidLen) ||
-        !wirelessCopyBytesAsText(gWirelessWifiPassword,
-                                 (uint16_t)sizeof(gWirelessWifiPassword),
-                                 (passwordLen > 0U) ? password : (const uint8_t *)"",
-                                 passwordLen)) {
-        return false;
-    }
-    gWirelessWifiConfigValid = ssidLen > 0U;
-    if ((gWirelessMode == WIRELESS_MODE_BLE) || gWirelessBleEnabled) {
-        gWirelessBleEnabled = true;
-        gWirelessWifiEnabled = false;
-        gWirelessMqttEnabled = false;
-        gWirelessTargetMode = WIRELESS_MODE_BLE;
-    } else {
-        gWirelessBleEnabled = !gWirelessWifiConfigValid;
-        gWirelessWifiEnabled = gWirelessWifiConfigValid;
-        gWirelessMqttEnabled = gWirelessWifiConfigValid;
-        gWirelessTargetMode = wirelessResolveTargetMode();
-    }
-    gWirelessWifiGotIp = false;
-    gWirelessWifiJoinPending = false;
-    gWirelessWifiState = ((gWirelessTargetMode == WIRELESS_MODE_WIFI) && gWirelessWifiConfigValid) ?
-        WIRELESS_WIFI_INITIALIZING : WIRELESS_WIFI_IDLE;
-    if (gWirelessWifiConfigValid) {
-        (void)memoryMkdir(WIRELESS_NET_DIR_PATH);
-        (void)wirelessWriteTextFile(WIRELESS_WIFI_SSID_PATH, gWirelessWifiSsid);
-        (void)wirelessWriteTextFile(WIRELESS_WIFI_PASSWORD_PATH, gWirelessWifiPassword);
-    }
-    return true;
-}
-
-bool wirelessSendBleData(const uint8_t *buffer, uint16_t length)
-{
-    if ((buffer == NULL) || (length == 0U) || (gWirelessMode != WIRELESS_MODE_BLE)) {
-        return false;
-    }
-
-    return fc41dWriteData(WIRELESS_FC41D_DEVICE, buffer, length) == FC41D_STATUS_OK;
-}
-
-uint16_t wirelessGetBleRxLength(void)
-{
-    if (gWirelessMode != WIRELESS_MODE_BLE) {
-        return 0U;
-    }
-
-    return fc41dGetRxLength(WIRELESS_FC41D_DEVICE);
-}
-
-uint16_t wirelessReadBleData(uint8_t *buffer, uint16_t bufferSize)
-{
-    if ((buffer == NULL) || (bufferSize == 0U) || (gWirelessMode != WIRELESS_MODE_BLE)) {
-        return 0U;
-    }
-
-    return fc41dReadData(WIRELESS_FC41D_DEVICE, buffer, bufferSize);
-}
-
-bool wirelessSendWifiData(const uint8_t *buffer, uint16_t length)
-{
-    char cmdText[WIRELESS_IOT_CMD_MAX_LEN];
-    const stFc41dInfo *info;
-
-    if ((buffer == NULL) || (length == 0U) || (length > WIRELESS_TX_BUFFER_SIZE) ||
-        !gWirelessIotMqttReady || (gWirelessIotMqttTopic[0] == '\0')) {
-        return false;
-    }
-    info = fc41dGetInfo(WIRELESS_FC41D_DEVICE);
-    if ((info == NULL) || info->isBusy) {
-        return false;
-    }
-    if (fc41dMqttBuildPublishRawCommand(gWirelessIotMqttTopic, length, 0U, 0U, cmdText, (uint16_t)sizeof(cmdText)) != FC41D_STATUS_OK) {
-        return false;
-    }
-    (void)memcpy(gWirelessMqttTxBuffer, buffer, length);
-    gWirelessMqttTxLen = length;
-    return fc41dSubmitPromptCommandEx(WIRELESS_FC41D_DEVICE, cmdText, gWirelessMqttTxBuffer, gWirelessMqttTxLen, NULL, NULL) == FC41D_STATUS_OK;
-}
-
-uint16_t wirelessGetWifiRxLength(void)
-{
-    uint16_t length;
-
-    repRtosEnterCritical();
-    length = gWirelessWifiRxUsed;
-    repRtosExitCritical();
-    return length;
-}
-
-uint16_t wirelessReadWifiData(uint8_t *buffer, uint16_t bufferSize)
-{
-    uint16_t readLen;
-    uint16_t index;
-
-    if ((buffer == NULL) || (bufferSize == 0U)) {
-        return 0U;
-    }
-
-    repRtosEnterCritical();
-    readLen = (bufferSize < gWirelessWifiRxUsed) ? bufferSize : gWirelessWifiRxUsed;
-    for (index = 0U; index < readLen; index++) {
-        buffer[index] = gWirelessWifiRxBuffer[gWirelessWifiRxTail];
-        gWirelessWifiRxTail = (uint16_t)((gWirelessWifiRxTail + 1U) % (uint16_t)sizeof(gWirelessWifiRxBuffer));
-    }
-    gWirelessWifiRxUsed = (uint16_t)(gWirelessWifiRxUsed - readLen);
-    repRtosExitCritical();
-    return readLen;
-}
-
-bool wirelessGetMacAddress(char *buffer, uint16_t bufferSize)
-{
-    return fc41dGetCachedMac(WIRELESS_FC41D_DEVICE, buffer, bufferSize);
-}
-
-const char *wirelessGetIotSn(void)
-{
-    if (gWirelessIotSn[0] != '\0') {
-        return gWirelessIotSn;
-    }
-    return NULL;
 }
 
 /**************************End of file********************************/

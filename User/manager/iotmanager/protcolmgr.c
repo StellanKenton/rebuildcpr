@@ -87,6 +87,7 @@ static void protcolMgrSetTxLink(eIotManagerLinkId linkId);
 static void protcolMgrSetReplyFlag(eCprsensorProtocolCmd cmd);
 static void protcolMgrHandleFrame(eIotManagerLinkId linkId, const stCprsensorProtocolFrameView *frameView);
 static bool protcolMgrBuildAndSendReply(eIotManagerLinkId linkId, eCprsensorProtocolCmd cmd, const uint8_t *payload, uint16_t payloadLen);
+static bool protcolMgrBuildAndSendCipherReply(eIotManagerLinkId linkId, eCprsensorProtocolCmd cmd, const uint8_t *payload, uint16_t payloadLen);
 static void protcolMgrFlushHandshakeReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushHeartbeatReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushDisconnectReply(eIotManagerLinkId linkId);
@@ -831,6 +832,36 @@ static bool protcolMgrBuildAndSendReply(eIotManagerLinkId linkId, eCprsensorProt
 	return iotManagerSendByLink(linkId, gProtcolMgrReplyFrameBuffer, lFrameLen);
 }
 
+static bool protcolMgrBuildAndSendCipherReply(eIotManagerLinkId linkId, eCprsensorProtocolCmd cmd, const uint8_t *payload, uint16_t payloadLen)
+{
+	stCprsensorProtocolCodecCfg lCodecCfg;
+	eCprsensorProtocolStatus lStatus;
+	uint16_t lFrameLen;
+
+	if (!protcolMgrTryInitCipherKey()) {
+		return false;
+	}
+
+	protcolMgrFillCipherCodec(&lCodecCfg);
+	lFrameLen = 0U;
+	lStatus = cprsensorProtocolPackFrame(cmd,
+					   payload,
+					   payloadLen,
+					   &lCodecCfg,
+					   gProtcolMgrReplyFrameBuffer,
+					   PROTCOL_MGR_TX_FRAME_BUFFER_SIZE,
+					   &lFrameLen);
+	if (lStatus != CPRSENSOR_PROTOCOL_STATUS_OK) {
+		LOG_W(gProtcolMgrLogTag,
+		      "pack cipher reply failed cmd=0x%02X status=%d",
+		      (unsigned int)cmd,
+		      (int)lStatus);
+		return false;
+	}
+
+	return iotManagerSendByLink(linkId, gProtcolMgrReplyFrameBuffer, lFrameLen);
+}
+
 static void protcolMgrFlushHandshakeReply(eIotManagerLinkId linkId)
 {
 	char lMacText[32];
@@ -843,7 +874,7 @@ static void protcolMgrFlushHandshakeReply(eIotManagerLinkId linkId)
 		return;
 	}
 
-	if (protcolMgrBuildAndSendReply(linkId,
+	if (protcolMgrBuildAndSendCipherReply(linkId,
 					 CPRSENSOR_PROTOCOL_CMD_HANDSHAKE,
 					 gProtcolMgrHandshakePayload.mac,
 					 CPRSENSOR_PROTOCOL_MAC_LEN)) {
