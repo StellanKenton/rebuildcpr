@@ -19,6 +19,12 @@ static bool gSensorInitialized = false;
 static bool gSensorAccReady = false;
 static bool gSensorForceReady = false;
 static uint32_t gSensorDropCount = 0U;
+static stSensorInitStatus gSensorInitStatus = {
+    .queueStatus = (int32_t)REP_RTOS_STATUS_NOT_READY,
+    .forceStatus = DRV_STATUS_NOT_READY,
+    .accReadIdStatus = DRV_STATUS_NOT_READY,
+    .accInitStatus = DRV_STATUS_NOT_READY,
+};
 
 static bool sensorQueueSample(const stSensorSample *sample)
 {
@@ -38,26 +44,59 @@ static bool sensorReadForce(uint16_t *force)
 bool sensorInit(void)
 {
     eRepRtosStatus lQueueStatus;
+    eDrvStatus lForceStatus;
+    eDrvStatus lAccReadIdStatus;
+    eDrvStatus lAccInitStatus;
+    uint8_t lAccWhoAmI = 0U;
 
     if (gSensorInitialized) {
         return true;
     }
 
+    gSensorInitStatus.attemptCount++;
+
     lQueueStatus = repRtosQueueCreate(&gSensorQueue, sizeof(stSensorSample), SENSOR_QUEUE_LENGTH);
+    gSensorInitStatus.queueStatus = (int32_t)lQueueStatus;
+    gSensorInitStatus.queueReady = (lQueueStatus == REP_RTOS_STATUS_OK);
     if (lQueueStatus != REP_RTOS_STATUS_OK) {
         LOG_E(SENSOR_LOG_TAG, "queue init fail status=%d", (int)lQueueStatus);
         return false;
     }
 
-    gSensorForceReady = (drvAdcInit(DRVADC_FORCE) == DRV_STATUS_OK);
-    gSensorAccReady = (lis2hh12Init(LIS2HH12_DEV0) == LIS2HH12_STATUS_OK);
+    lForceStatus = drvAdcInit(DRVADC_FORCE);
+    gSensorForceReady = (lForceStatus == DRV_STATUS_OK);
+    gSensorInitStatus.forceStatus = lForceStatus;
+    gSensorInitStatus.forceReady = gSensorForceReady;
+
+    lAccReadIdStatus = lis2hh12ReadId(LIS2HH12_DEV0, &lAccWhoAmI);
+    gSensorInitStatus.accReadIdStatus = lAccReadIdStatus;
+    gSensorInitStatus.accWhoAmI = lAccWhoAmI;
+
+    lAccInitStatus = lis2hh12Init(LIS2HH12_DEV0);
+    gSensorAccReady = (lAccInitStatus == LIS2HH12_STATUS_OK);
+    gSensorInitStatus.accInitStatus = lAccInitStatus;
+    gSensorInitStatus.accReady = gSensorAccReady;
+    if (gSensorAccReady) {
+        lAccReadIdStatus = lis2hh12ReadId(LIS2HH12_DEV0, &lAccWhoAmI);
+        gSensorInitStatus.accReadIdStatus = lAccReadIdStatus;
+        gSensorInitStatus.accWhoAmI = lAccWhoAmI;
+    }
 
     if (!gSensorForceReady || !gSensorAccReady) {
-        LOG_E(SENSOR_LOG_TAG, "init fail acc=%d force=%d", (int)gSensorAccReady, (int)gSensorForceReady);
+        LOG_E(SENSOR_LOG_TAG,
+              "init fail acc=%d force=%d queue=%d force_status=%d acc_id_status=%d who=0x%02X acc_init_status=%d",
+              (int)gSensorAccReady,
+              (int)gSensorForceReady,
+              (int)lQueueStatus,
+              (int)lForceStatus,
+              (int)lAccReadIdStatus,
+              (unsigned int)lAccWhoAmI,
+              (int)lAccInitStatus);
         return false;
     }
 
     gSensorInitialized = true;
+    gSensorInitStatus.initialized = true;
     LOG_I(SENSOR_LOG_TAG, "init ok");
     return true;
 }
@@ -114,6 +153,17 @@ bool sensorIsReady(void)
 uint32_t sensorGetDropCount(void)
 {
     return gSensorDropCount;
+}
+
+void sensorGetInitStatus(stSensorInitStatus *status)
+{
+    if (status == NULL) {
+        return;
+    }
+
+    repRtosEnterCritical();
+    *status = gSensorInitStatus;
+    repRtosExitCritical();
 }
 
 /**************************End of file********************************/

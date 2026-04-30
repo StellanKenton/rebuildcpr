@@ -16,6 +16,20 @@
 
 #include "../port/drviic_port.h"
 
+#include <stdbool.h>
+
+#define BSP_IIC_RECOVER_CLOCK_PULSE_COUNT 9U
+#define BSP_IIC_RECOVER_DELAY_MS          1U
+
+typedef struct stBspIicGpioMap {
+    GPIO_TypeDef *port;
+    uint16_t sclPin;
+    uint16_t sdaPin;
+} stBspIicGpioMap;
+
+static bool bspIicGetGpioMap(uint8_t iic, stBspIicGpioMap *gpioMap);
+static void bspIicRecoverLines(const stBspIicGpioMap *gpioMap);
+
 static eDrvStatus bspIicStatusFromHal(HAL_StatusTypeDef halStatus)
 {
     switch (halStatus) {
@@ -28,6 +42,63 @@ static eDrvStatus bspIicStatusFromHal(HAL_StatusTypeDef halStatus)
         default:
             return DRV_STATUS_ERROR;
     }
+}
+
+static bool bspIicGetGpioMap(uint8_t iic, stBspIicGpioMap *gpioMap)
+{
+    if (gpioMap == NULL) {
+        return false;
+    }
+
+    switch ((eDrvIicPortMap)iic) {
+        case DRVIIC_BUS0:
+            gpioMap->port = GPIOB;
+            gpioMap->sclPin = GPIO_PIN_8;
+            gpioMap->sdaPin = GPIO_PIN_9;
+            return true;
+        case DRVIIC_BUS1:
+            gpioMap->port = GPIOB;
+            gpioMap->sclPin = GPIO_PIN_10;
+            gpioMap->sdaPin = GPIO_PIN_11;
+            return true;
+        default:
+            break;
+    }
+
+    return false;
+}
+
+static void bspIicRecoverLines(const stBspIicGpioMap *gpioMap)
+{
+    GPIO_InitTypeDef gpioInit = {0};
+    uint32_t index;
+
+    if ((gpioMap == NULL) || (gpioMap->port == NULL)) {
+        return;
+    }
+
+    gpioInit.Pin = (uint32_t)gpioMap->sclPin | (uint32_t)gpioMap->sdaPin;
+    gpioInit.Mode = GPIO_MODE_OUTPUT_OD;
+    gpioInit.Pull = GPIO_NOPULL;
+    gpioInit.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(gpioMap->port, &gpioInit);
+
+    HAL_GPIO_WritePin(gpioMap->port, gpioMap->sclPin | gpioMap->sdaPin, GPIO_PIN_SET);
+    HAL_Delay(BSP_IIC_RECOVER_DELAY_MS);
+
+    for (index = 0U; index < BSP_IIC_RECOVER_CLOCK_PULSE_COUNT; index++) {
+        HAL_GPIO_WritePin(gpioMap->port, gpioMap->sclPin, GPIO_PIN_RESET);
+        HAL_Delay(BSP_IIC_RECOVER_DELAY_MS);
+        HAL_GPIO_WritePin(gpioMap->port, gpioMap->sclPin, GPIO_PIN_SET);
+        HAL_Delay(BSP_IIC_RECOVER_DELAY_MS);
+    }
+
+    HAL_GPIO_WritePin(gpioMap->port, gpioMap->sdaPin, GPIO_PIN_RESET);
+    HAL_Delay(BSP_IIC_RECOVER_DELAY_MS);
+    HAL_GPIO_WritePin(gpioMap->port, gpioMap->sclPin, GPIO_PIN_SET);
+    HAL_Delay(BSP_IIC_RECOVER_DELAY_MS);
+    HAL_GPIO_WritePin(gpioMap->port, gpioMap->sdaPin, GPIO_PIN_SET);
+    HAL_Delay(BSP_IIC_RECOVER_DELAY_MS);
 }
 
 static I2C_HandleTypeDef *bspIicGetHandle(uint8_t iic)
@@ -56,19 +127,30 @@ eDrvStatus bspIicInit(uint8_t iic)
 eDrvStatus bspIicRecoverBus(uint8_t iic)
 {
     I2C_HandleTypeDef *handle = bspIicGetHandle(iic);
+    stBspIicGpioMap gpioMap;
     HAL_StatusTypeDef halStatus;
 
     if ((handle == NULL) || (handle->Instance == NULL)) {
         return DRV_STATUS_NOT_READY;
     }
 
-    halStatus = HAL_I2C_DeInit(handle);
+    if (!bspIicGetGpioMap(iic, &gpioMap)) {
+        return DRV_STATUS_INVALID_PARAM;
+    }
+
+    (void)HAL_I2C_DeInit(handle);
+    bspIicRecoverLines(&gpioMap);
+
+    halStatus = HAL_I2C_Init(handle);
     if (halStatus != HAL_OK) {
         return bspIicStatusFromHal(halStatus);
     }
 
-    halStatus = HAL_I2C_Init(handle);
-    return bspIicStatusFromHal(halStatus);
+    if (__HAL_I2C_GET_FLAG(handle, I2C_FLAG_BUSY) != RESET) {
+        return DRV_STATUS_BUSY;
+    }
+
+    return DRV_STATUS_OK;
 }
 
 eDrvStatus bspIicTransfer(uint8_t iic, const stDrvIicTransfer *transfer, uint32_t timeoutMs)
@@ -82,6 +164,9 @@ eDrvStatus bspIicTransfer(uint8_t iic, const stDrvIicTransfer *transfer, uint32_
     }
 
     address = (uint16_t)(transfer->address << 1U);
+    if (__HAL_I2C_GET_FLAG(handle, I2C_FLAG_BUSY) != RESET) {
+        (void)bspIicRecoverBus(iic);
+    }
 
     if ((transfer->readLength > 0U) && (transfer->writeLength > 0U) && (transfer->secondWriteLength == 0U)) {
         uint16_t memAddSize = I2C_MEMADD_SIZE_8BIT;

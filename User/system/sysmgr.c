@@ -127,8 +127,7 @@ static bool systemModuleInit(void)
     if (sensorInit()) {
         LOG_I(SYSTEM_LOG_TAG, "sensor init ok");
     } else {
-        lIsReady = false;
-        LOG_E(SYSTEM_LOG_TAG, "sensor init fail");
+        LOG_E(SYSTEM_LOG_TAG, "sensor init fail, continue degraded");
     }
 
     if (vfsInit() && vfsLittlefsPortInit()) {

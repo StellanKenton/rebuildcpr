@@ -30,11 +30,25 @@ typedef struct stSensorSample {
     uint16_t force;
 } stSensorSample;
 
+typedef struct stSensorInitStatus {
+    uint32_t attemptCount;
+    int32_t queueStatus;
+    eDrvStatus forceStatus;
+    eDrvStatus accReadIdStatus;
+    eDrvStatus accInitStatus;
+    uint8_t accWhoAmI;
+    bool queueReady;
+    bool forceReady;
+    bool accReady;
+    bool initialized;
+} stSensorInitStatus;
+
 bool sensorInit(void);
 void sensorProcess(void);
 bool sensorReadSample(stSensorSample *sample, uint32_t timeoutMs);
 bool sensorIsReady(void);
 uint32_t sensorGetDropCount(void);
+void sensorGetInitStatus(stSensorInitStatus *status);
 
 #ifdef __cplusplus
 }

@@ -24,6 +24,7 @@
 #include "../../rep/service/log/log.h"
 #include "../../rep/module/lis2hh12/lis2hh12.h"
 #include "../manager/memory/memory_debug.h"
+#include "../manager/sensor/sensor.h"
 #include "../manager/wireless/wireless.h"
 #include "../port/drvadc_port.h"
 #include "../port/lis2hh12_port.h"
@@ -515,11 +516,59 @@ static eConsoleCommandResult systemDebugConsoleSensorHandler(uint32_t transport,
         if (consoleReply(transport,
             "sensor\n"
             "  read accelerometer x/y/z and force ADC raw value once\n"
+            "sensor init\n"
+            "  retry sensor initialization\n"
+            "sensor status\n"
+            "  show sensor initialization status\n"
             "sensor help\n"
             "  show this help\n"
             "OK") <= 0) {
             return CONSOLE_COMMAND_RESULT_ERROR;
         }
+        return CONSOLE_COMMAND_RESULT_OK;
+    }
+
+    if ((argc == 2) && (strcmp(argv[1], "init") == 0)) {
+        if (consoleReply(transport, "sensor init %s", sensorInit() ? "ok" : "fail") <= 0) {
+            return CONSOLE_COMMAND_RESULT_ERROR;
+        }
+
+        if (consoleReply(transport, "OK") <= 0) {
+            return CONSOLE_COMMAND_RESULT_ERROR;
+        }
+
+        return CONSOLE_COMMAND_RESULT_OK;
+    }
+
+    if ((argc == 2) && (strcmp(argv[1], "status") == 0)) {
+        stSensorInitStatus lStatus;
+
+        sensorGetInitStatus(&lStatus);
+        if (consoleReply(transport,
+            "sensor init: attempts=%lu init=%d queue_ready=%d force_ready=%d acc_ready=%d",
+            (unsigned long)lStatus.attemptCount,
+            (int)lStatus.initialized,
+            (int)lStatus.queueReady,
+            (int)lStatus.forceReady,
+            (int)lStatus.accReady) <= 0) {
+            return CONSOLE_COMMAND_RESULT_ERROR;
+        }
+
+        if (consoleReply(transport,
+            "sensor status: queue=%ld force=%d acc_id=%d who=0x%02X acc_init=%d drops=%lu",
+            (long)lStatus.queueStatus,
+            (int)lStatus.forceStatus,
+            (int)lStatus.accReadIdStatus,
+            (unsigned int)lStatus.accWhoAmI,
+            (int)lStatus.accInitStatus,
+            (unsigned long)sensorGetDropCount()) <= 0) {
+            return CONSOLE_COMMAND_RESULT_ERROR;
+        }
+
+        if (consoleReply(transport, "OK") <= 0) {
+            return CONSOLE_COMMAND_RESULT_ERROR;
+        }
+
         return CONSOLE_COMMAND_RESULT_OK;
     }
 
