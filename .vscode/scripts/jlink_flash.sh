@@ -18,6 +18,7 @@ fi
   print -r -- "h"
   print -r -- "loadfile $image"
   print -r -- "r"
+  print -r -- "s"
   print -r -- "g"
   print -r -- "qc"
 } | "$jlink_exe" -device "$device" -if "$interface" -speed "$speed"

@@ -65,6 +65,7 @@ typedef struct PowerManager {
 } PowerManager;
 
 bool powerInit(void);
+bool powerIsReady(void);
 uint16_t powerGetVoltage(eDrvAdcPortMap channel);
 void powerBatteryUpdate(void);
 uint8_t powerBatteryGet(void);

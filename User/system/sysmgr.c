@@ -21,16 +21,14 @@
 
 #include "drvgpio.h"
 #include "../../rep/service/log/log.h"
-#include "../../rep/service/vfs/vfs.h"
 
 #include "../manager/power/power.h"
 #include "../manager/sensor/sensor.h"
 #include "../manager/selfcheck/selfcheck.h"
+#include "../manager/selfcheck/selfcheck_fault.h"
 #include "../manager/memory/memory.h"
-#include "../manager/wireless/wireless.h"
 #include "../port/pca9535_port.h"
 #include "../port/tm1651_port.h"
-#include "../port/vfs_littlefs_port.h"
 #include "systask.h"
 #include "system.h"
 
@@ -39,6 +37,14 @@
 static bool gSystemInitModeCompleted = false;
 static bool gSystemBspInitCompleted = false;
 
+static void systemLogPowerupSelfCheckResult(void);
+static void systemLogSelfCheckModuleResult(const char *moduleName, uint8_t payloadByte);
+static void systemLogSelfCheckCprFaults(uint8_t payloadByte);
+static void systemLogSelfCheckPowerFaults(uint8_t payloadByte);
+static void systemLogSelfCheckAudioFaults(uint8_t payloadByte);
+static void systemLogSelfCheckWirelessFaults(uint8_t payloadByte);
+static void systemLogSelfCheckMemoryFaults(uint8_t payloadByte);
+static void systemUpdateSelfCheckModuleSummary(void);
 static void systemEnablePreciseFaultDebug(void)
 {
     SCB->SHCSR |= SCB_SHCSR_BUSFAULTENA_Msk;
@@ -47,6 +53,111 @@ static void systemEnablePreciseFaultDebug(void)
 #elif defined(SCnSCB_ACTLR_DISDEFWBUF_Msk)
     SCnSCB->ACTLR |= SCnSCB_ACTLR_DISDEFWBUF_Msk;
 #endif
+}
+
+static void systemLogSelfCheckModuleResult(const char *moduleName, uint8_t payloadByte)
+{
+    if ((payloadByte & SELF_CHECK_FAULT_MODULE_PASS) != 0U) {
+        LOG_I(SYSTEM_LOG_TAG, "selfcheck %s pass payload=0x%02X", moduleName, (unsigned int)payloadByte);
+    } else {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck %s fail payload=0x%02X", moduleName, (unsigned int)payloadByte);
+    }
+}
+
+static void systemLogSelfCheckCprFaults(uint8_t payloadByte)
+{
+    systemLogSelfCheckModuleResult("cpr", payloadByte);
+    if ((payloadByte & SELF_CHECK_FAULT_CPR_ACC_INIT) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck cpr fault E01 H: accelerometer init failed");
+    }
+    if ((payloadByte & SELF_CHECK_FAULT_CPR_RTC) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck cpr fault E02 M: rtc time invalid");
+    }
+}
+
+static void systemLogSelfCheckPowerFaults(uint8_t payloadByte)
+{
+    systemLogSelfCheckModuleResult("power", payloadByte);
+    if ((payloadByte & SELF_CHECK_FAULT_POWER_3V3_HIGH) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck power fault E11 H: 3.3V high");
+    }
+    if ((payloadByte & SELF_CHECK_FAULT_POWER_3V3_LOW) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck power fault E12 H: 3.3V low");
+    }
+    if ((payloadByte & SELF_CHECK_FAULT_POWER_5V_HIGH) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck power fault E13 H: 5V high");
+    }
+    if ((payloadByte & SELF_CHECK_FAULT_POWER_5V_LOW) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck power fault E14 H: 5V low");
+    }
+    if ((payloadByte & SELF_CHECK_FAULT_POWER_DC_HIGH) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck power fault E15 H: DC input high");
+    }
+}
+
+static void systemLogSelfCheckAudioFaults(uint8_t payloadByte)
+{
+    systemLogSelfCheckModuleResult("audio", payloadByte);
+    if ((payloadByte & SELF_CHECK_FAULT_AUDIO_COMM) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck audio fault E21 M: audio communication failed");
+    }
+    if ((payloadByte & SELF_CHECK_FAULT_AUDIO_MUSIC_NUM) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck audio fault E22 L: audio music number abnormal");
+    }
+}
+
+static void systemLogSelfCheckWirelessFaults(uint8_t payloadByte)
+{
+    systemLogSelfCheckModuleResult("wireless", payloadByte);
+    if ((payloadByte & SELF_CHECK_FAULT_WIRELESS_INIT) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck wireless fault E31 M: wireless init failed");
+    }
+}
+
+static void systemLogSelfCheckMemoryFaults(uint8_t payloadByte)
+{
+    systemLogSelfCheckModuleResult("memory", payloadByte);
+    if ((payloadByte & SELF_CHECK_FAULT_MEMORY_INIT) != 0U) {
+        LOG_W(SYSTEM_LOG_TAG, "selfcheck memory fault E41 H: memory init failed");
+    }
+}
+
+static void systemLogPowerupSelfCheckResult(void)
+{
+    stSelfCheckFaultPayload lCurrentPayload;
+    stSelfCheckFaultPayload lWindowPayload;
+    const stSelfCheckSummary *lSummary;
+    uint32_t lBootRtcTime;
+    bool lBootRtcReady;
+
+    selfCheckFaultGetCurrentPayload(&lCurrentPayload);
+    selfCheckFaultGetWindowPayload(&lWindowPayload);
+    lSummary = selfCheckGetSummary();
+    lBootRtcReady = selfCheckFaultGetBootRtcTime(&lBootRtcTime);
+
+    LOG_I(SYSTEM_LOG_TAG,
+          "powerup selfcheck result pass=%d run=%d boot_rtc_ready=%d boot_rtc=0x%08lX cur=%02X/%02X/%02X/%02X/%02X win=%02X/%02X/%02X/%02X/%02X",
+          (lSummary != NULL) ? (int)lSummary->isPassed : 0,
+          (lSummary != NULL) ? (int)lSummary->hasRun : 0,
+          (int)lBootRtcReady,
+          (unsigned long)lBootRtcTime,
+          (unsigned int)lCurrentPayload.cpr,
+          (unsigned int)lCurrentPayload.power,
+          (unsigned int)lCurrentPayload.audio,
+          (unsigned int)lCurrentPayload.wireless,
+          (unsigned int)lCurrentPayload.memory,
+          (unsigned int)lWindowPayload.cpr,
+          (unsigned int)lWindowPayload.power,
+          (unsigned int)lWindowPayload.audio,
+          (unsigned int)lWindowPayload.wireless,
+          (unsigned int)lWindowPayload.memory);
+
+    LOG_I(SYSTEM_LOG_TAG, "powerup selfcheck current detail");
+    systemLogSelfCheckCprFaults(lCurrentPayload.cpr);
+    systemLogSelfCheckPowerFaults(lCurrentPayload.power);
+    systemLogSelfCheckAudioFaults(lCurrentPayload.audio);
+    systemLogSelfCheckWirelessFaults(lCurrentPayload.wireless);
+    systemLogSelfCheckMemoryFaults(lCurrentPayload.memory);
 }
 
 /**
@@ -93,6 +204,7 @@ static bool systemModuleInit(void)
     drvGpioInit();
 
     lIsReady = selfCheckInit() && lIsReady;
+    selfCheckFaultInit();
     LOG_I(SYSTEM_LOG_TAG, "selfcheck init %s", lIsReady ? "ok" : "fail");
 
     if (pca9535PortInit() == DRV_STATUS_OK) {
@@ -115,45 +227,15 @@ static bool systemModuleInit(void)
         LOG_E(SYSTEM_LOG_TAG, "tm1651 init fail");
     }
 
-    if (powerInit()) {
-        selfCheckSetPowerResult(true);
-        LOG_I(SYSTEM_LOG_TAG, "power init ok");
-    } else {
-        selfCheckSetPowerResult(false);
-        lIsReady = false;
-        LOG_E(SYSTEM_LOG_TAG, "power init fail");
-    }
-
-    if (sensorInit()) {
-        LOG_I(SYSTEM_LOG_TAG, "sensor init ok");
-    } else {
-        LOG_E(SYSTEM_LOG_TAG, "sensor init fail, continue degraded");
-    }
-
-    if (vfsInit() && vfsLittlefsPortInit()) {
-        LOG_I(SYSTEM_LOG_TAG, "vfs init ok");
-    } else {
-        lIsReady = false;
-        LOG_E(SYSTEM_LOG_TAG, "vfs init fail");
-    }
-
-    if (memoryInit()) {
-        selfCheckSetFlashResult(true);
-        LOG_I(SYSTEM_LOG_TAG, "memory init ok");
-    } else {
-        selfCheckSetFlashResult(false);
-        lIsReady = false;
-        LOG_E(SYSTEM_LOG_TAG, "memory init fail");
-    }
-
-    if (wirelessInit()) {
-        LOG_I(SYSTEM_LOG_TAG, "wireless init ok");
-    } else {
-        lIsReady = false;
-        LOG_E(SYSTEM_LOG_TAG, "wireless init fail");
-    }
-
     return lIsReady;
+}
+
+static void systemUpdateSelfCheckModuleSummary(void)
+{
+    selfCheckSetPowerResult(powerIsReady());
+    selfCheckSetMotionResult(sensorIsReady());
+    selfCheckSetFlashResult(memoryIsReady());
+    selfCheckSetUpdateResult(true);
 }
 
 /**
@@ -173,6 +255,11 @@ static void systemInitMode(void)
     
     if (!systemModuleInit()) {
         LOG_E(SYSTEM_LOG_TAG, "system init mode blocked");
+        return;
+    }
+
+    if (!systaskCreateWorkerTasks()) {
+        LOG_E(SYSTEM_LOG_TAG, "worker task create failed");
         return;
     }
 
@@ -220,11 +307,17 @@ static void systemSelfCheckMode(void)
 {
     static bool lSelfCheckCompleted = false;
 
-    // jump
-    lSelfCheckCompleted = true;
+    if (!lSelfCheckCompleted) {
+        systemUpdateSelfCheckModuleSummary();
+        lSelfCheckCompleted = selfCheckFaultRunStartupWindow(SELF_CHECK_FAULT_STARTUP_DURATION_MS);
+        if (lSelfCheckCompleted) {
+            systemUpdateSelfCheckModuleSummary();
+            (void)selfCheckCommit();
+            systemLogPowerupSelfCheckResult();
+        }
+    }
 
     if(lSelfCheckCompleted) {
-        (void)systaskCreateWorkerTasks();
         systemSetMode(eSYSTEM_STANDBY_MODE);
     }
 }

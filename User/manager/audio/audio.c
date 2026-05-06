@@ -19,6 +19,7 @@
 #include "../../../rep/service/rtos/rtos.h"
 
 #define AUDIO_LOG_TAG "audio"
+#define AUDIO_INIT_QUERY_TIMEOUT_MS 250U
 
 static stAudioStatus gAudioStatus = {
     .state = AUDIO_STATE_UNINIT,
@@ -56,11 +57,7 @@ static uint8_t audioNormalizeVolumeLevel(uint8_t volumeLevel);
 static uint8_t audioNormalizeMetronomeFreq(uint8_t freq);
 static uint32_t audioGetTickMs(void);
 static bool audioSendAndWait(uint8_t cmd, eDrvStatus (*sendFunc)(void), uint32_t timeoutMs);
-static eDrvStatus audioQueryVersion(void);
 static eDrvStatus audioQueryMusicNum(void);
-static eDrvStatus audioQueryState(void);
-static eDrvStatus audioQueryVolume(void);
-static eDrvStatus audioQueryConnectState(void);
 static eDrvStatus audioSetSingleMode(void);
 static eDrvStatus audioSetDacMode(void);
 static bool audioBuildFileName(eAudioClip clip, uint8_t *name);
@@ -75,11 +72,13 @@ static void audioQueryStatePeriodically(void);
 bool audioInit(void)
 {
     uint8_t lVolume;
+    uint32_t lStartTick;
 
     if (gAudioStatus.state == AUDIO_STATE_READY) {
         return true;
     }
 
+    lStartTick = audioGetTickMs();
     if (wt2003hxPortInit() != DRV_STATUS_OK) {
         gAudioStatus.state = AUDIO_STATE_FAULT;
         LOG_E(AUDIO_LOG_TAG, "module init failed");
@@ -91,21 +90,19 @@ bool audioInit(void)
     gAudioStatus.volumeLevel = audioNormalizeVolumeLevel(protcolMgrGetVolumeSetting());
     gAudioStatus.metronomeFreq = audioNormalizeMetronomeFreq(protcolMgrGetMetronomeFreq());
 
-    (void)audioSendAndWait(WT2003HX_CMD_CHECK_VERSION, audioQueryVersion, 1000U);
-    (void)audioSendAndWait(WT2003HX_CMD_CHECK_MUSIC_NUM, audioQueryMusicNum, 1000U);
-    (void)audioSendAndWait(WT2003HX_CMD_CHECK_STATE, audioQueryState, 1000U);
-    (void)audioSendAndWait(WT2003HX_CMD_CHECK_CONNECT_STATE, audioQueryConnectState, 1000U);
-    (void)audioSendAndWait(WT2003HX_CMD_PLAY_MODE, audioSetSingleMode, 1000U);
-    (void)audioSendAndWait(WT2003HX_CMD_OUTPUT_MODE_SWITCH, audioSetDacMode, 1000U);
+    (void)audioSendAndWait(WT2003HX_CMD_CHECK_MUSIC_NUM, audioQueryMusicNum, AUDIO_INIT_QUERY_TIMEOUT_MS);
+    (void)audioSetSingleMode();
+    (void)audioSetDacMode();
     lVolume = audioMapVolume(gAudioStatus.volumeLevel);
     (void)wt2003hxPortSetVolume(lVolume);
-    (void)audioSendAndWait(WT2003HX_CMD_CHECK_VOLUME_SET, audioQueryVolume, 1000U);
 
     gAudioStatus.state = AUDIO_STATE_READY;
-            LOG_I(AUDIO_LOG_TAG, "audio ready lang=%s volume=%u metronome=%u",
-                audioGetLanguageCode(gAudioStatus.language),
+    LOG_I(AUDIO_LOG_TAG,
+          "audio ready lang=%s volume=%u metronome=%u elapsed=%lu",
+          audioGetLanguageCode(gAudioStatus.language),
           (unsigned int)gAudioStatus.volumeLevel,
-          (unsigned int)gAudioStatus.metronomeFreq);
+          (unsigned int)gAudioStatus.metronomeFreq,
+          (unsigned long)(audioGetTickMs() - lStartTick));
     return true;
 }
 
@@ -266,32 +263,16 @@ static bool audioSendAndWait(uint8_t cmd, eDrvStatus (*sendFunc)(void), uint32_t
         (void)repRtosDelayMs(20U);
     }
 
+    LOG_W(AUDIO_LOG_TAG,
+          "init query timeout cmd=0x%02X elapsed=%lu",
+          (unsigned int)cmd,
+          (unsigned long)(audioGetTickMs() - lStartTick));
     return false;
-}
-
-static eDrvStatus audioQueryVersion(void)
-{
-    return wt2003hxPortQuery(WT2003HX_CMD_CHECK_VERSION);
 }
 
 static eDrvStatus audioQueryMusicNum(void)
 {
     return wt2003hxPortQuery(WT2003HX_CMD_CHECK_MUSIC_NUM);
-}
-
-static eDrvStatus audioQueryState(void)
-{
-    return wt2003hxPortQuery(WT2003HX_CMD_CHECK_STATE);
-}
-
-static eDrvStatus audioQueryVolume(void)
-{
-    return wt2003hxPortQuery(WT2003HX_CMD_CHECK_VOLUME_SET);
-}
-
-static eDrvStatus audioQueryConnectState(void)
-{
-    return wt2003hxPortQuery(WT2003HX_CMD_CHECK_CONNECT_STATE);
 }
 
 static eDrvStatus audioSetSingleMode(void)

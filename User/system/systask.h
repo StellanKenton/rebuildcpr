@@ -38,12 +38,12 @@ extern "C" {
 #define CprAlgTaskPriority          6U
 #define CprAlgTaskInterval          50U
 
-#define AudioTaskStackSize          12U
+#define AudioTaskStackSize          16U
 #define AudioTaskPriority           8U
 #define AudioTaskInterval           20U
 
 #define SystemTaskStackSize         40U
-#define SystemTaskPriority          5U
+#define SystemTaskPriority          17U
 #define SystemTaskInterval          10U
 void systemTaskEntry(void *argument);
 

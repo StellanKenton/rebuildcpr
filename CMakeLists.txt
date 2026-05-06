@@ -71,6 +71,7 @@ add_executable(${TARGET_NAME}
   SEGGER/SEGGER_RTT.c
   User/manager/power/power.c
   User/manager/selfcheck/selfcheck.c
+  User/manager/selfcheck/selfcheck_fault.c
   User/manager/memory/memory.c
   User/manager/memory/memory_debug.c
   User/manager/update/update.c

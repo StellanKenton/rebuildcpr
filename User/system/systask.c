@@ -23,6 +23,7 @@
 #include "../manager/sensor/sensor.h"
 #include "../manager/wireless/wireless.h"
 #include "../manager/audio/audio.h"
+#include "../manager/selfcheck/selfcheck_fault.h"
 
 #define SYSTASK_LOG_TAG "systask"
 #define SYSTASK_STACK_DEPTH_FROM_BYTES(bytes) ((uint32_t)(bytes) / (uint32_t)sizeof(uint32_t))
@@ -104,7 +105,11 @@ static void memoryTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		memoryProcess();
+		if (!memoryIsReady()) {
+			(void)memoryInit();
+		} else {
+			memoryProcess();
+		}
 		(void)repRtosDelayMs(MemoryTaskInterval);
 	}
 }
@@ -114,7 +119,11 @@ static void powerTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		
+		if (!powerIsReady()) {
+			(void)powerInit();
+		} else {
+			powerProcess();
+		}
 		(void)repRtosDelayMs(PowerTaskInterval);
 	}
 }
@@ -124,7 +133,11 @@ static void sensorTaskEntry(void *argument)
 	(void)argument;
 
 	for (;;) {
-		sensorProcess();
+		if (!sensorIsReady()) {
+			(void)sensorInit();
+		} else {
+			sensorProcess();
+		}
 		(void)repRtosDelayMs(SensorTaskInterval);
 	}
 }
@@ -153,7 +166,6 @@ static void wirelessTaskEntry(void *argument)
 static void audioTaskEntry(void *argument)
 {
 	(void)argument;
-	(void)audioInit();
 
 	for (;;) {
 		audioProcess();
@@ -219,7 +231,9 @@ void systemTaskEntry(void *argument)
 		systemManagerRun();         // System Manager
         /*************** Background Services **********************/
         drvAdcBackground();         // ADC background processing
-        powerProcess();             // Power sampling and battery level update
+		if ((systemGetMode() == eSYSTEM_STANDBY_MODE) || (systemGetMode() == eSYSTEM_NORMAL_MODE)) {
+			selfCheckFaultProcess100ms();
+		}
 		powerLedProcess();          // Power LED state update
 		if (systemDebugBackgroundServicesInit()) {
 			systemDebugBackgroundServicesProcess();

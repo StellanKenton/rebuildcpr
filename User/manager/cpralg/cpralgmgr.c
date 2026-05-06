@@ -1,9 +1,9 @@
 #include "cpralgmgr.h"
 
 #include "CprFeedback_C.h"
+#include "../selfcheck/selfcheck_fault.h"
 #include "../sensor/sensor.h"
 #include "../../../rep/service/log/log.h"
-#include "rtc.h"
 #include "rtos.h"
 
 #include <stddef.h>
@@ -103,36 +103,6 @@ static void cprAlgMgrLogBootRtcTime(uint32_t bootTimeStamp)
           (unsigned int)lSecond);
 }
 
-static bool cprAlgMgrRtcWaitReady(void)
-{
-    uint32_t lTickStart = HAL_GetTick();
-
-    while ((hrtc.Instance->CRL & RTC_CRL_RTOFF) == (uint32_t)RESET) {
-        if ((HAL_GetTick() - lTickStart) > RTC_TIMEOUT_VALUE) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-static uint32_t cprAlgMgrRtcReadCounter(void)
-{
-    uint16_t lHigh1;
-    uint16_t lHigh2;
-    uint16_t lLow;
-
-    lHigh1 = READ_REG(hrtc.Instance->CNTH & RTC_CNTH_RTC_CNT);
-    lLow = READ_REG(hrtc.Instance->CNTL & RTC_CNTL_RTC_CNT);
-    lHigh2 = READ_REG(hrtc.Instance->CNTH & RTC_CNTH_RTC_CNT);
-
-    if (lHigh1 != lHigh2) {
-        lLow = READ_REG(hrtc.Instance->CNTL & RTC_CNTL_RTC_CNT);
-    }
-
-    return (((uint32_t)lHigh2 << 16U) | lLow);
-}
-
 static uint8_t cprAlgMgrClampToU8(int16_t value)
 {
     if (value <= 0) {
@@ -180,7 +150,9 @@ bool cprAlgMgrInit(void)
     CprFeedback_init(lAlgConfig);
     CprFeedback_set_alarmlimit(lAlarmLimit);
 
-    lBootTimeStamp = cprAlgMgrGetRtcTime();
+    if (!selfCheckFaultGetBootRtcTime(&lBootTimeStamp)) {
+        lBootTimeStamp = cprAlgMgrGetRtcTime();
+    }
 
     repRtosEnterCritical();
     s_CPR_Data.Depth = 0U;
@@ -259,29 +231,14 @@ uint32_t cprAlgMgrGetRtcTime(void)
 {
     uint32_t lTimestamp;
 
-    repRtosEnterCritical();
-    lTimestamp = cprAlgMgrRtcReadCounter();
-    repRtosExitCritical();
+    if (!selfCheckFaultGetRtcTime(&lTimestamp)) {
+        lTimestamp = 0U;
+    }
 
     return lTimestamp;
 }
 
 bool cprAlgMgrSetRtcTime(uint32_t timestamp)
 {
-    bool lResult = false;
-
-    if (!cprAlgMgrRtcWaitReady()) {
-        return false;
-    }
-
-    repRtosEnterCritical();
-    __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
-    WRITE_REG(hrtc.Instance->CNTH, (timestamp >> 16U));
-    WRITE_REG(hrtc.Instance->CNTL, (timestamp & RTC_CNTL_RTC_CNT));
-    __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
-    repRtosExitCritical();
-
-    lResult = cprAlgMgrRtcWaitReady();
-
-    return lResult;
+    return selfCheckFaultSetRtcTime(timestamp);
 }

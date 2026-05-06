@@ -735,6 +735,11 @@
               <FilePath>..\User\manager\selfcheck\selfcheck.c</FilePath>
             </File>
             <File>
+              <FileName>selfcheck_fault.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\manager\selfcheck\selfcheck_fault.c</FilePath>
+            </File>
+            <File>
               <FileName>memory.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\manager\memory\memory.c</FilePath>

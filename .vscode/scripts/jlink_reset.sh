@@ -9,6 +9,7 @@ jlink_exe="${4:-JLinkExe}"
 
 {
   print -r -- "r"
+  print -r -- "s"
   print -r -- "g"
   print -r -- "qc"
 } | "$jlink_exe" -device "$device" -if "$interface" -speed "$speed"

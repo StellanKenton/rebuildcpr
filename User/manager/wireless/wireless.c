@@ -506,34 +506,91 @@ static bool wirelessConfigureIfNeeded(void)
 {
     stFc41dCfg cfg;
     stFc41dBleCfg bleCfg;
+    eDrvStatus uartStatus;
+    eFc41dStatus fcStatus;
 
     if (gWirelessConfigured) {
         return true;
     }
 
-    if (drvUartInit(DRVUART_WIFI) != DRV_STATUS_OK) {
+    uartStatus = drvUartInit(DRVUART_WIFI);
+    if (uartStatus != DRV_STATUS_OK) {
         gWirelessState = eWIRELESS_STATE_ERROR;
-        LOG_E(WIRELESS_LOG_TAG, "wifi uart init fail");
+        LOG_E(WIRELESS_LOG_TAG, "wifi uart init fail status=%d", (int)uartStatus);
         return false;
     }
-    if ((fc41dGetDefCfg(WIRELESS_FC41D_DEVICE, &cfg) != FC41D_STATUS_OK) ||
-        (fc41dSetCfg(WIRELESS_FC41D_DEVICE, &cfg) != FC41D_STATUS_OK) ||
-        (fc41dGetDefBleCfg(WIRELESS_FC41D_DEVICE, &bleCfg) != FC41D_STATUS_OK)) {
+
+    fcStatus = fc41dGetDefCfg(WIRELESS_FC41D_DEVICE, &cfg);
+    if (fcStatus != FC41D_STATUS_OK) {
         gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG, "fc41d get default cfg fail status=%d", (int)fcStatus);
+        return false;
+    }
+
+    fcStatus = fc41dSetCfg(WIRELESS_FC41D_DEVICE, &cfg);
+    if (fcStatus != FC41D_STATUS_OK) {
+        gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG,
+              "fc41d set cfg fail status=%d link=%u reset=%u",
+              (int)fcStatus,
+              (unsigned int)cfg.linkId,
+              (unsigned int)cfg.resetPin);
+        return false;
+    }
+
+    fcStatus = fc41dGetDefBleCfg(WIRELESS_FC41D_DEVICE, &bleCfg);
+    if (fcStatus != FC41D_STATUS_OK) {
+        gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG, "fc41d get default ble cfg fail status=%d", (int)fcStatus);
         return false;
     }
 
     wirelessBleLoadDefaultConfig(&bleCfg);
-    if ((fc41dSetBleCfg(WIRELESS_FC41D_DEVICE, &bleCfg) != FC41D_STATUS_OK) ||
-        (fc41dInit(WIRELESS_FC41D_DEVICE) != FC41D_STATUS_OK) ||
-        (fc41dSetUrcMatcher(WIRELESS_FC41D_DEVICE, wirelessFc41dUrcMatcher, NULL) != FC41D_STATUS_OK) ||
-        (fc41dSetUrcHandler(WIRELESS_FC41D_DEVICE, wirelessFc41dUrcHandler, NULL) != FC41D_STATUS_OK) ||
-        (fc41dSetRawMatcher(WIRELESS_FC41D_DEVICE, wirelessProtocolRawMatcher, NULL) != FC41D_STATUS_OK)) {
+    fcStatus = fc41dSetBleCfg(WIRELESS_FC41D_DEVICE, &bleCfg);
+    if (fcStatus != FC41D_STATUS_OK) {
         gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG,
+              "fc41d set ble cfg fail status=%d mode=%u name=%s",
+              (int)fcStatus,
+              (unsigned int)bleCfg.initMode,
+              bleCfg.name);
+        return false;
+    }
+
+    fcStatus = fc41dInit(WIRELESS_FC41D_DEVICE);
+    if (fcStatus != FC41D_STATUS_OK) {
+        gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG, "fc41d init fail status=%d", (int)fcStatus);
+        return false;
+    }
+
+    fcStatus = fc41dSetUrcMatcher(WIRELESS_FC41D_DEVICE, wirelessFc41dUrcMatcher, NULL);
+    if (fcStatus != FC41D_STATUS_OK) {
+        gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG, "fc41d set urc matcher fail status=%d", (int)fcStatus);
+        return false;
+    }
+
+    fcStatus = fc41dSetUrcHandler(WIRELESS_FC41D_DEVICE, wirelessFc41dUrcHandler, NULL);
+    if (fcStatus != FC41D_STATUS_OK) {
+        gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG, "fc41d set urc handler fail status=%d", (int)fcStatus);
+        return false;
+    }
+
+    fcStatus = fc41dSetRawMatcher(WIRELESS_FC41D_DEVICE, wirelessProtocolRawMatcher, NULL);
+    if (fcStatus != FC41D_STATUS_OK) {
+        gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG, "fc41d set raw matcher fail status=%d", (int)fcStatus);
         return false;
     }
 
     gWirelessConfigured = true;
+    LOG_I(WIRELESS_LOG_TAG,
+          "fc41d configured link=%u reset=%u ble=%s",
+          (unsigned int)cfg.linkId,
+          (unsigned int)cfg.resetPin,
+          bleCfg.name);
     return true;
 }
 
@@ -575,7 +632,17 @@ static bool wirelessStartTargetMode(void)
 
     role = (gWirelessTargetMode == WIRELESS_MODE_WIFI) ? FC41D_ROLE_WIFI_STATION : FC41D_ROLE_BLE_PERIPHERAL;
     if (fc41dStart(WIRELESS_FC41D_DEVICE, role) != FC41D_STATUS_OK) {
+        const stFc41dState *state = fc41dGetState(WIRELESS_FC41D_DEVICE);
+
         gWirelessState = eWIRELESS_STATE_ERROR;
+        LOG_E(WIRELESS_LOG_TAG,
+              "fc41d start fail role=%d state=%p run=%d ready=%u busy=%u err=%d",
+              (int)role,
+              state,
+              (state != NULL) ? (int)state->runState : -1,
+              ((state != NULL) && state->isReady) ? 1U : 0U,
+              ((state != NULL) && state->isBusy) ? 1U : 0U,
+              (state != NULL) ? (int)state->lastError : -1);
         return false;
     }
 
@@ -757,8 +824,17 @@ void wirelessProcess(void)
     nowTickMs = repRtosGetTickMs();
     status = fc41dProcess(WIRELESS_FC41D_DEVICE, nowTickMs);
     if ((status != FC41D_STATUS_OK) && ((nowTickMs - gWirelessLastWarnTick) >= WIRELESS_RETRY_LOG_MS)) {
+        const stFc41dState *state = fc41dGetState(WIRELESS_FC41D_DEVICE);
+
         gWirelessLastWarnTick = nowTickMs;
-        LOG_W(WIRELESS_LOG_TAG, "fc41d process fail status=%d", (int)status);
+        LOG_W(WIRELESS_LOG_TAG,
+              "fc41d process fail status=%d run=%d ready=%u busy=%u ready_urc=%u err=%d",
+              (int)status,
+              (state != NULL) ? (int)state->runState : -1,
+              ((state != NULL) && state->isReady) ? 1U : 0U,
+              ((state != NULL) && state->isBusy) ? 1U : 0U,
+              ((state != NULL) && state->isReadyUrcSeen) ? 1U : 0U,
+              (state != NULL) ? (int)state->lastError : -1);
     }
 
     wirelessUpdateState();

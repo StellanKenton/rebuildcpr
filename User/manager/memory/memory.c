@@ -84,6 +84,12 @@ static bool memoryListDirVisitorAdapter(void *context, const stVfsNodeInfo *entr
 
 bool memoryInit(void)
 {
+    if (!vfsInit()) {
+        memorySyncStatus();
+        LOG_E(MEMORY_LOG_TAG, "vfs init fail err=%ld", (long)gMemoryStatus.lastError);
+        return false;
+    }
+
     if (!vfsLittlefsPortInit()) {
         memorySyncStatus();
         LOG_E(MEMORY_LOG_TAG, "vfs littlefs port init fail err=%ld", (long)gMemoryStatus.lastError);

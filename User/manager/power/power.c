@@ -126,6 +126,13 @@ bool powerInit(void)
     return true;
 }
 
+bool powerIsReady(void)
+{
+    return (gPowerManager.status.state == ePOWER_STATE_READY) ||
+           (gPowerManager.status.state == ePOWER_STATE_NORMAL) ||
+           (gPowerManager.status.state == ePOWER_STATE_STOPPED);
+}
+
 uint16_t powerGetVoltage(eDrvAdcPortMap channel)
 {
     uint16_t lAdcValue = 0U;

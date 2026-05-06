@@ -69,6 +69,7 @@ const char *wirelessWifiGetDefaultMqttPortText(void)
 }
 
 static void wirelessFillDefaultStorageConfig(void);
+static void wirelessFillRuntimeDefaultConfig(void);
 static void wirelessMigrateLegacySerialPath(void);
 bool wirelessLoadStorageConfig(void);
 bool wirelessMatchPrefix(const uint8_t *buffer, uint16_t length, const char *text);
@@ -285,6 +286,38 @@ static void wirelessFillDefaultStorageConfig(void)
     }
 }
 
+static void wirelessFillRuntimeDefaultConfig(void)
+{
+    if (gWirelessWifiSsid[0] == '\0') {
+        (void)wirelessCopyText(gWirelessWifiSsid, (uint16_t)sizeof(gWirelessWifiSsid), wirelessWifiGetDefaultSsid());
+    }
+    if (gWirelessWifiPassword[0] == '\0') {
+        (void)wirelessCopyText(gWirelessWifiPassword,
+                               (uint16_t)sizeof(gWirelessWifiPassword),
+                               wirelessWifiGetDefaultPassword());
+    }
+    if (!wirelessIsValidSnText(gWirelessIotSn)) {
+        (void)wirelessCopyText(gWirelessIotSn, (uint16_t)sizeof(gWirelessIotSn), wirelessWifiGetDefaultSn());
+    }
+    if (gWirelessIotHttpUrl[0] == '\0') {
+        (void)wirelessCopyText(gWirelessIotHttpUrl, (uint16_t)sizeof(gWirelessIotHttpUrl), wirelessWifiGetDefaultHttpUrl());
+    }
+    if (gWirelessIotMqttHost[0] == '\0') {
+        (void)wirelessCopyText(gWirelessIotMqttHost, (uint16_t)sizeof(gWirelessIotMqttHost), wirelessWifiGetDefaultMqttHost());
+    }
+    if (gWirelessIotMqttPort == 0U) {
+        (void)wirelessTryParseU16Text(wirelessWifiGetDefaultMqttPortText(), &gWirelessIotMqttPort);
+    }
+
+    gWirelessWifiConfigValid = gWirelessWifiSsid[0] != '\0';
+    gWirelessBleEnabled = wirelessBleDefaultEnabled();
+    gWirelessWifiEnabled = wirelessWifiDefaultEnabled();
+    gWirelessMqttEnabled = wirelessMqttDefaultEnabled();
+    gWirelessIotKeyReady = gWirelessIotKey[0] != '\0';
+    (void)snprintf(gWirelessIotMqttTopic, sizeof(gWirelessIotMqttTopic), WIRELESS_IOT_MQTT_TOPIC_FORMAT, gWirelessIotSn);
+    (void)snprintf(gWirelessIotMqttSubTopic, sizeof(gWirelessIotMqttSubTopic), WIRELESS_IOT_MQTT_SUB_TOPIC_FORMAT, gWirelessIotSn);
+}
+
 static void wirelessMigrateLegacySerialPath(void)
 {
     bool hasDevSerial;
@@ -305,13 +338,23 @@ static void wirelessMigrateLegacySerialPath(void)
 
 bool wirelessLoadStorageConfig(void)
 {
+    static bool lFallbackLogged = false;
+    static bool lFallbackApplied = false;
     char portText[8];
 
     if (gWirelessIotStorageLoaded) {
         return true;
     }
-    if (!memoryIsReady() && !memoryInit()) {
-        return false;
+    if (!memoryIsReady()) {
+        if (!lFallbackApplied) {
+            wirelessFillRuntimeDefaultConfig();
+            lFallbackApplied = true;
+        }
+        if (!lFallbackLogged) {
+            lFallbackLogged = true;
+            LOG_W(WIRELESS_LOG_TAG, "memory not ready, use default net cfg");
+        }
+        return true;
     }
 
     wirelessMigrateLegacySerialPath();
@@ -327,13 +370,7 @@ bool wirelessLoadStorageConfig(void)
     }
 
     wirelessFillDefaultStorageConfig();
-    gWirelessWifiConfigValid = gWirelessWifiSsid[0] != '\0';
-    gWirelessBleEnabled = wirelessBleDefaultEnabled();
-    gWirelessWifiEnabled = wirelessWifiDefaultEnabled();
-    gWirelessMqttEnabled = wirelessMqttDefaultEnabled();
-    gWirelessIotKeyReady = gWirelessIotKey[0] != '\0';
-    (void)snprintf(gWirelessIotMqttTopic, sizeof(gWirelessIotMqttTopic), WIRELESS_IOT_MQTT_TOPIC_FORMAT, gWirelessIotSn);
-    (void)snprintf(gWirelessIotMqttSubTopic, sizeof(gWirelessIotMqttSubTopic), WIRELESS_IOT_MQTT_SUB_TOPIC_FORMAT, gWirelessIotSn);
+    wirelessFillRuntimeDefaultConfig();
 
     gWirelessIotStorageLoaded = true;
     LOG_I(WIRELESS_LOG_TAG,
