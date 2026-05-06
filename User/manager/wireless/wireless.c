@@ -49,6 +49,7 @@ bool gWirelessIotMqttConnectedUrcSeen = false;
 bool gWirelessRoleStartPending = false;
 bool gWirelessWifiPrioritySwitchPending = false;
 bool gWirelessWifiPriorityDisconnectPending = false;
+bool gWirelessBleDisconnectPending = false;
 bool gWirelessCipherReady = false;
 bool gWirelessProtocolHandshakeDone = false;
 uint8_t gWirelessIotMqttState = 0U;
@@ -59,6 +60,7 @@ uint32_t gWirelessIotNextRetryTick = 0U;
 uint32_t gWirelessRoleStartTick = 0U;
 uint32_t gWirelessWifiPrioritySwitchTick = 0U;
 uint32_t gWirelessWifiPriorityDisconnectDeadline = 0U;
+uint32_t gWirelessBleDisconnectDeadline = 0U;
 eWirelessMode gWirelessMode = WIRELESS_MODE_BLE;
 eWirelessMode gWirelessTargetMode = WIRELESS_MODE_BLE;
 char gWirelessWifiSsid[WIRELESS_WIFI_SSID_MAX_LEN + 1U];
@@ -103,6 +105,7 @@ static eFc41dRawMatchSta wirelessProtocolRawMatcher(void *userData, const uint8_
 static bool wirelessConfigureIfNeeded(void);
 static bool wirelessStartTargetMode(void);
 static void wirelessServiceProtocol(void);
+static void wirelessServiceBleDisconnect(void);
 static void wirelessUpdateProtocolLinks(void);
 static void wirelessUpdateState(void);
 
@@ -444,7 +447,7 @@ static bool wirelessForwardProtocolFrame(const uint8_t *buffer, uint16_t length)
                                     &frameView,
                                     payloadBuffer,
                                     (uint16_t)sizeof(payloadBuffer))) {
-        LOG_W(WIRELESS_LOG_TAG, "ignore invalid protocol frame len=%u", (unsigned int)length);
+        //LOG_W(WIRELESS_LOG_TAG, "ignore invalid protocol frame len=%u", (unsigned int)length);
         return false;
     }
 
@@ -605,6 +608,51 @@ static void wirelessServiceProtocol(void)
     iotManagerProcess();
 }
 
+static void wirelessServiceBleDisconnect(void)
+{
+    const stFc41dInfo *info;
+    const stFc41dState *state;
+    uint32_t nowTick;
+    eFc41dStatus status;
+
+    if (!gWirelessBleDisconnectPending || (gWirelessMode != WIRELESS_MODE_BLE)) {
+        return;
+    }
+
+    nowTick = repRtosGetTickMs();
+    info = fc41dGetInfo(WIRELESS_FC41D_DEVICE);
+    state = fc41dGetState(WIRELESS_FC41D_DEVICE);
+    if ((info == NULL) || (state == NULL) || info->isBusy || fc41dHasPendingTx(WIRELESS_FC41D_DEVICE)) {
+        if ((int32_t)(nowTick - gWirelessBleDisconnectDeadline) >= 0) {
+            LOG_W(WIRELESS_LOG_TAG,
+                  "ble disconnect delayed busy=%u pendingTx=%u",
+                  ((info != NULL) && info->isBusy) ? 1U : 0U,
+                  fc41dHasPendingTx(WIRELESS_FC41D_DEVICE) ? 1U : 0U);
+            gWirelessBleDisconnectDeadline = nowTick + WIRELESS_BLE_DISCONNECT_WAIT_MS;
+        }
+        return;
+    }
+
+    status = fc41dDisconnectBle(WIRELESS_FC41D_DEVICE);
+    if (status == FC41D_STATUS_OK) {
+        gWirelessBleDisconnectPending = false;
+        LOG_I(WIRELESS_LOG_TAG,
+              "ble disconnect submitted after protocol reply connected=%u",
+              state->isBleConnected ? 1U : 0U);
+    } else if ((int32_t)(nowTick - gWirelessBleDisconnectDeadline) >= 0) {
+        LOG_W(WIRELESS_LOG_TAG, "ble disconnect submit retry status=%d", (int)status);
+        gWirelessBleDisconnectDeadline = nowTick + WIRELESS_BLE_DISCONNECT_WAIT_MS;
+    }
+}
+
+bool wirelessRequestBleDisconnect(void)
+{
+    gWirelessBleDisconnectPending = true;
+    gWirelessBleDisconnectDeadline = repRtosGetTickMs() + WIRELESS_BLE_DISCONNECT_WAIT_MS;
+    LOG_I(WIRELESS_LOG_TAG, "ble disconnect requested after protocol reply");
+    return true;
+}
+
 static void wirelessUpdateProtocolLinks(void)
 {
     stIotManagerLinkRuntime runtime;
@@ -718,6 +766,7 @@ void wirelessProcess(void)
     wirelessServiceIot();
     wirelessUpdateProtocolLinks();
     wirelessServiceProtocol();
+    wirelessServiceBleDisconnect();
     wirelessServicePrioritySwitch();
 }
 

@@ -22,6 +22,7 @@
 #include "../manager/cpralg/cpralgmgr.h"
 #include "../manager/sensor/sensor.h"
 #include "../manager/wireless/wireless.h"
+#include "../manager/audio/audio.h"
 
 #define SYSTASK_LOG_TAG "systask"
 #define SYSTASK_STACK_DEPTH_FROM_BYTES(bytes) ((uint32_t)(bytes) / (uint32_t)sizeof(uint32_t))
@@ -152,9 +153,10 @@ static void wirelessTaskEntry(void *argument)
 static void audioTaskEntry(void *argument)
 {
 	(void)argument;
+	(void)audioInit();
 
 	for (;;) {
-		
+		audioProcess();
 		(void)repRtosDelayMs(AudioTaskInterval);
 	}
 }

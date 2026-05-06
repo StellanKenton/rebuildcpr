@@ -26,6 +26,7 @@ static const char gWirelessIotDefaultSn[] = "HC630257T6001";
 static const char gWirelessIotDefaultHttpUrl[] = "http://iot-test2.yuwell.com:8800/device/secret-key";
 static const char gWirelessIotDefaultMqttHost[] = "iot-test2.yuwell.com";
 static const char gWirelessIotDefaultMqttPort[] = "1883";
+static const char gWirelessLegacyIotSnPath[] = "/net/serial";
 
 bool wirelessWifiDefaultEnabled(void)
 {
@@ -68,6 +69,7 @@ const char *wirelessWifiGetDefaultMqttPortText(void)
 }
 
 static void wirelessFillDefaultStorageConfig(void);
+static void wirelessMigrateLegacySerialPath(void);
 bool wirelessLoadStorageConfig(void);
 bool wirelessMatchPrefix(const uint8_t *buffer, uint16_t length, const char *text);
 static bool wirelessCopyMacCompact(char *buffer, uint16_t bufferSize, const char *macText);
@@ -253,6 +255,7 @@ const char *wirelessGetIotSn(void)
 
 static void wirelessFillDefaultStorageConfig(void)
 {
+    (void)memoryMkdir(WIRELESS_DEV_DIR_PATH);
     (void)memoryMkdir(WIRELESS_NET_DIR_PATH);
 
     if (gWirelessWifiSsid[0] == '\0') {
@@ -282,6 +285,24 @@ static void wirelessFillDefaultStorageConfig(void)
     }
 }
 
+static void wirelessMigrateLegacySerialPath(void)
+{
+    bool hasDevSerial;
+
+    hasDevSerial = memoryExists(WIRELESS_IOT_SN_PATH);
+    if (!memoryExists(gWirelessLegacyIotSnPath)) {
+        return;
+    }
+
+    if (!hasDevSerial) {
+        if (memoryRename(gWirelessLegacyIotSnPath, WIRELESS_IOT_SN_PATH)) {
+            return;
+        }
+    }
+
+    (void)memoryDelete(gWirelessLegacyIotSnPath);
+}
+
 bool wirelessLoadStorageConfig(void)
 {
     char portText[8];
@@ -292,6 +313,8 @@ bool wirelessLoadStorageConfig(void)
     if (!memoryIsReady() && !memoryInit()) {
         return false;
     }
+
+    wirelessMigrateLegacySerialPath();
 
     (void)wirelessReadTextFile(WIRELESS_WIFI_SSID_PATH, gWirelessWifiSsid, (uint16_t)sizeof(gWirelessWifiSsid));
     (void)wirelessReadTextFile(WIRELESS_WIFI_PASSWORD_PATH, gWirelessWifiPassword, (uint16_t)sizeof(gWirelessWifiPassword));

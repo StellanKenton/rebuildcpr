@@ -19,6 +19,9 @@ extern "C" {
 bool protcolMgrPushReceivedData(eIotManagerLinkId linkId, const uint8_t *buffer, uint16_t length);
 bool protcolMgrTryInitCipherKey(void);
 void protcolMgrProcess(void);
+uint8_t protcolMgrGetLanguageSetting(void);
+uint8_t protcolMgrGetVolumeSetting(void);
+uint8_t protcolMgrGetMetronomeFreq(void);
 
 #ifdef __cplusplus
 }

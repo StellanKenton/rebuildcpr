@@ -100,6 +100,15 @@ uint16_t wirelessReadBleData(uint8_t *buffer, uint16_t bufferSize)
     return fc41dReadData(WIRELESS_FC41D_DEVICE, buffer, bufferSize);
 }
 
+bool wirelessGetBleVersion(char *buffer, uint16_t bufferSize)
+{
+    if ((buffer == NULL) || (bufferSize == 0U)) {
+        return false;
+    }
+
+    return fc41dGetCachedVersion(WIRELESS_FC41D_DEVICE, buffer, bufferSize);
+}
+
 bool wirelessGetMacAddress(char *buffer, uint16_t bufferSize)
 {
     if ((buffer == NULL) || (bufferSize == 0U)) {

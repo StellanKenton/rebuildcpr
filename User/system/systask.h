@@ -19,26 +19,26 @@ extern "C" {
 
 
 #define MemoryTaskStackSize         24U
-#define MemoryTaskPriority          13U
+#define MemoryTaskPriority          8U
 #define MemoryTaskInterval          100U
 
 #define PowerTaskStackSize          8U
-#define PowerTaskPriority           16U
+#define PowerTaskPriority           7U
 #define PowerTaskInterval           100U
 
 #define WirelessTaskStackSize       24U
-#define WirelessTaskPriority        23U
+#define WirelessTaskPriority        16U
 #define WirelessTaskInterval        5U
 
 #define SensorTaskStackSize         8U
-#define SensorTaskPriority          18U
+#define SensorTaskPriority          23U
 #define SensorTaskInterval          10U
 
 #define CprAlgTaskStackSize         16U
-#define CprAlgTaskPriority          17U
+#define CprAlgTaskPriority          6U
 #define CprAlgTaskInterval          50U
 
-#define AudioTaskStackSize          4U
+#define AudioTaskStackSize          12U
 #define AudioTaskPriority           8U
 #define AudioTaskInterval           20U
 

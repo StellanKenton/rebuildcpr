@@ -34,10 +34,11 @@ extern "C" {
 #define WIRELESS_IOT_HTTP_PAYLOAD_LEN        192U
 #define WIRELESS_IOT_HTTP_RESPONSE_LEN       512U
 
+#define WIRELESS_DEV_DIR_PATH                "/dev"
 #define WIRELESS_NET_DIR_PATH                "/net"
 #define WIRELESS_WIFI_SSID_PATH              "/net/wifiname"
 #define WIRELESS_WIFI_PASSWORD_PATH          "/net/wifipassword"
-#define WIRELESS_IOT_SN_PATH                 "/net/serial"
+#define WIRELESS_IOT_SN_PATH                 "/dev/serial"
 #define WIRELESS_IOT_HTTP_URL_PATH           "/net/iot_http_url"
 #define WIRELESS_IOT_MQTT_KEY_PATH           "/net/mqttkey"
 #define WIRELESS_IOT_MQTT_HOST_PATH          "/net/mqtt_host"
@@ -97,9 +98,11 @@ bool wirelessGetBleEnabled(void);
 bool wirelessGetWifiEnabled(void);
 bool wirelessGetMqttEnabled(void);
 bool wirelessRequestWifiPrioritySwitch(void);
+bool wirelessRequestBleDisconnect(void);
 bool wirelessSendBleData(const uint8_t *buffer, uint16_t length);
 uint16_t wirelessGetBleRxLength(void);
 uint16_t wirelessReadBleData(uint8_t *buffer, uint16_t bufferSize);
+bool wirelessGetBleVersion(char *buffer, uint16_t bufferSize);
 bool wirelessSendWifiData(const uint8_t *buffer, uint16_t length);
 uint16_t wirelessGetWifiRxLength(void);
 uint16_t wirelessReadWifiData(uint8_t *buffer, uint16_t bufferSize);

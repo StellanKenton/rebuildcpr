@@ -76,6 +76,7 @@ add_executable(${TARGET_NAME}
   User/manager/update/update.c
   User/manager/sensor/sensor.c
   User/manager/cpralg/cpralgmgr.c
+  User/manager/audio/audio.c
   User/manager/iotmanager/cprsensor_protocol.c
   User/manager/iotmanager/iotmanager.c
   User/manager/iotmanager/protcolmgr.c
@@ -105,6 +106,7 @@ add_executable(${TARGET_NAME}
   User/port/pca9535_port.c
   User/port/rtos_port.c
   User/port/tm1651_port.c
+  User/port/wt2003hx_port.c
   User/port/drvanlogiic_port.c
   User/port/gd25qxxx_port.c
   User/port/vfs_littlefs_port.c
@@ -132,6 +134,7 @@ add_executable(${TARGET_NAME}
   rep/module/gd25qxxx/gd25qxxx.c
   rep/module/pca9535/pca9535.c
   rep/module/tm1651/tm1651.c
+  rep/module/wt2003hx/wt2003hx.c
   rep/tools/ringbuffer/ringbuffer.c
   rep/tools/jsonparser/jsonparser.c
   rep/tools/md5/md5.c
@@ -188,6 +191,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
   rep/module/gd25qxxx
   rep/module/pca9535
   rep/module/tm1651
+  rep/module/wt2003hx
   rep/service/log
   rep/service/rtos
   rep/service/vfs

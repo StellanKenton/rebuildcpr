@@ -893,16 +893,28 @@ static void protcolMgrFlushDisconnectReply(eIotManagerLinkId linkId)
 {
 	if (protcolMgrBuildAndSendReply(linkId, CPRSENSOR_PROTOCOL_CMD_DISCONNECT, NULL, 0U)) {
 		protcolMgrClearReplyPending(CPRSENSOR_PROTOCOL_REPLY_SLOT_DISCONNECT);
+		if (linkId == IOT_MANAGER_LINK_BLE) {
+			(void)wirelessRequestBleDisconnect();
+		}
 	}
 }
 
 static void protcolMgrFlushDevInfoReply(eIotManagerLinkId linkId)
 {
 	stCprsensorProtocolDevInfoReplyPayload lDevInfoPayload;
+	const char *lDeviceSn;
+	uint16_t lDeviceSnLen;
 
 	(void)memset(&lDevInfoPayload, 0, sizeof(lDevInfoPayload));
 	lDevInfoPayload.deviceType = gProtcolMgrDeviceType;
-	(void)memcpy(lDevInfoPayload.deviceSn, "CPRSENSOR0001", CPRSENSOR_PROTOCOL_DEVICE_SN_LEN);
+	lDeviceSn = wirelessGetIotSn();
+	if (lDeviceSn != NULL) {
+		lDeviceSnLen = (uint16_t)strlen(lDeviceSn);
+		if (lDeviceSnLen > CPRSENSOR_PROTOCOL_DEVICE_SN_LEN) {
+			lDeviceSnLen = CPRSENSOR_PROTOCOL_DEVICE_SN_LEN;
+		}
+		(void)memcpy(lDevInfoPayload.deviceSn, lDeviceSn, lDeviceSnLen);
+	}
 	lDevInfoPayload.protocolOrFlag = gProtcolMgrProtocolFlag;
 	lDevInfoPayload.swVersion = gProtcolMgrSwVersion;
 	lDevInfoPayload.swSubVersion = gProtcolMgrSwSubVersion;
@@ -918,11 +930,17 @@ static void protcolMgrFlushDevInfoReply(eIotManagerLinkId linkId)
 static void protcolMgrFlushBleInfoReply(eIotManagerLinkId linkId)
 {
 	stCprsensorProtocolBleInfoReplyPayload lBleInfoPayload;
-	const char *lBleVersion;
+	char lBleVersion[CPRSENSOR_PROTOCOL_BLE_VERSION_LEN + 1U];
+	uint16_t lBleVersionLen;
 
 	(void)memset(&lBleInfoPayload, 0, sizeof(lBleInfoPayload));
-	lBleVersion = "CprSensorTest-BLE-Bridge";
-	(void)memcpy(lBleInfoPayload.bleVersion, lBleVersion, (uint16_t)strlen(lBleVersion));
+	if (wirelessGetBleVersion(lBleVersion, (uint16_t)sizeof(lBleVersion))) {
+		lBleVersionLen = (uint16_t)strlen(lBleVersion);
+		if (lBleVersionLen > CPRSENSOR_PROTOCOL_BLE_VERSION_LEN) {
+			lBleVersionLen = CPRSENSOR_PROTOCOL_BLE_VERSION_LEN;
+		}
+		(void)memcpy(lBleInfoPayload.bleVersion, lBleVersion, lBleVersionLen);
+	}
 	if (protcolMgrBuildAndSendReply(linkId,
 					 CPRSENSOR_PROTOCOL_CMD_BLE_INFO,
 					 (const uint8_t *)&lBleInfoPayload,
@@ -1078,4 +1096,20 @@ void protcolMgrProcess(void)
 {
 	protcolMgrFlushPendingReplies();
 }
+
+uint8_t protcolMgrGetLanguageSetting(void)
+{
+	return gProtcolMgrLanguagePayload.language;
+}
+
+uint8_t protcolMgrGetVolumeSetting(void)
+{
+	return gProtcolMgrVolumePayload.volume;
+}
+
+uint8_t protcolMgrGetMetronomeFreq(void)
+{
+	return gProtcolMgrMetronomePayload.metronomeFreq;
+}
+
 /**************************End of file********************************/

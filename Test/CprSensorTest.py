@@ -28,6 +28,33 @@ CMD_GET_DEVICE_INFO = 0x11
 CMD_GET_BLE_INFO = 0x13
 CMD_TIME_SYNC = 0x33
 
+COMMAND_SPECS = {
+    0x01: {"name": "HANDSHAKE", "zh": "握手", "hint": "mac=3C1ACC4B26B2 或 6字节HEX"},
+    0x03: {"name": "HEARTBEAT", "zh": "心跳", "hint": "空"},
+    0x04: {"name": "DISCONNECT", "zh": "断开", "hint": "空"},
+    0x05: {"name": "SELF_CHECK", "zh": "自检", "hint": "空"},
+    0x11: {"name": "DEV_INFO", "zh": "设备信息", "hint": "空"},
+    0x13: {"name": "BLE_INFO", "zh": "BLE信息", "hint": "空"},
+    0x14: {"name": "WIFI_SETTING", "zh": "WiFi设置", "hint": "ssid=xxx,pwd=xxx 或 HEX"},
+    0x15: {"name": "COMM_SETTING", "zh": "通信设置", "hint": "priority=0(BLE)/1(WIFI) 或 00/01"},
+    0x16: {"name": "TCP_SETTING", "zh": "TCP设置", "hint": "ip=192.168.1.10,port=8080 或 HEX"},
+    0x30: {"name": "UPLOAD_METHOD", "zh": "上传方式", "hint": "uploadMethod=0/1 或 00/01"},
+    0x31: {"name": "CPR_DATA", "zh": "CPR数据", "hint": "通常为设备上传"},
+    0x33: {"name": "TIME_SYNC", "zh": "时间同步", "hint": "worldTime=秒 或 4字节HEX；空则发送当前时间"},
+    0x34: {"name": "BATTERY", "zh": "电池", "hint": "空"},
+    0x35: {"name": "LANGUAGE", "zh": "语言", "hint": "language=0/1 或 00/01"},
+    0x36: {"name": "VOLUME", "zh": "音量", "hint": "volume=0-255 或 1字节HEX"},
+    0x37: {"name": "CPR_RAW_DATA", "zh": "CPR原始波形", "hint": "通常为设备上传"},
+    0x38: {"name": "CLEAR_MEMORY", "zh": "清除存储", "hint": "空"},
+    0x39: {"name": "BOOT_TIME", "zh": "开机时间", "hint": "bootTime=秒 或 4字节HEX"},
+    0x3A: {"name": "METRONOME", "zh": "节拍器", "hint": "metronomeFreq=100 或 1字节HEX"},
+}
+
+COMMAND_CHOICES = [
+    f"0x{cmd:02X} {spec['name']} {spec['zh']}"
+    for cmd, spec in sorted(COMMAND_SPECS.items())
+]
+
 class BLEApp:
     def __init__(self, root):
         self.root = root
@@ -119,6 +146,10 @@ class BLEApp:
         self.command_entry = ttk.Entry(send_type_frame, width=4)
         self.command_entry.grid(row=0, column=4, padx=2)
         self.command_entry.insert(0, f"{CMD_GET_DEVICE_INFO:02X}")
+        self.command_combo = ttk.Combobox(send_type_frame, values=COMMAND_CHOICES, width=28, state="readonly")
+        self.command_combo.grid(row=0, column=5, padx=5)
+        self.command_combo.set(self.format_command_choice(CMD_GET_DEVICE_INFO))
+        self.command_combo.bind("<<ComboboxSelected>>", self.command_selected)
         
         # 数据输入框
         self.send_data_entry = ttk.Entry(send_frame, width=50)
@@ -126,6 +157,8 @@ class BLEApp:
         self.send_data_entry.bind("<Return>", self.send_data_enter)
         
         ttk.Button(send_frame, text="发送", command=self.send_data).grid(row=1, column=1, padx=5)
+        self.payload_hint = ttk.Label(send_frame, text=self.get_payload_hint(CMD_GET_DEVICE_INFO))
+        self.payload_hint.grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=5)
         
         # UUID设置
         uuid_frame = ttk.Frame(main_frame)
@@ -151,6 +184,27 @@ class BLEApp:
         devices_frame.rowconfigure(0, weight=1)
         receive_frame.columnconfigure(0, weight=1)
         receive_frame.rowconfigure(0, weight=1)
+
+    def format_command_choice(self, cmd):
+        spec = COMMAND_SPECS.get(cmd)
+        if not spec:
+            return f"0x{cmd:02X}"
+        return f"0x{cmd:02X} {spec['name']} {spec['zh']}"
+
+    def get_payload_hint(self, cmd):
+        spec = COMMAND_SPECS.get(cmd, {})
+        return f"内容格式: {spec.get('hint', 'HEX')}"
+
+    def command_selected(self, event=None):
+        choice = self.command_combo.get()
+        try:
+            cmd = int(choice.split()[0], 16)
+        except (ValueError, IndexError):
+            return
+
+        self.command_entry.delete(0, tk.END)
+        self.command_entry.insert(0, f"{cmd:02X}")
+        self.payload_hint.config(text=self.get_payload_hint(cmd))
     
     def run_loop(self):
         asyncio.set_event_loop(self.manager.loop)
@@ -173,26 +227,34 @@ class BLEApp:
             )
     
     def work_loop(self):
-        handshake_flag = False
+        handshake_sent = False
+        next_handshake_time = 0.0
         next_heartbeat_time = 0.0
         while True:
             time.sleep(0.05)
             is_connected = self.manager.client and self.manager.client.is_connected
             now = time.time()
 
-            if not handshake_flag:
-                if is_connected:
-                    time.sleep(1)
+            if not is_connected:
+                handshake_sent = False
+                next_handshake_time = 0.0
+                next_heartbeat_time = 0.0
+                continue
+
+            if not self.manager.handshake_completed:
+                next_heartbeat_time = 0.0
+                if (not handshake_sent) or (now >= next_handshake_time):
                     self.send_hand_shake()
-                    handshake_flag = True
-                    next_heartbeat_time = now + 1.0
-            else:
-                if not is_connected:
-                    handshake_flag = False
-                    next_heartbeat_time = 0.0
-                elif now >= next_heartbeat_time:
-                    self.send_heartbeat()
-                    next_heartbeat_time = now + 1.0
+                    handshake_sent = True
+                    next_handshake_time = now + 3.0
+                continue
+
+            handshake_sent = False
+            if next_heartbeat_time == 0.0:
+                next_heartbeat_time = now + 1.0
+            elif now >= next_heartbeat_time:
+                self.send_heartbeat()
+                next_heartbeat_time = now + 1.0
                 
     def start_tcp_server(self):
         """启动TCP服务器"""
@@ -324,6 +386,62 @@ class BLEApp:
         
         future = asyncio.run_coroutine_threadsafe(self.manager.disconnect_device(), self.manager.loop)
         future.add_done_callback(disconnect_complete)
+
+    def parse_key_value_payload(self, data):
+        items = {}
+        for part in data.replace(";", ",").split(","):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            items[key.strip()] = value.strip()
+        return items
+
+    def parse_int_value(self, text):
+        text = text.strip()
+        if text.lower().startswith("0x"):
+            return int(text, 16)
+        return int(text, 10)
+
+    def parse_payload_by_command(self, cmd, data):
+        if not data:
+            if cmd == CMD_TIME_SYNC:
+                return self.manager.create_time_sync_payload()
+            return b''
+
+        kv = self.parse_key_value_payload(data)
+        try:
+            if cmd == 0x01 and "mac" in kv:
+                return bytes.fromhex(kv["mac"].replace(":", "").replace("-", "").replace(" ", ""))
+            if cmd == 0x14 and ("ssid" in kv or "pwd" in kv):
+                ssid = kv.get("ssid", "").encode("utf-8")
+                pwd = kv.get("pwd", "").encode("utf-8")
+                if len(ssid) > 255 or len(pwd) > 255:
+                    raise ValueError("ssid/pwd长度不能超过255字节")
+                return bytes([len(ssid)]) + ssid + bytes([len(pwd)]) + pwd
+            if cmd == 0x15 and "priority" in kv:
+                return bytes([self.parse_int_value(kv["priority"]) & 0xFF])
+            if cmd == 0x16 and ("ip" in kv or "port" in kv):
+                ip = kv.get("ip", "").encode("ascii")
+                port = str(kv.get("port", "")).encode("ascii")
+                if len(ip) > 255 or len(port) > 255:
+                    raise ValueError("ip/port长度不能超过255字节")
+                return bytes([len(ip)]) + ip + bytes([len(port)]) + port
+            if cmd == 0x30 and "uploadMethod" in kv:
+                return bytes([self.parse_int_value(kv["uploadMethod"]) & 0xFF])
+            if cmd == 0x33 and "worldTime" in kv:
+                return self.parse_int_value(kv["worldTime"]).to_bytes(4, byteorder="big", signed=False)
+            if cmd == 0x35 and "language" in kv:
+                return bytes([self.parse_int_value(kv["language"]) & 0xFF])
+            if cmd == 0x36 and "volume" in kv:
+                return bytes([self.parse_int_value(kv["volume"]) & 0xFF])
+            if cmd == 0x39 and "bootTime" in kv:
+                return self.parse_int_value(kv["bootTime"]).to_bytes(4, byteorder="big", signed=False)
+            if cmd == 0x3A and "metronomeFreq" in kv:
+                return bytes([self.parse_int_value(kv["metronomeFreq"]) & 0xFF])
+        except ValueError as e:
+            raise ValueError(f"变量内容无效: {e}") from e
+
+        return bytes.fromhex(data.replace(" ", ""))
     
     def send_data(self):
         data = self.send_data_entry.get().strip()
@@ -334,44 +452,50 @@ class BLEApp:
         except ValueError:
             messagebox.showerror("错误", "命令必须是有效的十六进制数")
             return
+
+        payload_bytes = b''
         
         # 根据发送类型处理数据
         if self.send_type.get() == "encrypted":
             if data:
                 # 处理加密数据
                 try:
-                    # 将十六进制字符串转换为字节
-                    data_bytes = bytes.fromhex(data.replace(" ", ""))
+                    payload_bytes = self.parse_payload_by_command(cmd, data)
                     # 创建数据包
-                    encrypted_data = self.manager.create_data_packet(data_bytes, cmd, encrypt=True)
+                    encrypted_data = self.manager.create_data_packet(payload_bytes, cmd, encrypt=True)
                     if not encrypted_data:
                         messagebox.showerror("错误", "创建数据包失败")
                         return
                     
                     data_to_send = encrypted_data
-                    display_data = f"加密数据: {binascii.hexlify(encrypted_data).decode()}"
-                except ValueError:
-                    messagebox.showerror("错误", "请输入有效的十六进制数据")
+                    display_data = self.manager.format_sent_data(cmd, payload_bytes, encrypted_data, "加密数据")
+                except ValueError as e:
+                    messagebox.showerror("错误", f"请输入有效内容: {e}")
                     return
             else:
                 try:
-                    encrypted_data = self.manager.create_data_packet(b'', cmd, encrypt=True)
+                    payload_bytes = self.parse_payload_by_command(cmd, data)
+                    encrypted_data = self.manager.create_data_packet(payload_bytes, cmd, encrypt=True)
                     if not encrypted_data:
                         messagebox.showerror("错误", "创建数据包失败")
                         return
                     
                     data_to_send = encrypted_data
-                    display_data = f"命令包: {binascii.hexlify(encrypted_data).decode()}"
+                    display_data = self.manager.format_sent_data(cmd, payload_bytes, encrypted_data, "命令包")
                 except Exception as e:
                     messagebox.showerror("错误", f"创建命令包失败: {e}")
                     return
         else:
             # 处理原始数据
             try:
-                data_to_send = bytes.fromhex(data.replace(" ", ""))
-                display_data = f"原始数据: {data}"
-            except ValueError:
-                messagebox.showerror("错误", "请输入有效的十六进制数据")
+                payload_bytes = self.parse_payload_by_command(cmd, data)
+                data_to_send = self.manager.create_data_packet(payload_bytes, cmd, encrypt=False)
+                if not data_to_send:
+                    messagebox.showerror("错误", "创建原始协议包失败")
+                    return
+                display_data = self.manager.format_sent_data(cmd, payload_bytes, data_to_send, "原始协议包")
+            except ValueError as e:
+                messagebox.showerror("错误", f"请输入有效内容: {e}")
                 return
         
         # 根据当前连接类型发送数据
@@ -379,7 +503,7 @@ class BLEApp:
             # 通过TCP发送
             try:
                 # 创建TCP数据包（不加密）
-                tcp_packet = self.manager.create_data_packet(data_to_send, cmd, encrypt=False)
+                tcp_packet = self.manager.create_data_packet(payload_bytes, cmd, encrypt=False)
                 if not tcp_packet:
                     messagebox.showerror("错误", "创建TCP数据包失败")
                     return
@@ -392,6 +516,10 @@ class BLEApp:
                 self.update_received_data(f"TCP发送错误: {e}")
         else:
             # 通过蓝牙发送
+            if cmd != CMD_HANDSHAKE and not self.manager.handshake_completed:
+                self.update_received_data("尚未收到固件握手MAC回复，已拦截非握手命令")
+                return
+
             service_uuid = self.service_uuid_entry.get() or None
             char_uuid = self.char_uuid_entry.get() or None
             
@@ -498,12 +626,15 @@ class BLEDeviceManager:
     def create_heartbeat_packet(self):
         return self.create_data_packet(b'', CMD_HEARTBEAT, encrypt=False)
 
-    def create_time_sync_packet(self):
+    def create_time_sync_payload(self):
         CST = datetime.timezone(datetime.timedelta(hours=8))
         RTC_BASE = datetime.datetime(2025, 1, 1, tzinfo=CST)
         timestamp = int((datetime.datetime.now(CST) - RTC_BASE).total_seconds()) & 0xFFFFFFFF
-        payload = timestamp.to_bytes(4, byteorder='big')
         self.update_callback(f"时间同步: {timestamp}")
+        return timestamp.to_bytes(4, byteorder='big')
+
+    def create_time_sync_packet(self):
+        payload = self.create_time_sync_payload()
         return self.create_data_packet(payload, CMD_TIME_SYNC, encrypt=True)
     
     # 扫描BLE设备
@@ -688,90 +819,266 @@ class BLEDeviceManager:
         except Exception as e:
             self.update_callback(f"创建数据包失败: {e}")
             return None
+
+    def get_command_name(self, cmd):
+        spec = COMMAND_SPECS.get(cmd)
+        if not spec:
+            return f"UNKNOWN_0x{cmd:02X}"
+        return f"{spec['name']}({spec['zh']})"
+
+    def read_u16_be(self, data, offset):
+        return (data[offset] << 8) | data[offset + 1]
+
+    def read_u32_be(self, data, offset):
+        return (
+            (data[offset] << 24) |
+            (data[offset + 1] << 16) |
+            (data[offset + 2] << 8) |
+            data[offset + 3]
+        )
+
+    def decode_ascii(self, data):
+        return data.rstrip(b'\x00').decode("utf-8", errors="replace")
+
+    def format_payload_for_display(self, cmd, payload, prefix="上传"):
+        cmd_name = self.get_command_name(cmd)
+        variables = self.decode_payload_variables(cmd, payload)
+        if variables:
+            return f"{prefix}: 命令=0x{cmd:02X} {cmd_name}, " + ", ".join(variables)
+        return f"{prefix}: 命令=0x{cmd:02X} {cmd_name}, 数据为空"
+
+    def format_sent_data(self, cmd, payload, packet, prefix):
+        variables = self.decode_payload_variables(cmd, payload)
+        payload_text = ", ".join(variables) if variables else "数据为空"
+        return f"{prefix}: 命令=0x{cmd:02X} {self.get_command_name(cmd)}, {payload_text}, 包={packet.hex()}"
+
+    def append_raw_if_extra(self, variables, payload, used_len):
+        if len(payload) > used_len:
+            variables.append(f"extra={payload[used_len:].hex()}")
+
+    def decode_payload_variables(self, cmd, payload):
+        variables = []
+        payload_len = len(payload)
+
+        try:
+            if cmd == 0x01:
+                if payload_len >= 6:
+                    variables.append(f"mac={payload[:6].hex(':').upper()}")
+                    self.append_raw_if_extra(variables, payload, 6)
+            elif cmd in (0x03, 0x04, 0x38):
+                if payload_len > 0:
+                    variables.append(f"raw={payload.hex()}")
+            elif cmd == 0x05:
+                if payload_len >= 9:
+                    variables.extend([
+                        f"feedbackSelfCheck={payload[0]}",
+                        f"powerSelfCheck={payload[1]}",
+                        f"audioSelfCheck={payload[2]}",
+                        f"wirelessSelfCheck={payload[3]}",
+                        f"memorySelfCheck={payload[4]}",
+                        f"timestamp={self.read_u32_be(payload, 5)}",
+                    ])
+                    self.append_raw_if_extra(variables, payload, 9)
+            elif cmd == 0x11:
+                if payload_len >= 18:
+                    variables.extend([
+                        f"deviceType={payload[0]}",
+                        f"deviceSn={self.decode_ascii(payload[1:14])}",
+                        f"protocolOrFlag={payload[14]}",
+                        f"swVersion={payload[15]}",
+                        f"swSubVersion={payload[16]}",
+                        f"swBuildVersion={payload[17]}",
+                    ])
+                    self.append_raw_if_extra(variables, payload, 18)
+            elif cmd == 0x13:
+                if payload_len >= 1:
+                    variables.append(f"bleVersion={self.decode_ascii(payload[:33])}")
+                    self.append_raw_if_extra(variables, payload, min(payload_len, 33))
+            elif cmd == 0x14:
+                if payload_len >= 2:
+                    ssid_len = payload[0]
+                    if payload_len >= 2 + ssid_len:
+                        pwd_len_offset = 1 + ssid_len
+                        pwd_len = payload[pwd_len_offset]
+                        pwd_offset = pwd_len_offset + 1
+                        variables.extend([
+                            f"ssidLen={ssid_len}",
+                            f"ssid={self.decode_ascii(payload[1:pwd_len_offset])}",
+                            f"pwdLen={pwd_len}",
+                        ])
+                        if payload_len >= pwd_offset + pwd_len:
+                            variables.append(f"pwd={self.decode_ascii(payload[pwd_offset:pwd_offset + pwd_len])}")
+                            self.append_raw_if_extra(variables, payload, pwd_offset + pwd_len)
+            elif cmd == 0x15:
+                if payload_len >= 1:
+                    variables.append(f"priority={payload[0]}")
+                    self.append_raw_if_extra(variables, payload, 1)
+            elif cmd == 0x16:
+                if payload_len >= 2:
+                    ip_len = payload[0]
+                    if payload_len >= 2 + ip_len:
+                        port_len_offset = 1 + ip_len
+                        port_len = payload[port_len_offset]
+                        port_offset = port_len_offset + 1
+                        variables.extend([
+                            f"ipLen={ip_len}",
+                            f"ip={self.decode_ascii(payload[1:port_len_offset])}",
+                            f"portLen={port_len}",
+                        ])
+                        if payload_len >= port_offset + port_len:
+                            variables.append(f"port={self.decode_ascii(payload[port_offset:port_offset + port_len])}")
+                            self.append_raw_if_extra(variables, payload, port_offset + port_len)
+            elif cmd == 0x30:
+                if payload_len >= 1:
+                    variables.append(f"uploadMethod={payload[0]}")
+                    self.append_raw_if_extra(variables, payload, 1)
+            elif cmd == 0x31:
+                if payload_len >= 13:
+                    variables.extend([
+                        f"timestamp={self.read_u32_be(payload, 0)}",
+                        f"freq={self.read_u16_be(payload, 4)}",
+                        f"depth={payload[6]}",
+                        f"realseDepth={payload[7]}",
+                        f"interval={payload[8]}",
+                        f"bootTimestamp={self.read_u32_be(payload, 9)}",
+                    ])
+                    self.append_raw_if_extra(variables, payload, 13)
+            elif cmd in (0x33, 0x39):
+                if payload_len >= 4:
+                    var_name = "worldTime" if cmd == 0x33 else "bootTime"
+                    variables.append(f"{var_name}={self.read_u32_be(payload, 0)}")
+                    self.append_raw_if_extra(variables, payload, 4)
+            elif cmd == 0x34:
+                if payload_len >= 4:
+                    variables.extend([
+                        f"batPercent={payload[0]}",
+                        f"batMv={self.read_u16_be(payload, 1)}",
+                        f"chargeState={payload[3]}",
+                    ])
+                    self.append_raw_if_extra(variables, payload, 4)
+            elif cmd == 0x35:
+                if payload_len >= 1:
+                    variables.append(f"language={payload[0]}")
+                    self.append_raw_if_extra(variables, payload, 1)
+            elif cmd == 0x36:
+                if payload_len >= 1:
+                    variables.append(f"volume={payload[0]}")
+                    self.append_raw_if_extra(variables, payload, 1)
+            elif cmd == 0x37:
+                if payload_len >= 1:
+                    variables.append(f"rawWave={payload[:8].hex()}")
+                    self.append_raw_if_extra(variables, payload, min(payload_len, 8))
+            elif cmd == 0x3A:
+                if payload_len >= 1:
+                    variables.append(f"metronomeFreq={payload[0]}")
+                    self.append_raw_if_extra(variables, payload, 1)
+        except Exception:
+            variables = []
+
+        if not variables and payload_len > 0:
+            variables.append(f"raw={payload.hex()}")
+        return variables
+
+    def expected_payload_len(self, cmd):
+        expected_lens = {
+            0x01: 6,
+            0x03: 0,
+            0x04: 0,
+            0x11: 0,
+            0x13: 0,
+            0x15: 1,
+            0x33: 4,
+            0x34: 0,
+            0x35: 1,
+            0x36: 1,
+            0x38: 0,
+            0x3A: 1,
+        }
+        return expected_lens.get(cmd)
+
+    def parse_frame(self, data, decrypt=False, report_crc=True):
+        if len(data) < 8 or data[0] != 0xFA or data[1] != 0xFC:
+            return None
+
+        cmd = data[3]
+        data_len = (data[4] << 8) + data[5]
+        frame_len = 6 + data_len + 2
+        if len(data) < frame_len:
+            return None
+
+        received_crc = (data[6 + data_len] << 8) + data[7 + data_len]
+        calculated_crc = self.crc16_compute(data[3:6 + data_len])
+        if received_crc != calculated_crc:
+            if report_crc:
+                self.update_callback(f"CRC校验失败: 收到 {received_crc:04X}, 计算 {calculated_crc:04X}")
+            return None
+
+        payload = bytes(data[6:6 + data_len])
+        if decrypt and data_len > 0:
+            if (data_len % 16) != 0:
+                self.update_callback("解密数据长度不是16字节对齐")
+                return None
+            cipher = AES.new(self.aes_key, AES.MODE_ECB)
+            payload = cipher.decrypt(payload)
+            expected_len = self.expected_payload_len(cmd)
+            if expected_len is not None and data_len != expected_len:
+                payload = payload[:expected_len]
+
+        return {
+            "cmd": cmd,
+            "payload": payload,
+            "encoded_len": data_len,
+            "frame_len": frame_len,
+        }
     
     def parse_received_data(self, data, decrypt=True):
         """解析接收到的数据包
         decrypt: 是否进行AES解密
         """
         try:
-            # 检查数据包长度
-            if len(data) < 7:  # 最小包长度
-                return None
-                
-            # 检查包头
-            if data[0] != 0xFA or data[1] != 0xFC:
-                return None
-                
-            # 解析包类型
-            pkt_type = data[2]
-            
-            # 解析命令
-            cmd = data[3]
-
-            
-            # 解析数据长度
-            des_data_len = (data[4] << 8) + data[5]
-            
-            if decrypt:
-                data_len = des_data_len
-            else:
-                data_len = des_data_len
-
-            if len(data) < 6 + data_len + 2:
+            frame = self.parse_frame(data, decrypt=decrypt)
+            if frame is None:
                 return None
 
-            payload = data[6:6+data_len]
-            rawdata = data[0:6 + data_len + 2]
-            print("收到数据:", rawdata.hex())
-            received_crc = (data[6+data_len] << 8) + data[7+data_len]
-
-            crc_data = data[3:6+data_len]  # 从命令开始到数据结束
-            calculated_crc = self.crc16_compute(crc_data)
-            
-            if received_crc != calculated_crc:
-                self.update_callback(f"CRC校验失败: 收到 {received_crc:04X}, 计算 {calculated_crc:04X}")
-                return None
-                
-            if decrypt:
-                if (len(payload) % 16) != 0:
-                    self.update_callback("解密数据长度不是16字节对齐")
-                    return None
-                cipher = AES.new(self.aes_key, AES.MODE_ECB)
-                decrypted_data = cipher.decrypt(payload)
-                valid_data = decrypted_data[:des_data_len]
-            else:
-                valid_data = payload[:des_data_len]
-
-            # 直接处理字节数据，避免转为字符导致的截断问题
-            if valid_data:
-                hex_data = valid_data.hex()
-                return f"命令: {cmd:02X}, 数据(十六进制): {hex_data}"
-            return f"命令: {cmd:02X}, 数据为空"
+            return self.format_payload_for_display(frame["cmd"], frame["payload"], prefix="上传")
         except Exception as e:
             self.update_callback(f"解析数据包错误: {e}")
             return None
 
     def get_frame_cmd(self, data):
         try:
-            if len(data) < 8 or data[0] != 0xFA or data[1] != 0xFC:
+            frame = self.parse_frame(data, decrypt=False, report_crc=False)
+            if frame is None:
                 return None
-
-            data_len = (data[4] << 8) + data[5]
-            frame_len = 6 + data_len + 2
-            if len(data) < frame_len:
-                return None
-
-            received_crc = (data[6 + data_len] << 8) + data[7 + data_len]
-            calculated_crc = self.crc16_compute(data[3:6 + data_len])
-            if received_crc != calculated_crc:
-                return None
-
-            return data[3]
+            return frame["cmd"]
         except Exception:
             return None
 
-    def send_time_sync_after_handshake(self):
+    def is_valid_handshake_reply(self, data):
+        frame = self.parse_frame(data, decrypt=True, report_crc=False)
+        if frame is None or frame["cmd"] != CMD_HANDSHAKE:
+            return False
+
+        expected_mac = self.get_handshake_seed()
+        if expected_mac is None:
+            self.update_callback("无法校验握手回复MAC")
+            return False
+
+        reply_mac = frame["payload"][:6]
+        if reply_mac != expected_mac:
+            self.update_callback(
+                f"握手回复MAC不匹配: 收到 {reply_mac.hex(':').upper()}, 期望 {expected_mac.hex(':').upper()}"
+            )
+            return False
+
+        return True
+
+    def send_time_sync_after_handshake(self, data):
         if self.handshake_completed:
+            return
+
+        if not self.is_valid_handshake_reply(data):
+            self.update_callback("收到握手命令帧，但不是有效的固件MAC回复")
             return
 
         self.handshake_completed = True
@@ -788,7 +1095,8 @@ class BLEDeviceManager:
     # 通知处理函数
     def notification_handler(self, characteristic: BleakGATTCharacteristic, data: bytearray):
         try:
-            parsed_data = self.parse_received_data(data, decrypt=False)
+            should_decrypt = self.get_frame_cmd(data) == CMD_HANDSHAKE
+            parsed_data = self.parse_received_data(data, decrypt=should_decrypt)
             if parsed_data:
                 self.update_callback(parsed_data)
             else:
@@ -796,7 +1104,7 @@ class BLEDeviceManager:
                 self.update_callback(f"收到原始数据: {hex_data}")
 
             if self.get_frame_cmd(data) == CMD_HANDSHAKE:
-                self.send_time_sync_after_handshake()
+                self.send_time_sync_after_handshake(data)
         except Exception as e:
             self.update_callback(f"处理通知错误: {e}")
     
