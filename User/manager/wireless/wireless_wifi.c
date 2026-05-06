@@ -322,8 +322,6 @@ bool wirelessLoadStorageConfig(void)
     (void)wirelessReadTextFile(WIRELESS_IOT_HTTP_URL_PATH, gWirelessIotHttpUrl, (uint16_t)sizeof(gWirelessIotHttpUrl));
     (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_KEY_PATH, gWirelessIotKey, (uint16_t)sizeof(gWirelessIotKey));
     (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_HOST_PATH, gWirelessIotMqttHost, (uint16_t)sizeof(gWirelessIotMqttHost));
-    (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_TOPIC_PATH, gWirelessIotMqttTopic, (uint16_t)sizeof(gWirelessIotMqttTopic));
-    (void)wirelessReadTextFile(WIRELESS_IOT_MQTT_SUB_TOPIC_PATH, gWirelessIotMqttSubTopic, (uint16_t)sizeof(gWirelessIotMqttSubTopic));
     if (wirelessReadTextFile(WIRELESS_IOT_MQTT_PORT_PATH, portText, (uint16_t)sizeof(portText))) {
         (void)wirelessTryParseU16Text(portText, &gWirelessIotMqttPort);
     }
@@ -334,12 +332,8 @@ bool wirelessLoadStorageConfig(void)
     gWirelessWifiEnabled = wirelessWifiDefaultEnabled();
     gWirelessMqttEnabled = wirelessMqttDefaultEnabled();
     gWirelessIotKeyReady = gWirelessIotKey[0] != '\0';
-    if (gWirelessIotMqttTopic[0] == '\0') {
-        (void)snprintf(gWirelessIotMqttTopic, sizeof(gWirelessIotMqttTopic), "CPR/%s/event/transfer", gWirelessIotSn);
-    }
-    if (gWirelessIotMqttSubTopic[0] == '\0') {
-        (void)snprintf(gWirelessIotMqttSubTopic, sizeof(gWirelessIotMqttSubTopic), "CPR/%s/cmd/transfer", gWirelessIotSn);
-    }
+    (void)snprintf(gWirelessIotMqttTopic, sizeof(gWirelessIotMqttTopic), WIRELESS_IOT_MQTT_TOPIC_FORMAT, gWirelessIotSn);
+    (void)snprintf(gWirelessIotMqttSubTopic, sizeof(gWirelessIotMqttSubTopic), WIRELESS_IOT_MQTT_SUB_TOPIC_FORMAT, gWirelessIotSn);
 
     gWirelessIotStorageLoaded = true;
     LOG_I(WIRELESS_LOG_TAG,
