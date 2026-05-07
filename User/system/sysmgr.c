@@ -45,6 +45,7 @@ static void systemLogSelfCheckAudioFaults(uint8_t payloadByte);
 static void systemLogSelfCheckWirelessFaults(uint8_t payloadByte);
 static void systemLogSelfCheckMemoryFaults(uint8_t payloadByte);
 static void systemUpdateSelfCheckModuleSummary(void);
+static void systemLogResetCause(void);
 static void systemEnablePreciseFaultDebug(void)
 {
     SCB->SHCSR |= SCB_SHCSR_BUSFAULTENA_Msk;
@@ -160,6 +161,23 @@ static void systemLogPowerupSelfCheckResult(void)
     systemLogSelfCheckMemoryFaults(lCurrentPayload.memory);
 }
 
+static void systemLogResetCause(void)
+{
+    uint32_t lCsr = RCC->CSR;
+
+    LOG_I(SYSTEM_LOG_TAG,
+          "reset csr=0x%08lX pin=%u por=%u sftrst=%u iwdg=%u wwdg=%u lpwr=%u",
+          (unsigned long)lCsr,
+          __HAL_RCC_GET_FLAG(RCC_FLAG_PINRST) ? 1U : 0U,
+          __HAL_RCC_GET_FLAG(RCC_FLAG_PORRST) ? 1U : 0U,
+          __HAL_RCC_GET_FLAG(RCC_FLAG_SFTRST) ? 1U : 0U,
+          __HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST) ? 1U : 0U,
+          __HAL_RCC_GET_FLAG(RCC_FLAG_WWDGRST) ? 1U : 0U,
+          __HAL_RCC_GET_FLAG(RCC_FLAG_LPWRRST) ? 1U : 0U);
+
+    __HAL_RCC_CLEAR_RESET_FLAGS();
+}
+
 /**
 * @brief : Run the generated STM32 BSP initialization sequence.
 * @param : None
@@ -172,6 +190,7 @@ static void systemInitBsp(void)
     }
 
     systemEnablePreciseFaultDebug();
+    systemLogResetCause();
 
     MX_GPIO_Init();
     MX_DMA_Init();

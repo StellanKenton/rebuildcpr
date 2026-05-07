@@ -13,6 +13,7 @@
 
 #include "cprsensor_protocol.h"
 #include "../cpralg/cpralgmgr.h"
+#include "../memory/memory.h"
 #include "../wireless/wireless.h"
 #include "../../../rep/service/log/log.h"
 #include "../../../rep/service/rtos/rtos.h"
@@ -32,6 +33,10 @@ static const uint8_t gProtcolMgrSwBuildVersion = 0x00U;
 static const uint8_t gProtcolMgrDefaultBatteryPercent = 100U;
 static const uint16_t gProtcolMgrDefaultBatteryMv = 3700U;
 static const uint8_t gProtcolMgrDefaultChargeState = 0U;
+static const char gProtcolMgrSettingDirPath[] = "/setting";
+static const char gProtcolMgrLanguagePath[] = "/setting/language";
+static const char gProtcolMgrVolumePath[] = "/setting/volume";
+static const char gProtcolMgrMetronomePath[] = "/setting/metronome";
 
 static bool gProtcolMgrInitialized;
 static uint16_t gProtcolMgrRxUsed;
@@ -59,6 +64,9 @@ static stCprsensorProtocolMetronomePayload gProtcolMgrMetronomePayload;
 static stCprsensorProtocolUtcSettingPayload gProtcolMgrUtcSettingPayload;
 static stCprsensorProtocolCommSettingPayload gProtcolMgrCommSettingPayload;
 static stCprsensorProtocolTimeSyncPayload gProtcolMgrTimeSyncPayload;
+static bool gProtcolMgrLanguagePersistPending;
+static bool gProtcolMgrVolumePersistPending;
+static bool gProtcolMgrMetronomePersistPending;
 
 static void protcolMgrEnsureInitialized(void);
 static void protcolMgrFillRawCodec(stCprsensorProtocolCodecCfg *codecCfg);
@@ -101,6 +109,9 @@ static void protcolMgrFlushVolumeReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushMetronomeReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushUtcSettingReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushPendingReplies(void);
+static bool protcolMgrEnsureSettingDir(void);
+static bool protcolMgrWriteSettingValue(const char *path, uint8_t value);
+static void protcolMgrPersistPendingSettings(void);
 
 static const struct {
 	eCprsensorProtocolReplySlot replySlot;
@@ -133,6 +144,50 @@ static void protcolMgrEnsureInitialized(void)
 	gProtcolMgrTxCount = 0U;
 	(void)memset(gProtcolMgrTxRetryQueue, 0, sizeof(gProtcolMgrTxRetryQueue));
 	gProtcolMgrInitialized = true;
+}
+
+static bool protcolMgrEnsureSettingDir(void)
+{
+	if (!memoryIsReady()) {
+		return false;
+	}
+
+	if (memoryExists(gProtcolMgrSettingDirPath)) {
+		return true;
+	}
+
+	return memoryMkdir(gProtcolMgrSettingDirPath);
+}
+
+static bool protcolMgrWriteSettingValue(const char *path, uint8_t value)
+{
+	if ((path == NULL) || !protcolMgrEnsureSettingDir()) {
+		return false;
+	}
+
+	return memoryWriteFile(path, &value, sizeof(value));
+}
+
+static void protcolMgrPersistPendingSettings(void)
+{
+	if (!memoryIsReady()) {
+		return;
+	}
+
+	if (gProtcolMgrLanguagePersistPending &&
+	    protcolMgrWriteSettingValue(gProtcolMgrLanguagePath, gProtcolMgrLanguagePayload.language)) {
+		gProtcolMgrLanguagePersistPending = false;
+	}
+
+	if (gProtcolMgrVolumePersistPending &&
+	    protcolMgrWriteSettingValue(gProtcolMgrVolumePath, gProtcolMgrVolumePayload.volume)) {
+		gProtcolMgrVolumePersistPending = false;
+	}
+
+	if (gProtcolMgrMetronomePersistPending &&
+	    protcolMgrWriteSettingValue(gProtcolMgrMetronomePath, gProtcolMgrMetronomePayload.metronomeFreq)) {
+		gProtcolMgrMetronomePersistPending = false;
+	}
 }
 
 static void protcolMgrFillRawCodec(stCprsensorProtocolCodecCfg *codecCfg)
@@ -689,6 +744,8 @@ static void protcolMgrHandleFrame(eIotManagerLinkId linkId, const stCprsensorPro
 			return;
 		}
 		(void)memcpy(&gProtcolMgrLanguagePayload, frameView->payload, sizeof(gProtcolMgrLanguagePayload));
+		gProtcolMgrLanguagePersistPending = true;
+		protcolMgrPersistPendingSettings();
 		protcolMgrSetReplyFlag(frameView->cmd);
 		break;
 	case CPRSENSOR_PROTOCOL_CMD_VOLUME:
@@ -697,6 +754,8 @@ static void protcolMgrHandleFrame(eIotManagerLinkId linkId, const stCprsensorPro
 			return;
 		}
 		(void)memcpy(&gProtcolMgrVolumePayload, frameView->payload, sizeof(gProtcolMgrVolumePayload));
+		gProtcolMgrVolumePersistPending = true;
+		protcolMgrPersistPendingSettings();
 		protcolMgrSetReplyFlag(frameView->cmd);
 		break;
 	case CPRSENSOR_PROTOCOL_CMD_METRONOME:
@@ -705,6 +764,8 @@ static void protcolMgrHandleFrame(eIotManagerLinkId linkId, const stCprsensorPro
 			return;
 		}
 		(void)memcpy(&gProtcolMgrMetronomePayload, frameView->payload, sizeof(gProtcolMgrMetronomePayload));
+		gProtcolMgrMetronomePersistPending = true;
+		protcolMgrPersistPendingSettings();
 		protcolMgrSetReplyFlag(frameView->cmd);
 		break;
 	case CPRSENSOR_PROTOCOL_CMD_UTC_SETTING:
@@ -1094,6 +1155,7 @@ static void protcolMgrFlushPendingReplies(void)
 
 void protcolMgrProcess(void)
 {
+	protcolMgrPersistPendingSettings();
 	protcolMgrFlushPendingReplies();
 }
 

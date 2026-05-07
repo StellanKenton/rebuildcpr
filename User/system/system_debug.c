@@ -31,6 +31,7 @@
 #include "../port/lis2hh12_port.h"
 #include "../rep_config.h"
 #include "system.h"
+#include "systask.h"
 
 #define SYSTEM_DEBUG_LOG_TAG "system_debug"
 
@@ -69,6 +70,18 @@ static bool gSystemDebugBackgroundServicesReady = false;
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
 static eConsoleCommandResult systemDebugConsoleTaskUsageHandler(uint32_t transport, int argc, char *argv[]);
+static eConsoleCommandResult systemDebugConsoleTaskStackHandler(uint32_t transport, int argc, char *argv[]);
+
+static uint32_t systemDebugBytesToWords(uint32_t sizeBytes);
+static uint32_t systemDebugRoundUpDivide(uint32_t dividend, uint32_t divisor);
+static bool systemDebugIsSameTaskName(const char *taskName, const char *expectedName);
+static bool systemDebugResolveTaskStackConfig(const char *taskName,
+    uint32_t usedBytes,
+    uint32_t *currentBytes,
+    uint32_t *minBytes,
+    uint32_t *applyBytes,
+    const char **configName,
+    const char **configUnitText);
 
 static TaskHandle_t gSystemDebugTaskUsageHandle = NULL;
 static stSystemDebugTaskUsageContext gSystemDebugTaskUsageContext;
@@ -123,6 +136,115 @@ static const stConsoleCommand gSystemTaskUsageConsoleCommand = {
     .ownerTag = "system",
     .handler = systemDebugConsoleTaskUsageHandler,
 };
+
+static const stConsoleCommand gSystemTaskStackConsoleCommand = {
+    .commandName = "stack",
+    .helpText = "stack - show task stack high-water mark and recommended stack config",
+    .ownerTag = "system",
+    .handler = systemDebugConsoleTaskStackHandler,
+};
+
+static uint32_t systemDebugBytesToWords(uint32_t sizeBytes)
+{
+    return sizeBytes / (uint32_t)sizeof(StackType_t);
+}
+
+static uint32_t systemDebugRoundUpDivide(uint32_t dividend, uint32_t divisor)
+{
+    if (divisor == 0U) {
+        return 0U;
+    }
+
+    return (dividend + divisor - 1U) / divisor;
+}
+
+static bool systemDebugIsSameTaskName(const char *taskName, const char *expectedName)
+{
+    if ((taskName == NULL) || (expectedName == NULL)) {
+        return false;
+    }
+
+    return strcmp(taskName, expectedName) == 0;
+}
+
+static bool systemDebugResolveTaskStackConfig(const char *taskName,
+    uint32_t usedBytes,
+    uint32_t *currentBytes,
+    uint32_t *minBytes,
+    uint32_t *applyBytes,
+    const char **configName,
+    const char **configUnitText)
+{
+    uint32_t lCurrentBytes = 0U;
+    uint32_t lConfigQuantumBytes = 0U;
+    const char *lConfigName = NULL;
+    const char *lConfigUnitText = NULL;
+
+    if ((taskName == NULL) ||
+        (currentBytes == NULL) ||
+        (minBytes == NULL) ||
+        (applyBytes == NULL) ||
+        (configName == NULL) ||
+        (configUnitText == NULL)) {
+        return false;
+    }
+
+    if (systemDebugIsSameTaskName(taskName, "systemTask")) {
+        lCurrentBytes = 128U * SystemTaskStackSize;
+        lConfigQuantumBytes = 128U;
+        lConfigName = "SystemTaskStackSize";
+        lConfigUnitText = "x128B";
+    } else if (systemDebugIsSameTaskName(taskName, "memorytask")) {
+        lCurrentBytes = 128U * MemoryTaskStackSize;
+        lConfigQuantumBytes = 128U;
+        lConfigName = "MemoryTaskStackSize";
+        lConfigUnitText = "x128B";
+    } else if (systemDebugIsSameTaskName(taskName, "powertask")) {
+        lCurrentBytes = 128U * PowerTaskStackSize;
+        lConfigQuantumBytes = 128U;
+        lConfigName = "PowerTaskStackSize";
+        lConfigUnitText = "x128B";
+    } else if (systemDebugIsSameTaskName(taskName, "sensorTask")) {
+        lCurrentBytes = 128U * SensorTaskStackSize;
+        lConfigQuantumBytes = 128U;
+        lConfigName = "SensorTaskStackSize";
+        lConfigUnitText = "x128B";
+    } else if (systemDebugIsSameTaskName(taskName, "cpralgTask")) {
+        lCurrentBytes = 128U * CprAlgTaskStackSize;
+        lConfigQuantumBytes = 128U;
+        lConfigName = "CprAlgTaskStackSize";
+        lConfigUnitText = "x128B";
+    } else if (systemDebugIsSameTaskName(taskName, "wirelessTask")) {
+        lCurrentBytes = 128U * WirelessTaskStackSize;
+        lConfigQuantumBytes = 128U;
+        lConfigName = "WirelessTaskStackSize";
+        lConfigUnitText = "x128B";
+    } else if (systemDebugIsSameTaskName(taskName, "audioTask")) {
+        lCurrentBytes = 128U * AudioTaskStackSize;
+        lConfigQuantumBytes = 128U;
+        lConfigName = "AudioTaskStackSize";
+        lConfigUnitText = "x128B";
+    } else if (systemDebugIsSameTaskName(taskName, "IDLE")) {
+        lCurrentBytes = (uint32_t)configMINIMAL_STACK_SIZE * (uint32_t)sizeof(StackType_t);
+        lConfigQuantumBytes = (uint32_t)sizeof(StackType_t);
+        lConfigName = "configMINIMAL_STACK_SIZE";
+        lConfigUnitText = "words";
+    } else if (systemDebugIsSameTaskName(taskName, "Tmr Svc")) {
+        lCurrentBytes = (uint32_t)configTIMER_TASK_STACK_DEPTH * (uint32_t)sizeof(StackType_t);
+        lConfigQuantumBytes = (uint32_t)sizeof(StackType_t);
+        lConfigName = "configTIMER_TASK_STACK_DEPTH";
+        lConfigUnitText = "words";
+    } else {
+        return false;
+    }
+
+    *currentBytes = lCurrentBytes;
+    *minBytes = usedBytes;
+    *applyBytes = usedBytes + lConfigQuantumBytes;
+    *configName = lConfigName;
+    *configUnitText = lConfigUnitText;
+    return true;
+}
 
 static const TaskStatus_t *systemDebugFindTaskStatusByHandle(const TaskStatus_t *taskStatusArray, UBaseType_t taskCount, TaskHandle_t taskHandle)
 {
@@ -296,6 +418,112 @@ static eConsoleCommandResult systemDebugConsoleTaskUsageHandler(uint32_t transpo
         "top started: %lums x %lu",
         (unsigned long)SYSTEM_DEBUG_TASK_USAGE_SAMPLE_PERIOD_MS,
         (unsigned long)SYSTEM_DEBUG_TASK_USAGE_SAMPLE_COUNT) <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    return CONSOLE_COMMAND_RESULT_OK;
+}
+
+static eConsoleCommandResult systemDebugConsoleTaskStackHandler(uint32_t transport, int argc, char *argv[])
+{
+    TaskStatus_t lTaskStats[SYSTEM_DEBUG_TASK_USAGE_MAX_TASKS];
+    UBaseType_t lTaskCount = 0U;
+    uint32_t lTotalRunTime = 0U;
+    UBaseType_t lIndex;
+
+    (void)argv;
+
+    if (argc != 1) {
+        return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+    }
+
+    if (!systemDebugCaptureTaskUsageSnapshot(lTaskStats,
+        SYSTEM_DEBUG_TASK_USAGE_MAX_TASKS,
+        &lTaskCount,
+        &lTotalRunTime)) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+    (void)lTotalRunTime;
+
+    if (logConsoleReply(transport,
+        "stack watermark is historical minimum free stack since task creation; rerun after full workload") <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    for (lIndex = 0U; lIndex < lTaskCount; lIndex++) {
+        const char *lTaskName = (lTaskStats[lIndex].pcTaskName != NULL) ? lTaskStats[lIndex].pcTaskName : "unknown";
+        uint32_t lFreeWords = (uint32_t)lTaskStats[lIndex].usStackHighWaterMark;
+        uint32_t lFreeBytes = lFreeWords * (uint32_t)sizeof(StackType_t);
+        uint32_t lCurrentBytes = 0U;
+        uint32_t lMinBytes = 0U;
+        uint32_t lApplyBytes = 0U;
+        const char *lConfigName = NULL;
+        const char *lConfigUnitText = NULL;
+
+        if (systemDebugResolveTaskStackConfig(lTaskName,
+            0U,
+            &lCurrentBytes,
+            &lMinBytes,
+            &lApplyBytes,
+            &lConfigName,
+            &lConfigUnitText)) {
+            bool lUse128ByteConfigUnits;
+            uint32_t lUsedBytes;
+            uint32_t lCurrentConfigValue;
+            uint32_t lMinConfigValue;
+            uint32_t lApplyConfigValue;
+
+            if (lCurrentBytes < lFreeBytes) {
+                lUsedBytes = 0U;
+            } else {
+                lUsedBytes = lCurrentBytes - lFreeBytes;
+            }
+
+            (void)systemDebugResolveTaskStackConfig(lTaskName,
+                lUsedBytes,
+                &lCurrentBytes,
+                &lMinBytes,
+                &lApplyBytes,
+                &lConfigName,
+                &lConfigUnitText);
+
+            lUse128ByteConfigUnits = strcmp(lConfigUnitText, "x128B") == 0;
+            if (lUse128ByteConfigUnits) {
+                lCurrentConfigValue = systemDebugRoundUpDivide(lCurrentBytes, 128U);
+                lMinConfigValue = systemDebugRoundUpDivide(lMinBytes, 128U);
+                lApplyConfigValue = systemDebugRoundUpDivide(lApplyBytes, 128U);
+            } else {
+                lCurrentConfigValue = systemDebugBytesToWords(lCurrentBytes);
+                lMinConfigValue = systemDebugBytesToWords(lMinBytes);
+                lApplyConfigValue = systemDebugBytesToWords(lApplyBytes);
+            }
+
+            if (logConsoleReply(transport,
+                "%s: cur=%luB used_peak=%luB free_min=%luB cfg=%s cur=%lu%s min=%lu%s apply=%lu%s",
+                lTaskName,
+                (unsigned long)lCurrentBytes,
+                (unsigned long)lUsedBytes,
+                (unsigned long)lFreeBytes,
+                lConfigName,
+                (unsigned long)lCurrentConfigValue,
+                lConfigUnitText,
+                (unsigned long)lMinConfigValue,
+                lConfigUnitText,
+                (unsigned long)lApplyConfigValue,
+                lConfigUnitText) <= 0) {
+                return CONSOLE_COMMAND_RESULT_ERROR;
+            }
+        } else {
+            if (logConsoleReply(transport,
+                "%s: free_min=%luB cfg=unknown",
+                lTaskName,
+                (unsigned long)lFreeBytes) <= 0) {
+                return CONSOLE_COMMAND_RESULT_ERROR;
+            }
+        }
+    }
+
+    if (logConsoleReply(transport, "OK") <= 0) {
         return CONSOLE_COMMAND_RESULT_ERROR;
     }
 
@@ -730,6 +958,10 @@ bool systemDebugConsoleRegister(void)
     }
 
     if (!logRegisterConsole(&gSystemTaskUsageConsoleCommand)) {
+        return false;
+    }
+
+    if (!logRegisterConsole(&gSystemTaskStackConsoleCommand)) {
         return false;
     }
 

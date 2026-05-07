@@ -18,31 +18,31 @@ extern "C" {
 #endif
 
 
-#define MemoryTaskStackSize         24U
+#define MemoryTaskStackSize         13U
 #define MemoryTaskPriority          8U
 #define MemoryTaskInterval          100U
 
-#define PowerTaskStackSize          8U
+#define PowerTaskStackSize          3U
 #define PowerTaskPriority           7U
 #define PowerTaskInterval           100U
 
-#define WirelessTaskStackSize       24U
+#define WirelessTaskStackSize       21U
 #define WirelessTaskPriority        16U
 #define WirelessTaskInterval        5U
 
-#define SensorTaskStackSize         8U
+#define SensorTaskStackSize         7U
 #define SensorTaskPriority          23U
 #define SensorTaskInterval          10U
 
-#define CprAlgTaskStackSize         16U
+#define CprAlgTaskStackSize         4U
 #define CprAlgTaskPriority          6U
 #define CprAlgTaskInterval          50U
 
-#define AudioTaskStackSize          16U
+#define AudioTaskStackSize          21U
 #define AudioTaskPriority           8U
 #define AudioTaskInterval           20U
 
-#define SystemTaskStackSize         40U
+#define SystemTaskStackSize         10U
 #define SystemTaskPriority          17U
 #define SystemTaskInterval          10U
 void systemTaskEntry(void *argument);

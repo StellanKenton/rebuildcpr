@@ -3,6 +3,8 @@
 #include "CprFeedback_C.h"
 #include "../selfcheck/selfcheck_fault.h"
 #include "../sensor/sensor.h"
+#include "../../port/pca9535_port.h"
+#include "../../port/tm1651_port.h"
 #include "../../../rep/service/log/log.h"
 #include "rtos.h"
 
@@ -12,6 +14,12 @@
 #define CPR_ALG_MGR_RTC_BASE_YEAR 2025U
 
 static const char gCprAlgMgrLogTag[] = "cpralg";
+static const uint8_t gCprAlgMgrFreqDisplayMin = 40U;
+static const uint8_t gCprAlgMgrFreqDisplayMax = 160U;
+static const uint32_t gCprAlgMgrMetricDisplayMs = 1000U;
+static const uint32_t gCprAlgMgrIntervalDisplayStartMs = 3000U;
+static const uint32_t gCprAlgMgrIntervalDisplayEndMs = 300000U;
+static bool sCprAlgMgrHasFirstPress = false;
 
 CPR_Data_Typedef s_CPR_Data = {0};
 CPR_Manager_Typedef s_CPR_Manager = {0};
@@ -116,15 +124,114 @@ static uint8_t cprAlgMgrClampToU8(int16_t value)
     return (uint8_t)value;
 }
 
+static uint8_t cprAlgMgrClampFreqForDisplay(uint8_t freq)
+{
+    if (freq == 0U) {
+        return 0U;
+    }
+
+    if (freq < gCprAlgMgrFreqDisplayMin) {
+        return gCprAlgMgrFreqDisplayMin;
+    }
+
+    if (freq > gCprAlgMgrFreqDisplayMax) {
+        return gCprAlgMgrFreqDisplayMax;
+    }
+
+    return freq;
+}
+
+static uint8_t cprAlgMgrGetDepthLedNum(uint8_t depth)
+{
+    uint8_t lLedNum;
+
+    if (depth == 0U) {
+        return 0U;
+    }
+
+    lLedNum = (uint8_t)((depth + 9U) / 10U);
+    if (lLedNum > PCA9535_PORT_LED_MAX) {
+        lLedNum = PCA9535_PORT_LED_MAX;
+    }
+
+    return lLedNum;
+}
+
+static bool cprAlgMgrIsPressWell(uint8_t depth, uint8_t freq)
+{
+    return (depth >= s_CPR_Alarm_Limit.Depth_Low_Limit) &&
+           (depth < s_CPR_Alarm_Limit.Depth_High_Limit) &&
+           (freq >= s_CPR_Alarm_Limit.Freq_Low_Limit) &&
+           (freq < s_CPR_Alarm_Limit.Freq_High_Limit);
+}
+
 static void cprAlgMgrUpdateInterval(void)
 {
-    if ((s_CPR_Data.Depth == 0U) || (s_CPR_Data.Freq == 0U)) {
-        if ((UINT32_MAX - s_CPR_Manager.IntervalTime) >= CPR_ALG_MGR_INTERVAL_MS) {
-            s_CPR_Manager.IntervalTime += CPR_ALG_MGR_INTERVAL_MS;
-        } else {
-            s_CPR_Manager.IntervalTime = UINT32_MAX;
-        }
+    if ((UINT32_MAX - s_CPR_Manager.IntervalTime) >= CPR_ALG_MGR_INTERVAL_MS) {
+        s_CPR_Manager.IntervalTime += CPR_ALG_MGR_INTERVAL_MS;
+    } else {
+        s_CPR_Manager.IntervalTime = UINT32_MAX;
     }
+}
+
+static void cprAlgMgrShowMetrics(uint8_t depth, uint8_t freq)
+{
+    uint8_t lDisplayFreq = cprAlgMgrClampFreqForDisplay(freq);
+    uint8_t lDisplayDepth = depth;
+
+    if ((depth == 0U) || (freq == 0U)) {
+        lDisplayDepth = 0U;
+        lDisplayFreq = 0U;
+    }
+
+    (void)tm1651PortShowNumber3(lDisplayFreq);
+    (void)pca9535PortLedLightNum(cprAlgMgrGetDepthLedNum(lDisplayDepth));
+}
+
+static void cprAlgMgrLedProcess(void)
+{
+    uint8_t lDepth;
+    uint8_t lFreq;
+    uint32_t lIntervalTime;
+    bool lPressWell;
+
+    repRtosEnterCritical();
+    lDepth = s_CPR_Data.Depth;
+    lFreq = s_CPR_Data.Freq;
+    lIntervalTime = s_CPR_Manager.IntervalTime;
+    repRtosExitCritical();
+
+    lPressWell = cprAlgMgrIsPressWell(lDepth, lFreq);
+
+    if (!sCprAlgMgrHasFirstPress) {
+        (void)tm1651PortShowNone();
+        (void)pca9535PortLedLightNum(0U);
+        (void)pca9535PortLedPressShow(false, false, false);
+        return;
+    }
+
+    if (lIntervalTime < gCprAlgMgrMetricDisplayMs) {
+        cprAlgMgrShowMetrics(lDepth, lFreq);
+        (void)pca9535PortLedPressShow(!lPressWell, lPressWell, false);
+        return;
+    }
+
+    (void)pca9535PortLedLightNum(0U);
+
+    if (lIntervalTime < gCprAlgMgrIntervalDisplayStartMs) {
+        (void)tm1651PortShowNone();
+        (void)pca9535PortLedPressShow(!lPressWell, lPressWell, false);
+        return;
+    }
+
+    if (lIntervalTime <= gCprAlgMgrIntervalDisplayEndMs) {
+        (void)tm1651PortShowNumber3((uint16_t)(lIntervalTime / 1000U));
+        (void)pca9535PortLedPressShow(false, false, true);
+        return;
+    }
+
+    (void)tm1651PortShowNone();
+    (void)pca9535PortLedPressShow(false, false, false);
 }
 
 bool cprAlgMgrInit(void)
@@ -165,6 +272,7 @@ bool cprAlgMgrInit(void)
     s_CPR_Manager.IntervalTime = 0U;
     repRtosExitCritical();
 
+    sCprAlgMgrHasFirstPress = false;
     cprAlgMgrLogBootRtcTime(lBootTimeStamp);
 
     s_CPR_Alg_Initialized = true;
@@ -193,6 +301,8 @@ void cprAlgMgrProcess(void)
             s_CPR_Data.Freq = cprAlgMgrClampToU8(lCprRst.CPRRate);
             s_CPR_Data.RealseDepth = cprAlgMgrClampToU8(lCprRst.CPRReleaseDepth_Instantaneous);
             s_CPR_Data.TimeStamp = repRtosGetTickMs();
+            s_CPR_Manager.IntervalTime = 0U;
+            sCprAlgMgrHasFirstPress = true;
             lDataReady = true;
         }
 
@@ -201,8 +311,20 @@ void cprAlgMgrProcess(void)
     }
 
     repRtosEnterCritical();
-    cprAlgMgrUpdateInterval();
+    s_CPR_Manager.DataReady = lDataReady;
+    if (!lDataReady) {
+        cprAlgMgrUpdateInterval();
+    }
     repRtosExitCritical();
+}
+
+void cprAlgMgrDisplayProcess(void)
+{
+    if (!s_CPR_Alg_Initialized && !cprAlgMgrInit()) {
+        return;
+    }
+
+    cprAlgMgrLedProcess();
 }
 
 void cprAlgMgrGetData(CPR_Data_Typedef *data)

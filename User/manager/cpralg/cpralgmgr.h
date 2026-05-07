@@ -44,6 +44,7 @@ extern CPR_Alarm_Limit_Typedef s_CPR_Alarm_Limit;
 
 bool cprAlgMgrInit(void);
 void cprAlgMgrProcess(void);
+void cprAlgMgrDisplayProcess(void);
 void cprAlgMgrGetData(CPR_Data_Typedef *data);
 void cprAlgMgrGetManager(CPR_Manager_Typedef *manager);
 uint32_t cprAlgMgrGetRtcTime(void);

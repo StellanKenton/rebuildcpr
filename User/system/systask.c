@@ -235,6 +235,7 @@ void systemTaskEntry(void *argument)
 			selfCheckFaultProcess100ms();
 		}
 		powerLedProcess();          // Power LED state update
+		cprAlgMgrDisplayProcess();
 		if (systemDebugBackgroundServicesInit()) {
 			systemDebugBackgroundServicesProcess();
 		}

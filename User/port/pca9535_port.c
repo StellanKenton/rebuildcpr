@@ -23,6 +23,16 @@ static bool gPca9535PortReady = false;
 static uint16_t gPca9535PortShowMask = 0U;
 static bool gPca9535PortCycleCntReady = false;
 
+static void pca9535PortShowLock(void)
+{
+    repRtosEnterCritical();
+}
+
+static void pca9535PortShowUnlock(void)
+{
+    repRtosExitCritical();
+}
+
 static void pca9535PortEnableCycleCnt(void)
 {
     if (gPca9535PortCycleCntReady) {
@@ -345,7 +355,12 @@ bool pca9535PortIsReady(void)
 
 eDrvStatus pca9535PortLedOff(void)
 {
-    return pca9535PortSetShowMask(0U);
+    eDrvStatus status;
+
+    pca9535PortShowLock();
+    status = pca9535PortSetShowMask(0U);
+    pca9535PortShowUnlock();
+    return status;
 }
 
 eDrvStatus pca9535PortLedLightNum(uint8_t num)
@@ -367,6 +382,7 @@ eDrvStatus pca9535PortLedLightNum(uint8_t num)
         return DRV_STATUS_INVALID_PARAM;
     }
 
+    pca9535PortShowLock();
     mask = gPca9535PortShowMask;
     mask &= (uint16_t)~(PCA9535_PORT_LED_NUM_1 |
                         PCA9535_PORT_LED_NUM_2 |
@@ -377,12 +393,21 @@ eDrvStatus pca9535PortLedLightNum(uint8_t num)
                         PCA9535_PORT_LED_NUM_7 |
                         PCA9535_PORT_LED_NUM_8);
     mask |= numMap[num];
-    return pca9535PortSetShowMask(mask);
+    if (pca9535PortSetShowMask(mask) != DRV_STATUS_OK) {
+        pca9535PortShowUnlock();
+        return DRV_STATUS_ERROR;
+    }
+
+    pca9535PortShowUnlock();
+    return DRV_STATUS_OK;
 }
 
 eDrvStatus pca9535PortLedPowerShow(bool isRedOn, bool isGreenOn, bool isBlueOn)
 {
     uint16_t mask = gPca9535PortShowMask;
+
+    pca9535PortShowLock();
+    mask = gPca9535PortShowMask;
 
     mask &= (uint16_t)~(PCA9535_PORT_LED_POWER_RED |
                         PCA9535_PORT_LED_POWER_GREEN |
@@ -397,12 +422,21 @@ eDrvStatus pca9535PortLedPowerShow(bool isRedOn, bool isGreenOn, bool isBlueOn)
         mask |= PCA9535_PORT_LED_POWER_BLUE;
     }
 
-    return pca9535PortSetShowMask(mask);
+    if (pca9535PortSetShowMask(mask) != DRV_STATUS_OK) {
+        pca9535PortShowUnlock();
+        return DRV_STATUS_ERROR;
+    }
+
+    pca9535PortShowUnlock();
+    return DRV_STATUS_OK;
 }
 
 eDrvStatus pca9535PortLedPressShow(bool isRedOn, bool isGreenOn, bool isBlueOn)
 {
     uint16_t mask = gPca9535PortShowMask;
+
+    pca9535PortShowLock();
+    mask = gPca9535PortShowMask;
 
     mask &= (uint16_t)~(PCA9535_PORT_LED_PRESS_RED |
                         PCA9535_PORT_LED_PRESS_GREEN |
@@ -417,7 +451,13 @@ eDrvStatus pca9535PortLedPressShow(bool isRedOn, bool isGreenOn, bool isBlueOn)
         mask |= PCA9535_PORT_LED_PRESS_BLUE;
     }
 
-    return pca9535PortSetShowMask(mask);
+    if (pca9535PortSetShowMask(mask) != DRV_STATUS_OK) {
+        pca9535PortShowUnlock();
+        return DRV_STATUS_ERROR;
+    }
+
+    pca9535PortShowUnlock();
+    return DRV_STATUS_OK;
 }
 
 eDrvStatus pca9535PortSetShowMask(uint16_t mask)
@@ -441,7 +481,9 @@ eDrvStatus pca9535PortGetShowMask(uint16_t *mask)
         return DRV_STATUS_INVALID_PARAM;
     }
 
+    pca9535PortShowLock();
     *mask = gPca9535PortShowMask;
+    pca9535PortShowUnlock();
     return DRV_STATUS_OK;
 }
 
