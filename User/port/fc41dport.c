@@ -73,7 +73,6 @@ static uint32_t fc41dPortTransportGetTickMs(void)
 
 static void fc41dPortControlInit(uint8_t resetPin)
 {
-    drvGpioInit();
     drvGpioWrite(resetPin, DRVGPIO_PIN_SET);
 }
 

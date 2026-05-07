@@ -47,6 +47,18 @@ static const stBspGpioMap gBspGpioMap[DRVGPIO_MAX] = {
         .isOutput = false,
         .defaultState = DRVGPIO_PIN_RESET,
     },
+    [DRVGPIO_BAT_CHARGING_STATUS] = {
+        .gpioPort = BAT_Charging_Status_GPIO_Port,
+        .gpioPin = BAT_Charging_Status_Pin,
+        .isOutput = false,
+        .defaultState = DRVGPIO_PIN_RESET,
+    },
+    [DRVGPIO_BAT_CHARGE_DONE_STATUS] = {
+        .gpioPort = BAT_ChargeDone_Status_GPIO_Port,
+        .gpioPin = BAT_ChargeDone_Status_Pin,
+        .isOutput = false,
+        .defaultState = DRVGPIO_PIN_RESET,
+    },
     [DRVGPIO_PCA9535_SCL] = {
         .gpioPort = PCA9535_SCL_GPIO_Port,
         .gpioPin = PCA9535_SCL_Pin,

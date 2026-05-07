@@ -11,13 +11,20 @@
 
 #include "main.h"
 #include "drvadc.h"
+#include "drvgpio.h"
 #include "system.h"
+#include "../port/drvgpio_port.h"
 #include "../port/pca9535_port.h"
 
 static uint16_t powerCalcVoltage(eDrvAdcPortMap channel, uint16_t rawValue);
 static uint8_t powerCalcBatteryLevel(uint16_t battery10Mv);
 static bool powerLedShouldDisplayInMode(eSystemMode mode, bool isCharging);
 static bool powerLedIsBlinkOn(void);
+static bool powerHasChargeDcInput(uint16_t dc10Mv);
+static bool powerIsChargingStatusHigh(void);
+static bool powerIsChargeDoneStatusHigh(void);
+static ePowerChargeState powerResolveChargeState(uint16_t dc10Mv, bool isChargingStatusHigh, bool isChargeDoneStatusHigh);
+static void powerChargeStatusUpdate(void);
 
 static PowerManager gPowerManager = {
     .status = {
@@ -116,11 +123,55 @@ static bool powerLedIsBlinkOn(void)
     return ((HAL_GetTick() / POWER_LED_BLINK_HALF_PERIOD_MS) & 0x01U) == 0U;
 }
 
+static bool powerHasChargeDcInput(uint16_t dc10Mv)
+{
+    return dc10Mv > POWER_CHARGE_THRESHOLD_10MV;
+}
+
+static bool powerIsChargingStatusHigh(void)
+{
+    return drvGpioRead(DRVGPIO_BAT_CHARGING_STATUS) == DRVGPIO_PIN_RESET;
+}
+
+static bool powerIsChargeDoneStatusHigh(void)
+{
+    return drvGpioRead(DRVGPIO_BAT_CHARGE_DONE_STATUS) == DRVGPIO_PIN_RESET;
+}
+
+static ePowerChargeState powerResolveChargeState(uint16_t dc10Mv, bool isChargingStatusHigh, bool isChargeDoneStatusHigh)
+{
+    if (powerHasChargeDcInput(dc10Mv) && isChargingStatusHigh) {
+        if (isChargeDoneStatusHigh) {
+            return ePOWER_CHARGE_STATE_FULL;
+        }
+
+        return ePOWER_CHARGE_STATE_CHARGING;
+    }
+
+    return ePOWER_CHARGE_STATE_IDLE;
+}
+
+static void powerChargeStatusUpdate(void)
+{
+    gPowerManager.isChargingStatusHigh = powerIsChargingStatusHigh();
+    gPowerManager.isChargeDoneStatusHigh = powerIsChargeDoneStatusHigh();
+    gPowerManager.chargeState = powerResolveChargeState(gPowerManager.voltage.dcMv,
+                                                        gPowerManager.isChargingStatusHigh,
+                                                        gPowerManager.isChargeDoneStatusHigh);
+}
+
 bool powerInit(void)
 {
     if ((gPowerManager.status.state == ePOWER_STATE_UNINIT) || (gPowerManager.status.state == ePOWER_STATE_FAULT)) {
         gPowerManager.status.state = ePOWER_STATE_READY;
         gPowerManager.status.isShutDownRequested = false;
+        gPowerManager.chargeState = ePOWER_CHARGE_STATE_IDLE;
+        gPowerManager.isChargingStatusHigh = false;
+        gPowerManager.isChargeDoneStatusHigh = false;
+        gPowerManager.BatLevel = 0U;
+        gPowerManager.batLevelBootSyncCount = POWER_BATTERY_BOOT_SYNC_COUNT;
+        gPowerManager.batLevelBootSyncPeak = 0U;
+        gPowerManager.batLevelBootSyncActive = true;
     }
 
     return true;
@@ -131,6 +182,16 @@ bool powerIsReady(void)
     return (gPowerManager.status.state == ePOWER_STATE_READY) ||
            (gPowerManager.status.state == ePOWER_STATE_NORMAL) ||
            (gPowerManager.status.state == ePOWER_STATE_STOPPED);
+}
+
+void batholdon(void)
+{
+    drvGpioWrite(DRVGPIO_POWER_ON_CTRL, DRVGPIO_PIN_SET);
+}
+
+void batrelease(void)
+{
+    drvGpioWrite(DRVGPIO_POWER_ON_CTRL, DRVGPIO_PIN_RESET);
 }
 
 uint16_t powerGetVoltage(eDrvAdcPortMap channel)
@@ -147,13 +208,35 @@ uint16_t powerGetVoltage(eDrvAdcPortMap channel)
 void powerBatteryUpdate(void)
 {
     uint8_t lNewLevel = powerCalcBatteryLevel(gPowerManager.voltage.batteryMv);
+    bool lHasDcInput = powerHasChargeDcInput(gPowerManager.voltage.dcMv);
+
+    if (gPowerManager.batLevelBootSyncActive && !lHasDcInput) {
+        if (lNewLevel > gPowerManager.batLevelBootSyncPeak) {
+            gPowerManager.batLevelBootSyncPeak = lNewLevel;
+        }
+
+        if (gPowerManager.batLevelBootSyncPeak > gPowerManager.BatLevel) {
+            gPowerManager.BatLevel = gPowerManager.batLevelBootSyncPeak;
+        }
+
+        if (gPowerManager.batLevelBootSyncCount > 0U) {
+            gPowerManager.batLevelBootSyncCount--;
+        }
+
+        if (gPowerManager.batLevelBootSyncCount == 0U) {
+            gPowerManager.batLevelBootSyncActive = false;
+        }
+        return;
+    }
+
+    gPowerManager.batLevelBootSyncActive = false;
 
     if (lNewLevel < gPowerManager.BatLevel) {
         gPowerManager.BatLevel = lNewLevel;
         return;
     }
 
-    if ((lNewLevel > gPowerManager.BatLevel) && (gPowerManager.voltage.dcMv > POWER_CHARGE_THRESHOLD_10MV)) {
+    if (lNewLevel > gPowerManager.BatLevel && lHasDcInput) {
         gPowerManager.BatLevel = lNewLevel;
     }
 }
@@ -166,9 +249,10 @@ uint8_t powerBatteryGet(void)
 void powerLedProcess(void)
 {
     eSystemMode lMode = systemGetMode();
-    uint16_t lDcMv = gPowerManager.voltage.dcMv;
     uint8_t lBatteryLevel = powerBatteryGet();
-    bool lIsCharging = lDcMv > POWER_CHARGE_THRESHOLD_10MV;
+    bool lHasDcInput = powerHasChargeDcInput(gPowerManager.voltage.dcMv);
+    bool lIsChargeDone = (gPowerManager.chargeState == ePOWER_CHARGE_STATE_FULL);
+    bool lIsCharging = (gPowerManager.chargeState == ePOWER_CHARGE_STATE_CHARGING);
     bool lIsRedOn = false;
     bool lIsGreenOn = false;
 
@@ -178,11 +262,9 @@ void powerLedProcess(void)
     }
 
     if (lIsCharging) {
-        if (lBatteryLevel >= POWER_BATTERY_FULL_LEVEL) {
-            lIsGreenOn = true;
-        } else {
-            lIsGreenOn = powerLedIsBlinkOn();
-        }
+        lIsGreenOn = powerLedIsBlinkOn();
+    } else if (lHasDcInput && lIsChargeDone) {
+        lIsGreenOn = true;
     } else if (lBatteryLevel <= POWER_BATTERY_LOW_LEVEL_MAX) {
         lIsRedOn = true;
     } else {
@@ -223,6 +305,7 @@ void powerProcess(void)
     }
 
     powerTransRawToVoltage();
+    powerChargeStatusUpdate();
     powerBatteryUpdate();
     gPowerManager.status.state = gPowerManager.status.isShutDownRequested ? ePOWER_STATE_STOPPED : ePOWER_STATE_NORMAL;
 }

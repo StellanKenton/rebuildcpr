@@ -110,8 +110,8 @@ static const stConsoleCommand gSystemSensorConsoleCommand = {
 };
 
 static const stConsoleCommand gSystemPowerDebugConsoleCommand = {
-    .commandName = "powerdebug",
-    .helpText = "powerdebug - show current power real voltages in 10mV",
+    .commandName = "power",
+    .helpText = "power - show current power real voltages in 10mV and battery level",
     .ownerTag = "power",
     .handler = systemDebugConsolePowerDebugHandler,
 };
@@ -627,11 +627,15 @@ static eConsoleCommandResult systemDebugConsolePowerDebugHandler(uint32_t transp
     }
 
     if (consoleReply(transport,
-        "power real voltage(10mV): bat=%u dc=%u 5v0=%u 3v3=%u",
+        "power real voltage(10mV): bat=%u dc=%u 5v0=%u 3v3=%u bat_level=%u charge_state=%u chg=%u done=%u",
         (unsigned int)lPowerManager->voltage.batteryMv,
         (unsigned int)lPowerManager->voltage.dcMv,
         (unsigned int)lPowerManager->voltage.v5v0Mv,
-        (unsigned int)lPowerManager->voltage.v3v3Mv) <= 0) {
+        (unsigned int)lPowerManager->voltage.v3v3Mv,
+        (unsigned int)lPowerManager->BatLevel,
+        (unsigned int)lPowerManager->chargeState,
+        (unsigned int)lPowerManager->isChargingStatusHigh,
+        (unsigned int)lPowerManager->isChargeDoneStatusHigh) <= 0) {
         return CONSOLE_COMMAND_RESULT_ERROR;
     }
 

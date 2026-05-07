@@ -115,7 +115,6 @@ static uint32_t wt2003hxPortTransportGetTickMs(void)
 
 static void wt2003hxPortControlSetEnable(uint8_t enablePin, bool enabled)
 {
-    drvGpioInit();
     drvGpioWrite(enablePin, enabled ? DRVGPIO_PIN_RESET : DRVGPIO_PIN_SET);
     LOG_I(WT2003HX_PORT_LOG_TAG,
           "en pin=%u pa1=%s level=%s",

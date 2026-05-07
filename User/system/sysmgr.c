@@ -258,11 +258,6 @@ static void systemInitMode(void)
         return;
     }
 
-    if (!systaskCreateWorkerTasks()) {
-        LOG_E(SYSTEM_LOG_TAG, "worker task create failed");
-        return;
-    }
-
     gSystemInitModeCompleted = true;
     LOG_I(SYSTEM_LOG_TAG, "switch to powerup selfcheck mode");
     systemSetMode(eSYSTEM_POWERUP_SELFCHECK_MODE);
@@ -276,6 +271,11 @@ static void systemInitMode(void)
 static void systemPowerupSelfCheckMode(void)
 {
     systemSetMode(eSYSTEM_SELF_CHECK_MODE);
+    batholdon();
+    if (!systaskCreateWorkerTasks()) {
+        LOG_E(SYSTEM_LOG_TAG, "worker task create failed");
+        return;
+    }
 }
 
 /**
