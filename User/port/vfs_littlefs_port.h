@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 bool vfsLittlefsPortInit(void);
+bool vfsLittlefsPortIsReady(void);
 
 #ifdef __cplusplus
 }

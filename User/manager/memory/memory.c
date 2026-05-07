@@ -35,7 +35,7 @@ static void memorySyncStatus(void)
 {
     const stVfsStatus *lVfsStatus = vfsGetStatus();
 
-    gMemoryStatus.isMounted = vfsIsMounted(MEMORY_MOUNT_PATH);
+    gMemoryStatus.isMounted = vfsLittlefsPortIsReady();
     if (gMemoryStatus.isMounted) {
         gMemoryStatus.state = eMEMORY_STATE_READY;
     } else if ((lVfsStatus != NULL) && (lVfsStatus->state == eVFS_STATE_FAULT)) {

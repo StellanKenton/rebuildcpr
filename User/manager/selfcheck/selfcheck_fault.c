@@ -17,21 +17,20 @@
 #include "../power/power.h"
 #include "../sensor/sensor.h"
 #include "../wireless/wireless.h"
-#include "../../port/wt2003hx_port.h"
 
 #define SELF_CHECK_FAULT_RTC_VALID_MIN_SECONDS        41904000UL
 #define SELF_CHECK_FAULT_RTC_WAIT_READY_TIMEOUT_MS    100U
 
-#define SELF_CHECK_FAULT_3V3_HIGH_SET_MV              3600U
-#define SELF_CHECK_FAULT_3V3_HIGH_CLEAR_MV            3550U
-#define SELF_CHECK_FAULT_3V3_LOW_SET_MV               3000U
-#define SELF_CHECK_FAULT_3V3_LOW_CLEAR_MV             3050U
-#define SELF_CHECK_FAULT_5V_HIGH_SET_MV               5500U
-#define SELF_CHECK_FAULT_5V_HIGH_CLEAR_MV             5400U
-#define SELF_CHECK_FAULT_5V_LOW_SET_MV                4500U
-#define SELF_CHECK_FAULT_5V_LOW_CLEAR_MV              4600U
-#define SELF_CHECK_FAULT_DC_HIGH_SET_MV               8000U
-#define SELF_CHECK_FAULT_DC_HIGH_CLEAR_MV             7900U
+#define SELF_CHECK_FAULT_3V3_HIGH_SET_10MV            POWER_VOLTAGE_TO_10MV(3600U)
+#define SELF_CHECK_FAULT_3V3_HIGH_CLEAR_10MV          POWER_VOLTAGE_TO_10MV(3550U)
+#define SELF_CHECK_FAULT_3V3_LOW_SET_10MV             POWER_VOLTAGE_TO_10MV(3000U)
+#define SELF_CHECK_FAULT_3V3_LOW_CLEAR_10MV           POWER_VOLTAGE_TO_10MV(3050U)
+#define SELF_CHECK_FAULT_5V_HIGH_SET_10MV             POWER_VOLTAGE_TO_10MV(5500U)
+#define SELF_CHECK_FAULT_5V_HIGH_CLEAR_10MV           POWER_VOLTAGE_TO_10MV(5400U)
+#define SELF_CHECK_FAULT_5V_LOW_SET_10MV              POWER_VOLTAGE_TO_10MV(4500U)
+#define SELF_CHECK_FAULT_5V_LOW_CLEAR_10MV            POWER_VOLTAGE_TO_10MV(4600U)
+#define SELF_CHECK_FAULT_DC_HIGH_SET_10MV             POWER_VOLTAGE_TO_10MV(8000U)
+#define SELF_CHECK_FAULT_DC_HIGH_CLEAR_10MV           POWER_VOLTAGE_TO_10MV(7900U)
 
 #define SELF_CHECK_FAULT_DEBOUNCE_FAST_SET            1U
 #define SELF_CHECK_FAULT_DEBOUNCE_STABLE_SET          3U
@@ -39,8 +38,7 @@
 #define SELF_CHECK_FAULT_DEBOUNCE_DEFAULT_CLEAR       3U
 #define SELF_CHECK_FAULT_DEBOUNCE_STABLE_CLEAR        5U
 
-#define SELF_CHECK_FAULT_AUDIO_LANGUAGE_COUNT         5U
-#define SELF_CHECK_FAULT_AUDIO_EXPECTED_MUSIC_NUM     ((uint16_t)AUDIO_CLIP_MAX * SELF_CHECK_FAULT_AUDIO_LANGUAGE_COUNT)
+#define SELF_CHECK_FAULT_AUDIO_MIN_MUSIC_NUM          1U
 
 #define SELF_CHECK_FAULT_CPR_MASK                     (SELF_CHECK_FAULT_CPR_ACC_INIT | SELF_CHECK_FAULT_CPR_RTC)
 #define SELF_CHECK_FAULT_POWER_MASK                   (SELF_CHECK_FAULT_POWER_3V3_HIGH | \
@@ -96,8 +94,8 @@ static bool selfCheckFaultIsRtcReady(void);
 static bool selfCheckFaultReadRtcCounter(uint32_t *counter);
 static bool selfCheckFaultIsRtcTimeValid(void);
 static void selfCheckFaultCaptureBootRtcTime(void);
-static bool selfCheckFaultIsHighVoltageFault(uint16_t voltageMv, bool active, uint16_t setMv, uint16_t clearMv);
-static bool selfCheckFaultIsLowVoltageFault(uint16_t voltageMv, bool active, uint16_t setMv, uint16_t clearMv);
+static bool selfCheckFaultIsHighVoltageFault(uint16_t voltage10Mv, bool active, uint16_t set10Mv, uint16_t clear10Mv);
+static bool selfCheckFaultIsLowVoltageFault(uint16_t voltage10Mv, bool active, uint16_t set10Mv, uint16_t clear10Mv);
 static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void);
 
 static stSelfCheckFaultPayload selfCheckFaultSanitizePayload(const stSelfCheckFaultPayload *payload)
@@ -328,14 +326,14 @@ static void selfCheckFaultCaptureBootRtcTime(void)
     repRtosExitCritical();
 }
 
-static bool selfCheckFaultIsHighVoltageFault(uint16_t voltageMv, bool active, uint16_t setMv, uint16_t clearMv)
+static bool selfCheckFaultIsHighVoltageFault(uint16_t voltage10Mv, bool active, uint16_t set10Mv, uint16_t clear10Mv)
 {
-    return active ? (voltageMv >= clearMv) : (voltageMv > setMv);
+    return active ? (voltage10Mv >= clear10Mv) : (voltage10Mv > set10Mv);
 }
 
-static bool selfCheckFaultIsLowVoltageFault(uint16_t voltageMv, bool active, uint16_t setMv, uint16_t clearMv)
+static bool selfCheckFaultIsLowVoltageFault(uint16_t voltage10Mv, bool active, uint16_t set10Mv, uint16_t clear10Mv)
 {
-    return active ? (voltageMv <= clearMv) : (voltageMv < setMv);
+    return active ? (voltage10Mv <= clear10Mv) : (voltage10Mv < set10Mv);
 }
 
 static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
@@ -344,7 +342,6 @@ static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
     stSensorInitStatus lSensorStatus;
     const PowerManager *lPowerManager;
     const stAudioStatus *lAudioStatus;
-    stWt2003hxInfo lAudioInfo;
     const eWirelessState *lWirelessState;
     const stSelfCheckSummary *lSelfCheckSummary;
 
@@ -370,8 +367,8 @@ static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
         if (selfCheckFaultUpdateDebounce(&gSelfCheckFault3v3HighDebounce,
                                          selfCheckFaultIsHighVoltageFault(lPowerManager->voltage.v3v3Mv,
                                                                          gSelfCheckFault3v3HighDebounce.active,
-                                                                         SELF_CHECK_FAULT_3V3_HIGH_SET_MV,
-                                                                         SELF_CHECK_FAULT_3V3_HIGH_CLEAR_MV),
+                                                                         SELF_CHECK_FAULT_3V3_HIGH_SET_10MV,
+                                                                         SELF_CHECK_FAULT_3V3_HIGH_CLEAR_10MV),
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_SET,
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_CLEAR)) {
             lFaults.power |= SELF_CHECK_FAULT_POWER_3V3_HIGH;
@@ -379,8 +376,8 @@ static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
         if (selfCheckFaultUpdateDebounce(&gSelfCheckFault3v3LowDebounce,
                                          selfCheckFaultIsLowVoltageFault(lPowerManager->voltage.v3v3Mv,
                                                                         gSelfCheckFault3v3LowDebounce.active,
-                                                                        SELF_CHECK_FAULT_3V3_LOW_SET_MV,
-                                                                        SELF_CHECK_FAULT_3V3_LOW_CLEAR_MV),
+                                                                        SELF_CHECK_FAULT_3V3_LOW_SET_10MV,
+                                                                        SELF_CHECK_FAULT_3V3_LOW_CLEAR_10MV),
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_SET,
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_CLEAR)) {
             lFaults.power |= SELF_CHECK_FAULT_POWER_3V3_LOW;
@@ -388,8 +385,8 @@ static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
         if (selfCheckFaultUpdateDebounce(&gSelfCheckFault5vHighDebounce,
                                          selfCheckFaultIsHighVoltageFault(lPowerManager->voltage.v5v0Mv,
                                                                          gSelfCheckFault5vHighDebounce.active,
-                                                                         SELF_CHECK_FAULT_5V_HIGH_SET_MV,
-                                                                         SELF_CHECK_FAULT_5V_HIGH_CLEAR_MV),
+                                                                         SELF_CHECK_FAULT_5V_HIGH_SET_10MV,
+                                                                         SELF_CHECK_FAULT_5V_HIGH_CLEAR_10MV),
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_SET,
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_CLEAR)) {
             lFaults.power |= SELF_CHECK_FAULT_POWER_5V_HIGH;
@@ -397,8 +394,8 @@ static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
         if (selfCheckFaultUpdateDebounce(&gSelfCheckFault5vLowDebounce,
                                          selfCheckFaultIsLowVoltageFault(lPowerManager->voltage.v5v0Mv,
                                                                         gSelfCheckFault5vLowDebounce.active,
-                                                                        SELF_CHECK_FAULT_5V_LOW_SET_MV,
-                                                                        SELF_CHECK_FAULT_5V_LOW_CLEAR_MV),
+                                                                        SELF_CHECK_FAULT_5V_LOW_SET_10MV,
+                                                                        SELF_CHECK_FAULT_5V_LOW_CLEAR_10MV),
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_SET,
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_CLEAR)) {
             lFaults.power |= SELF_CHECK_FAULT_POWER_5V_LOW;
@@ -406,8 +403,8 @@ static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
         if (selfCheckFaultUpdateDebounce(&gSelfCheckFaultDcHighDebounce,
                                          selfCheckFaultIsHighVoltageFault(lPowerManager->voltage.dcMv,
                                                                          gSelfCheckFaultDcHighDebounce.active,
-                                                                         SELF_CHECK_FAULT_DC_HIGH_SET_MV,
-                                                                         SELF_CHECK_FAULT_DC_HIGH_CLEAR_MV),
+                                                                         SELF_CHECK_FAULT_DC_HIGH_SET_10MV,
+                                                                         SELF_CHECK_FAULT_DC_HIGH_CLEAR_10MV),
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_SET,
                                          SELF_CHECK_FAULT_DEBOUNCE_STABLE_CLEAR)) {
             lFaults.power |= SELF_CHECK_FAULT_POWER_DC_HIGH;
@@ -418,17 +415,17 @@ static stSelfCheckFaultPayload selfCheckFaultCollectAutoFaults(void)
     if (selfCheckFaultUpdateDebounce(&gSelfCheckFaultAudioCommDebounce,
                                      (lAudioStatus == NULL) ||
                                      (lAudioStatus->state == AUDIO_STATE_FAULT) ||
-                                     !lAudioStatus->moduleReady,
+                                     !lAudioStatus->commResponded,
                                      SELF_CHECK_FAULT_DEBOUNCE_STABLE_SET,
                                      SELF_CHECK_FAULT_DEBOUNCE_STABLE_CLEAR)) {
         lFaults.audio |= SELF_CHECK_FAULT_AUDIO_COMM;
     }
     if ((lAudioStatus != NULL) &&
+        (lAudioStatus->state == AUDIO_STATE_READY) &&
         lAudioStatus->moduleReady &&
-        wt2003hxPortGetInfo(&lAudioInfo) &&
-        (lAudioInfo.lastReplyCmd == WT2003HX_CMD_CHECK_MUSIC_NUM) &&
+        lAudioStatus->musicNumValid &&
         selfCheckFaultUpdateDebounce(&gSelfCheckFaultAudioMusicDebounce,
-                                     lAudioInfo.musicNum < SELF_CHECK_FAULT_AUDIO_EXPECTED_MUSIC_NUM,
+                                     lAudioStatus->musicNum < SELF_CHECK_FAULT_AUDIO_MIN_MUSIC_NUM,
                                      SELF_CHECK_FAULT_DEBOUNCE_FAST_SET,
                                      SELF_CHECK_FAULT_DEBOUNCE_DEFAULT_CLEAR)) {
         lFaults.audio |= SELF_CHECK_FAULT_AUDIO_MUSIC_NUM;

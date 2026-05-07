@@ -352,7 +352,7 @@ bool wirelessLoadStorageConfig(void)
         }
         if (!lFallbackLogged) {
             lFallbackLogged = true;
-            LOG_W(WIRELESS_LOG_TAG, "memory not ready, use default net cfg");
+            LOG_I(WIRELESS_LOG_TAG, "memory not ready, defer persistent net cfg load");
         }
         return true;
     }

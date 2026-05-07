@@ -19,7 +19,10 @@
 extern "C" {
 #endif
 
-#define POWER_CHARGE_THRESHOLD_MV              4500U
+#define POWER_VOLTAGE_UNIT_MV                  10U
+#define POWER_VOLTAGE_TO_10MV(valueMv)         ((uint16_t)((valueMv) / POWER_VOLTAGE_UNIT_MV))
+
+#define POWER_CHARGE_THRESHOLD_10MV            POWER_VOLTAGE_TO_10MV(4500U)
 #define POWER_BATTERY_LOW_LEVEL_MAX            2U
 #define POWER_BATTERY_FULL_LEVEL               5U
 #define POWER_LED_BLINK_HALF_PERIOD_MS         500U
@@ -50,7 +53,7 @@ typedef struct PowerRaw {
     uint16_t v3v3;
 } PowerRaw;
 
-typedef struct PowerVoltage { // 10MV unit
+typedef struct PowerVoltage { /* 10mV unit */
     uint16_t batteryMv;
     uint16_t dcMv;
     uint16_t v5v0Mv;

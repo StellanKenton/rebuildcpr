@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 #define SELF_CHECK_FAULT_PROCESS_INTERVAL_MS          100U
-#define SELF_CHECK_FAULT_STARTUP_DURATION_MS          12000U
+#define SELF_CHECK_FAULT_STARTUP_DURATION_MS          5000U
 #define SELF_CHECK_FAULT_PAYLOAD_LEN                  5U
 
 #define SELF_CHECK_FAULT_MODULE_PASS                  0x01U

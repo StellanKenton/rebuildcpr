@@ -19,14 +19,18 @@
 #include "../../../rep/service/rtos/rtos.h"
 
 #define AUDIO_LOG_TAG "audio"
-#define AUDIO_INIT_QUERY_TIMEOUT_MS 250U
+#define AUDIO_INIT_QUERY_TIMEOUT_MS 1000U
+#define AUDIO_INIT_QUERY_RETRY_DELAY_MS 120U
 
 static stAudioStatus gAudioStatus = {
     .state = AUDIO_STATE_UNINIT,
     .language = AUDIO_DEFAULT_LANGUAGE,
     .volumeLevel = AUDIO_DEFAULT_VOLUME_LEVEL,
     .metronomeFreq = AUDIO_DEFAULT_METRONOME_FREQ,
+    .musicNum = 0U,
     .moduleReady = false,
+    .commResponded = false,
+    .musicNumValid = false,
 };
 static eAudioClip gAudioNoticeQueue[AUDIO_NOTICE_QUEUE_SIZE];
 static eAudioClip gAudioDidiQueue[AUDIO_DIDI_QUEUE_SIZE];
@@ -56,7 +60,13 @@ static eAudioLanguage audioNormalizeLanguage(uint8_t language);
 static uint8_t audioNormalizeVolumeLevel(uint8_t volumeLevel);
 static uint8_t audioNormalizeMetronomeFreq(uint8_t freq);
 static uint32_t audioGetTickMs(void);
-static bool audioSendAndWait(uint8_t cmd, eDrvStatus (*sendFunc)(void), uint32_t timeoutMs);
+static bool audioSendAndWait(uint8_t cmd, eDrvStatus (*sendFunc)(void), uint32_t timeoutMs, bool logTimeout);
+static bool audioInitQueryVersion(void);
+static bool audioInitQueryMusicNum(void);
+static void audioLogVersionFromInfo(void);
+static void audioUpdateCommStatusFromInfo(void);
+static void audioUpdateMusicNumFromInfo(void);
+static eDrvStatus audioQueryVersion(void);
 static eDrvStatus audioQueryMusicNum(void);
 static eDrvStatus audioSetSingleMode(void);
 static eDrvStatus audioSetDacMode(void);
@@ -86,11 +96,15 @@ bool audioInit(void)
     }
 
     gAudioStatus.moduleReady = true;
+    gAudioStatus.commResponded = false;
+    gAudioStatus.musicNum = 0U;
+    gAudioStatus.musicNumValid = false;
     gAudioStatus.language = audioNormalizeLanguage(protcolMgrGetLanguageSetting());
     gAudioStatus.volumeLevel = audioNormalizeVolumeLevel(protcolMgrGetVolumeSetting());
     gAudioStatus.metronomeFreq = audioNormalizeMetronomeFreq(protcolMgrGetMetronomeFreq());
 
-    (void)audioSendAndWait(WT2003HX_CMD_CHECK_MUSIC_NUM, audioQueryMusicNum, AUDIO_INIT_QUERY_TIMEOUT_MS);
+    (void)audioInitQueryVersion();
+    (void)audioInitQueryMusicNum();
     (void)audioSetSingleMode();
     (void)audioSetDacMode();
     lVolume = audioMapVolume(gAudioStatus.volumeLevel);
@@ -114,6 +128,8 @@ void audioProcess(void)
     }
 
     (void)wt2003hxPortProcess();
+    audioUpdateCommStatusFromInfo();
+    audioUpdateMusicNumFromInfo();
     audioUpdateSettings();
     audioQueryStatePeriodically();
     audioServiceMetronome();
@@ -241,7 +257,7 @@ static uint32_t audioGetTickMs(void)
     return repRtosGetTickMs();
 }
 
-static bool audioSendAndWait(uint8_t cmd, eDrvStatus (*sendFunc)(void), uint32_t timeoutMs)
+static bool audioSendAndWait(uint8_t cmd, eDrvStatus (*sendFunc)(void), uint32_t timeoutMs, bool logTimeout)
 {
     uint32_t lStartTick;
     stWt2003hxInfo lInfo;
@@ -263,11 +279,96 @@ static bool audioSendAndWait(uint8_t cmd, eDrvStatus (*sendFunc)(void), uint32_t
         (void)repRtosDelayMs(20U);
     }
 
-    LOG_W(AUDIO_LOG_TAG,
-          "init query timeout cmd=0x%02X elapsed=%lu",
-          (unsigned int)cmd,
-          (unsigned long)(audioGetTickMs() - lStartTick));
+    if (logTimeout) {
+        LOG_W(AUDIO_LOG_TAG,
+              "init query timeout cmd=0x%02X elapsed=%lu",
+              (unsigned int)cmd,
+              (unsigned long)(audioGetTickMs() - lStartTick));
+    }
     return false;
+}
+
+static bool audioInitQueryMusicNum(void)
+{
+    if (audioSendAndWait(WT2003HX_CMD_CHECK_MUSIC_NUM, audioQueryMusicNum, AUDIO_INIT_QUERY_TIMEOUT_MS, false)) {
+        audioUpdateMusicNumFromInfo();
+        return true;
+    }
+
+    (void)repRtosDelayMs(AUDIO_INIT_QUERY_RETRY_DELAY_MS);
+    if (audioSendAndWait(WT2003HX_CMD_CHECK_MUSIC_NUM, audioQueryMusicNum, AUDIO_INIT_QUERY_TIMEOUT_MS, false)) {
+        audioUpdateMusicNumFromInfo();
+        LOG_I(AUDIO_LOG_TAG,
+              "init query cmd=0x%02X recovered after retry",
+              (unsigned int)WT2003HX_CMD_CHECK_MUSIC_NUM);
+        return true;
+    }
+
+    LOG_I(AUDIO_LOG_TAG,
+          "music num query pending, continue init");
+    return false;
+}
+
+static bool audioInitQueryVersion(void)
+{
+    if (audioSendAndWait(WT2003HX_CMD_CHECK_VERSION, audioQueryVersion, AUDIO_INIT_QUERY_TIMEOUT_MS, true)) {
+        audioLogVersionFromInfo();
+        return true;
+    }
+
+    return false;
+}
+
+static void audioLogVersionFromInfo(void)
+{
+    char lVersionText[WT2003HX_VERSION_MAX_LEN + 1U];
+    stWt2003hxInfo lInfo;
+
+    if (!wt2003hxPortGetInfo(&lInfo) ||
+        (lInfo.lastReplyCmd != WT2003HX_CMD_CHECK_VERSION) ||
+        (lInfo.versionLen == 0U)) {
+        return;
+    }
+
+    (void)memset(lVersionText, 0, sizeof(lVersionText));
+    (void)memcpy(lVersionText, lInfo.version, lInfo.versionLen);
+    LOG_I(AUDIO_LOG_TAG,
+          "version len=%u text=%s",
+          (unsigned int)lInfo.versionLen,
+          lVersionText);
+}
+
+static void audioUpdateCommStatusFromInfo(void)
+{
+    stWt2003hxInfo lInfo;
+
+    if (!wt2003hxPortGetInfo(&lInfo)) {
+        return;
+    }
+
+    if ((lInfo.lastReplyCmd != 0U) || (lInfo.lastReplyTick != 0U)) {
+        gAudioStatus.commResponded = true;
+    }
+}
+
+static void audioUpdateMusicNumFromInfo(void)
+{
+    stWt2003hxInfo lInfo;
+
+    if (!wt2003hxPortGetInfo(&lInfo) || (lInfo.lastReplyCmd != WT2003HX_CMD_CHECK_MUSIC_NUM)) {
+        return;
+    }
+
+    if ((!gAudioStatus.musicNumValid) || (gAudioStatus.musicNum != lInfo.musicNum)) {
+        gAudioStatus.musicNum = lInfo.musicNum;
+        gAudioStatus.musicNumValid = true;
+        LOG_I(AUDIO_LOG_TAG, "music num=%u", (unsigned int)gAudioStatus.musicNum);
+    }
+}
+
+static eDrvStatus audioQueryVersion(void)
+{
+    return wt2003hxPortQuery(WT2003HX_CMD_CHECK_VERSION);
 }
 
 static eDrvStatus audioQueryMusicNum(void)
@@ -394,7 +495,7 @@ static void audioServiceLowBattery(void)
         (void)audioEnqueueNotice(AUDIO_CLIP_LOW_BATTERY);
     }
 
-    if ((lPower->BatLevel == 0U) && (lPower->voltage.dcMv <= 100U)) {
+    if ((lPower->BatLevel == 0U) && (lPower->voltage.dcMv <= POWER_VOLTAGE_TO_10MV(100U))) {
         if (gAudioBatteryDeadStartTick == 0U) {
             gAudioBatteryDeadStartTick = lNowTick;
             (void)audioEnqueueNotice(AUDIO_CLIP_BATTERY_DEAD);
@@ -445,6 +546,11 @@ static void audioQueryStatePeriodically(void)
     }
 
     gAudioNextStateQueryTick = lNowTick + AUDIO_STATE_QUERY_MS;
+    if (!gAudioStatus.musicNumValid) {
+        (void)audioQueryMusicNum();
+        return;
+    }
+
     (void)wt2003hxPortQuery(WT2003HX_CMD_CHECK_STATE);
 }
 

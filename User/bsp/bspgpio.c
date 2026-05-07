@@ -33,7 +33,7 @@ static const stBspGpioMap gBspGpioMap[DRVGPIO_MAX] = {
         .gpioPort = RESET_WIFI_GPIO_Port,
         .gpioPin = RESET_WIFI_Pin,
         .isOutput = true,
-        .defaultState = DRVGPIO_PIN_RESET,
+        .defaultState = DRVGPIO_PIN_SET,
     },
     [DRVGPIO_USB_SELECT] = {
         .gpioPort = USB_Select_GPIO_Port,

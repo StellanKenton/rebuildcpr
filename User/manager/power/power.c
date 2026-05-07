@@ -15,7 +15,7 @@
 #include "../port/pca9535_port.h"
 
 static uint16_t powerCalcVoltage(eDrvAdcPortMap channel, uint16_t rawValue);
-static uint8_t powerCalcBatteryLevel(uint16_t batteryMv);
+static uint8_t powerCalcBatteryLevel(uint16_t battery10Mv);
 static bool powerLedShouldDisplayInMode(eSystemMode mode, bool isCharging);
 static bool powerLedIsBlinkOn(void);
 
@@ -77,25 +77,25 @@ static uint16_t powerCalcVoltage(eDrvAdcPortMap channel, uint16_t rawValue)
     return (uint16_t)lVoltage;
 }
 
-static uint8_t powerCalcBatteryLevel(uint16_t batteryMv)
+static uint8_t powerCalcBatteryLevel(uint16_t battery10Mv)
 {
-    if (batteryMv >= 4100U) {
+    if (battery10Mv >= POWER_VOLTAGE_TO_10MV(4100U)) {
         return 5U;
     }
 
-    if (batteryMv >= 3950U) {
+    if (battery10Mv >= POWER_VOLTAGE_TO_10MV(3950U)) {
         return 4U;
     }
 
-    if (batteryMv >= 3820U) {
+    if (battery10Mv >= POWER_VOLTAGE_TO_10MV(3820U)) {
         return 3U;
     }
 
-    if (batteryMv >= 3700U) {
+    if (battery10Mv >= POWER_VOLTAGE_TO_10MV(3700U)) {
         return 2U;
     }
 
-    if (batteryMv >= 3550U) {
+    if (battery10Mv >= POWER_VOLTAGE_TO_10MV(3550U)) {
         return 1U;
     }
 
@@ -153,7 +153,7 @@ void powerBatteryUpdate(void)
         return;
     }
 
-    if ((lNewLevel > gPowerManager.BatLevel) && (gPowerManager.voltage.dcMv > 4500U)) {
+    if ((lNewLevel > gPowerManager.BatLevel) && (gPowerManager.voltage.dcMv > POWER_CHARGE_THRESHOLD_10MV)) {
         gPowerManager.BatLevel = lNewLevel;
     }
 }
@@ -168,7 +168,7 @@ void powerLedProcess(void)
     eSystemMode lMode = systemGetMode();
     uint16_t lDcMv = gPowerManager.voltage.dcMv;
     uint8_t lBatteryLevel = powerBatteryGet();
-    bool lIsCharging = lDcMv > POWER_CHARGE_THRESHOLD_MV;
+    bool lIsCharging = lDcMv > POWER_CHARGE_THRESHOLD_10MV;
     bool lIsRedOn = false;
     bool lIsGreenOn = false;
 

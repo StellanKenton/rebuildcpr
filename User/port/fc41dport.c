@@ -93,6 +93,8 @@ void fc41dLoadPlatformDefaultCfg(eFc41dMapType device, stFc41dCfg *cfg)
     (void)memset(cfg, 0, sizeof(*cfg));
     cfg->linkId = DRVUART_WIFI;
     cfg->resetPin = DRVGPIO_RESET_WIFI;
+    cfg->readyTimeoutMs = 4500U;
+    cfg->readySettleMs = 300U;
 }
 
 const stFc41dTransportInterface *fc41dGetPlatformTransportInterface(const stFc41dCfg *cfg)

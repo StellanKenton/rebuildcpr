@@ -45,6 +45,7 @@ static const stVfsLittlefsBlockDeviceOps gVfsLittlefsPortBlockOps = {
 
 static stVfsLittlefsContext gVfsLittlefsPortContext;
 static bool gVfsLittlefsPortRegistered = false;
+static bool gVfsLittlefsPortReady = false;
 
 static bool vfsLittlefsPortBlockInit(void *deviceContext)
 {
@@ -122,8 +123,9 @@ bool vfsLittlefsPortInit(void)
     stVfsMountCfg lMountCfg;
     const stGd25qxxxInfo *lInfo;
     uint32_t lRegionSize;
+    const stVfsStatus *lVfsStatus;
 
-    if (gVfsLittlefsPortRegistered) {
+    if (gVfsLittlefsPortReady) {
         return true;
     }
 
@@ -164,10 +166,25 @@ bool vfsLittlefsPortInit(void)
     lMountCfg.isAutoMount = true;
     lMountCfg.isReadOnly = false;
     if (!vfsRegisterMount(&lMountCfg)) {
+        lVfsStatus = vfsGetStatus();
+        if ((lVfsStatus != NULL) && (lVfsStatus->lastError == eVFS_ALREADY_EXISTS)) {
+            if (gVfsLittlefsPortReady && vfsIsMounted(VFS_LITTLEFS_PORT_MOUNT_PATH)) {
+                gVfsLittlefsPortRegistered = true;
+                LOG_I(VFS_LITTLEFS_PORT_LOG_TAG,
+                      "littlefs mount %s reused offset=0x%08lX size=0x%08lX",
+                      VFS_LITTLEFS_PORT_MOUNT_PATH,
+                      (unsigned long)VFS_LITTLEFS_PORT_REGION_OFFSET,
+                      (unsigned long)lRegionSize);
+                return true;
+            }
+
+            return false;
+        }
         LOG_E(VFS_LITTLEFS_PORT_LOG_TAG, "mount register fail err=%u", (unsigned)vfsGetStatus()->lastError);
         return false;
     }
 
+    gVfsLittlefsPortReady = true;
     LOG_I(VFS_LITTLEFS_PORT_LOG_TAG,
           "littlefs mount %s ready offset=0x%08lX size=0x%08lX",
           VFS_LITTLEFS_PORT_MOUNT_PATH,
@@ -175,6 +192,11 @@ bool vfsLittlefsPortInit(void)
           (unsigned long)lRegionSize);
     gVfsLittlefsPortRegistered = true;
     return true;
+}
+
+bool vfsLittlefsPortIsReady(void)
+{
+    return gVfsLittlefsPortReady && vfsIsMounted(VFS_LITTLEFS_PORT_MOUNT_PATH);
 }
 
 /**************************End of file********************************/

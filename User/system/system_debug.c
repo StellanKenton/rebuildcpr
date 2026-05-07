@@ -24,6 +24,7 @@
 #include "../../rep/service/log/log.h"
 #include "../../rep/module/lis2hh12/lis2hh12.h"
 #include "../manager/memory/memory_debug.h"
+#include "../manager/power/power.h"
 #include "../manager/sensor/sensor.h"
 #include "../manager/wireless/wireless.h"
 #include "../port/drvadc_port.h"
@@ -63,6 +64,7 @@ static eConsoleCommandResult systemDebugConsoleStatusHandler(uint32_t transport,
 static eConsoleCommandResult systemDebugConsoleRebootHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleWirelessHandler(uint32_t transport, int argc, char *argv[]);
 static eConsoleCommandResult systemDebugConsoleSensorHandler(uint32_t transport, int argc, char *argv[]);
+static eConsoleCommandResult systemDebugConsolePowerDebugHandler(uint32_t transport, int argc, char *argv[]);
 static bool gSystemDebugBackgroundServicesReady = false;
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
@@ -105,6 +107,13 @@ static const stConsoleCommand gSystemSensorConsoleCommand = {
     .helpText = "sensor - read accelerometer x/y/z and force ADC raw values",
     .ownerTag = "sensor",
     .handler = systemDebugConsoleSensorHandler,
+};
+
+static const stConsoleCommand gSystemPowerDebugConsoleCommand = {
+    .commandName = "powerdebug",
+    .helpText = "powerdebug - show current power real voltages in 10mV",
+    .ownerTag = "power",
+    .handler = systemDebugConsolePowerDebugHandler,
 };
 
 #if (SYSTEM_DEBUG_CONSOLE_SUPPORT == 1) && (REP_RTOS_SYSTEM == REP_RTOS_FREERTOS)
@@ -602,6 +611,37 @@ static eConsoleCommandResult systemDebugConsoleSensorHandler(uint32_t transport,
     return CONSOLE_COMMAND_RESULT_OK;
 }
 
+static eConsoleCommandResult systemDebugConsolePowerDebugHandler(uint32_t transport, int argc, char *argv[])
+{
+    const PowerManager *lPowerManager;
+
+    (void)argv;
+
+    if (argc != 1) {
+        return CONSOLE_COMMAND_RESULT_INVALID_ARGUMENT;
+    }
+
+    lPowerManager = powerGetManager();
+    if (lPowerManager == NULL) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    if (consoleReply(transport,
+        "power real voltage(10mV): bat=%u dc=%u 5v0=%u 3v3=%u",
+        (unsigned int)lPowerManager->voltage.batteryMv,
+        (unsigned int)lPowerManager->voltage.dcMv,
+        (unsigned int)lPowerManager->voltage.v5v0Mv,
+        (unsigned int)lPowerManager->voltage.v3v3Mv) <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    if (consoleReply(transport, "OK") <= 0) {
+        return CONSOLE_COMMAND_RESULT_ERROR;
+    }
+
+    return CONSOLE_COMMAND_RESULT_OK;
+}
+
 bool systemDebugBackgroundServicesInit(void)
 {
     if (gSystemDebugBackgroundServicesReady) {
@@ -677,6 +717,10 @@ bool systemDebugConsoleRegister(void)
         return false;
     }
 
+    if (!logRegisterConsole(&gSystemPowerDebugConsoleCommand)) {
+        return false;
+    }
+
     if (!memoryDebugConsoleRegister()) {
         return false;
     }
@@ -707,6 +751,10 @@ bool systemDebugConsoleRegister(void)
         return false;
     }
 
+    if (!logRegisterConsole(&gSystemPowerDebugConsoleCommand)) {
+        return false;
+    }
+
     if (!memoryDebugConsoleRegister()) {
         return false;
     }
@@ -717,4 +765,3 @@ bool systemDebugConsoleRegister(void)
 #endif
 }
 /**************************End of file********************************/
-

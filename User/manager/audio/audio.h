@@ -62,7 +62,10 @@ typedef struct stAudioStatus {
     eAudioLanguage language;
     uint8_t volumeLevel;
     uint8_t metronomeFreq;
+    uint16_t musicNum;
     bool moduleReady;
+    bool commResponded;
+    bool musicNumValid;
 } stAudioStatus;
 
 bool audioInit(void);
