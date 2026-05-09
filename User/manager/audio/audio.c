@@ -11,6 +11,7 @@
 
 #include <string.h>
 
+#include "main.h"
 #include "../memory/memory.h"
 #include "../../port/wt2003hx_port.h"
 #include "../cpralg/cpralgmgr.h"
@@ -23,6 +24,7 @@
 #define AUDIO_INIT_QUERY_TIMEOUT_MS 1000U
 #define AUDIO_INIT_QUERY_RETRY_DELAY_MS 120U
 #define AUDIO_METRONOME_HOLD_MS 3000U
+#define AUDIO_DIDI_PLAY_MS 250U
 
 static const char gAudioSettingLanguagePath[] = "/setting/language";
 static const char gAudioSettingVolumePath[] = "/setting/volume";
@@ -51,9 +53,9 @@ static uint32_t gAudioLastMetronomeTick;
 static uint32_t gAudioBatteryDeadStartTick;
 static uint32_t gAudioNextStateQueryTick;
 static uint32_t gAudioNextPlayTick;
+static uint32_t gAudioPlayingStartTick;
 static bool gAudioPlaybackActive;
 static eAudioClip gAudioPlayingClip = AUDIO_CLIP_MAX;
-static bool gAudioNoticeStopPending;
 static bool gAudioWaitMemoryLogged;
 static bool gAudioWaitVolumeLogged;
 static eSystemMode gAudioLastSystemMode;
@@ -95,6 +97,7 @@ static eDrvStatus audioSetSingleMode(void);
 static eDrvStatus audioSetDacMode(void);
 static bool audioBuildFileName(eAudioClip clip, uint8_t *name);
 static bool audioHasPendingPlayback(void);
+static bool audioIsDidiPlayWindowActive(uint32_t nowTick);
 static bool audioIsNonDidiPlaybackBusy(void);
 static bool audioCanPlayDidiNow(void);
 static bool audioPlayClip(eAudioClip clip);
@@ -104,6 +107,7 @@ static void audioServiceCprNotice(void);
 static void audioServiceLowBattery(void);
 static void audioServicePlayback(void);
 static void audioQueryStatePeriodically(void);
+static void audioDebugToggleDidiPin(void);
 
 bool audioInit(void)
 {
@@ -160,9 +164,9 @@ bool audioInit(void)
     gAudioSystemModeValid = true;
     gAudioBatLevelValid = false;
     gAudioLastMetronomeTick = 0U;
+    gAudioPlayingStartTick = 0U;
     gAudioPlaybackActive = false;
     gAudioPlayingClip = AUDIO_CLIP_MAX;
-    gAudioNoticeStopPending = false;
 
     gAudioStatus.state = AUDIO_STATE_READY;
     LOG_I(AUDIO_LOG_TAG,
@@ -616,11 +620,22 @@ static bool audioHasPendingPlayback(void)
     return gAudioPlaybackActive || (gAudioNoticeUsed > 0U) || (gAudioDidiUsed > 0U);
 }
 
+static bool audioIsDidiPlayWindowActive(uint32_t nowTick)
+{
+    return (gAudioPlayingClip == AUDIO_CLIP_DIDI) &&
+           ((uint32_t)(nowTick - gAudioPlayingStartTick) < AUDIO_DIDI_PLAY_MS);
+}
+
 static bool audioIsNonDidiPlaybackBusy(void)
 {
     stWt2003hxInfo lInfo;
+    uint32_t lNowTick = audioGetTickMs();
 
     if (!wt2003hxPortGetInfo(&lInfo)) {
+        return false;
+    }
+
+    if (audioIsDidiPlayWindowActive(lNowTick)) {
         return false;
     }
 
@@ -663,7 +678,8 @@ static bool audioPlayClip(eAudioClip clip)
     lNowTick = audioGetTickMs();
     gAudioPlaybackActive = true;
     gAudioPlayingClip = clip;
-    gAudioNextStateQueryTick = lNowTick;
+    gAudioPlayingStartTick = lNowTick;
+    gAudioNextStateQueryTick = (clip == AUDIO_CLIP_DIDI) ? (lNowTick + AUDIO_DIDI_PLAY_MS) : lNowTick;
     gAudioNextPlayTick = lNowTick + AUDIO_PLAY_COOLDOWN_MS;
     LOG_I(AUDIO_LOG_TAG, "play clip=%u", (unsigned int)clip);
     return true;
@@ -684,6 +700,11 @@ static void audioServiceSystemMode(void)
     }
 
     gAudioLastSystemMode = lCurrentMode;
+}
+
+static void audioDebugToggleDidiPin(void)
+{
+    HAL_GPIO_TogglePin(DEBUG_DIDI_GPIO_Port, DEBUG_DIDI_Pin);
 }
 
 static void audioServiceMetronome(void)
@@ -723,6 +744,8 @@ static void audioServiceMetronome(void)
         do {
             gAudioLastMetronomeTick += lPeriodMs;
         } while ((uint32_t)(lNowTick - gAudioLastMetronomeTick) >= lPeriodMs);
+
+        audioDebugToggleDidiPin();
         if (!audioEnqueueDidi()) {
             audioDidiClear();
         }
@@ -812,23 +835,20 @@ static void audioServicePlayback(void)
         return;
     }
 
-    lModuleBusy = gAudioPlaybackActive || (lInfo.playState == WT2003HX_PLAY_STATE_PLAY);
+    if ((gAudioPlayingClip == AUDIO_CLIP_DIDI) && !audioIsDidiPlayWindowActive(lNowTick)) {
+        gAudioPlaybackActive = false;
+    }
+
+    lModuleBusy = gAudioPlaybackActive ||
+                  ((lInfo.playState == WT2003HX_PLAY_STATE_PLAY) &&
+                   ((gAudioPlayingClip != AUDIO_CLIP_DIDI) || audioIsDidiPlayWindowActive(lNowTick)));
     lNonDidiBusy = lModuleBusy && (gAudioPlayingClip != AUDIO_CLIP_DIDI);
 
     if (audioNoticePeek(&lClip)) {
-        if (lNonDidiBusy) {
+        if (lModuleBusy) {
             return;
         }
 
-        if (lModuleBusy && (gAudioPlayingClip == AUDIO_CLIP_DIDI)) {
-            if (!gAudioNoticeStopPending && (wt2003hxPortStop() == DRV_STATUS_OK)) {
-                gAudioNoticeStopPending = true;
-                gAudioNextStateQueryTick = lNowTick;
-            }
-            return;
-        }
-
-        gAudioNoticeStopPending = false;
         (void)audioNoticePop(&lClip);
         (void)audioPlayClip(lClip);
         audioDidiClear();
@@ -853,10 +873,24 @@ static void audioQueryStatePeriodically(void)
     uint32_t lQueryIntervalMs = audioHasPendingPlayback() ? AUDIO_STATE_QUERY_ACTIVE_MS : AUDIO_STATE_QUERY_IDLE_MS;
     uint32_t lNowTick = audioGetTickMs();
 
+    if (gAudioPlaybackActive && (gAudioPlayingClip == AUDIO_CLIP_DIDI)) {
+        if (audioIsDidiPlayWindowActive(lNowTick)) {
+            return;
+        }
+
+        gAudioPlaybackActive = false;
+        lQueryIntervalMs = audioHasPendingPlayback() ? AUDIO_STATE_QUERY_ACTIVE_MS : AUDIO_STATE_QUERY_IDLE_MS;
+    }
+
     if (wt2003hxPortGetInfo(&lInfo) && gAudioPlaybackActive && (lInfo.playState != WT2003HX_PLAY_STATE_PLAY) &&
         (lInfo.playState != WT2003HX_PLAY_STATE_UNKNOWN)) {
         gAudioPlaybackActive = false;
-        gAudioPlayingClip = AUDIO_CLIP_MAX;
+        /*
+         * Keep gAudioPlayingClip as the last commanded clip. WT2003HX state
+         * replies can briefly report STOP before the physical prompt is fully
+         * idle; clearing the clip here makes that residual DIDI playback look
+         * like an unknown non-DIDI busy state and drops every other 120 BPM beat.
+         */
         lQueryIntervalMs = audioHasPendingPlayback() ? AUDIO_STATE_QUERY_ACTIVE_MS : AUDIO_STATE_QUERY_IDLE_MS;
     }
 

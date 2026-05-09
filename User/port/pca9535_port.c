@@ -22,15 +22,39 @@ typedef enum ePca9535LocalBus {
 static bool gPca9535PortReady = false;
 static uint16_t gPca9535PortShowMask = 0U;
 static bool gPca9535PortCycleCntReady = false;
+static stRepRtosMutex gPca9535PortShowMutex;
+
+static bool pca9535PortEnsureShowMutex(void)
+{
+    if (!gPca9535PortShowMutex.isCreated) {
+        if (repRtosMutexCreate(&gPca9535PortShowMutex) != REP_RTOS_STATUS_OK) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 static void pca9535PortShowLock(void)
 {
-    repRtosEnterCritical();
+    uint32_t lWaitMs = 0U;
+
+    if (!pca9535PortEnsureShowMutex()) {
+        return;
+    }
+
+    if (repRtosIsSchedulerRunning()) {
+        lWaitMs = REP_RTOS_WAIT_FOREVER;
+    }
+
+    (void)repRtosMutexTake(&gPca9535PortShowMutex, lWaitMs);
 }
 
 static void pca9535PortShowUnlock(void)
 {
-    repRtosExitCritical();
+    if (gPca9535PortShowMutex.isCreated) {
+        (void)repRtosMutexGive(&gPca9535PortShowMutex);
+    }
 }
 
 static void pca9535PortEnableCycleCnt(void)

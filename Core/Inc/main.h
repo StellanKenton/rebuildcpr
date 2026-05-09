@@ -70,6 +70,10 @@ void Error_Handler(void);
 #define RX_AUDIO_GPIO_Port GPIOA
 #define TX_AUDIO_Pin GPIO_PIN_3
 #define TX_AUDIO_GPIO_Port GPIOA
+#define DEBUG_TIME_Pin GPIO_PIN_9
+#define DEBUG_TIME_GPIO_Port GPIOA
+#define DEBUG_DIDI_Pin GPIO_PIN_10
+#define DEBUG_DIDI_GPIO_Port GPIOA
 #define SPI_CS_Pin GPIO_PIN_4
 #define SPI_CS_GPIO_Port GPIOA
 #define MCU_5V0_ADC_Pin GPIO_PIN_4

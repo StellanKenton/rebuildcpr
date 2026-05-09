@@ -166,11 +166,22 @@ static void wirelessTaskEntry(void *argument)
 static void audioTaskEntry(void *argument)
 {
 	uint32_t lLastWakeTime;
+	uint32_t lLastDebugTimeTick = 0U;
 
 	(void)argument;
 	lLastWakeTime = repRtosGetTickMs();
+	lLastDebugTimeTick = lLastWakeTime;
 
 	for (;;) {
+		uint32_t lNowTick = repRtosGetTickMs();
+
+		if ((uint32_t)(lNowTick - lLastDebugTimeTick) >= 1000U) {
+			do {
+				lLastDebugTimeTick += 1000U;
+			} while ((uint32_t)(lNowTick - lLastDebugTimeTick) >= 1000U);
+			HAL_GPIO_TogglePin(DEBUG_TIME_GPIO_Port, DEBUG_TIME_Pin);
+		}
+
 		audioProcess();
 		(void)repRtosTaskDelayUntilMs(&lLastWakeTime, AudioTaskInterval);
 	}
