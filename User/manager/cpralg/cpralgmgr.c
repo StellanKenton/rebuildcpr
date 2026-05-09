@@ -16,7 +16,7 @@
 static const char gCprAlgMgrLogTag[] = "cpralg";
 static const uint8_t gCprAlgMgrFreqDisplayMin = 40U;
 static const uint8_t gCprAlgMgrFreqDisplayMax = 160U;
-static const uint32_t gCprAlgMgrMetricDisplayMs = 1000U;
+static const uint32_t gCprAlgMgrMetricDisplayMs = 2000U;
 static const uint32_t gCprAlgMgrIntervalDisplayStartMs = 3000U;
 static const uint32_t gCprAlgMgrIntervalDisplayEndMs = 300000U;
 static bool sCprAlgMgrHasFirstPress = false;
