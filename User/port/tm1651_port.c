@@ -19,40 +19,29 @@ typedef enum eTm1651LocalBus {
 } eTm1651LocalBus;
 
 static bool gTm1651PortReady = false;
-static bool gTm1651PortCycleCntReady = false;
 
-static void tm1651PortEnableCycleCnt(void)
+static void tm1651PortDelayUsFallback(uint16_t delayUs)
 {
-    if (gTm1651PortCycleCntReady) {
-        return;
+    uint32_t lLoopCount = ((SystemCoreClock / 1000000U) + 7U) / 8U;
+    volatile uint32_t lWait;
+
+    if (lLoopCount == 0U) {
+        lLoopCount = 1U;
     }
 
-    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-    DWT->CYCCNT = 0U;
-    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-    gTm1651PortCycleCntReady = true;
+    lWait = lLoopCount * delayUs;
+    while (lWait > 0U) {
+        lWait--;
+    }
 }
 
 static void tm1651PortDelayUs(uint16_t delayUs)
 {
-    uint32_t cyclesPerUs;
-    uint32_t waitCycles;
-    uint32_t startCycles;
-
     if (delayUs == 0U) {
         return;
     }
 
-    tm1651PortEnableCycleCnt();
-    cyclesPerUs = SystemCoreClock / 1000000U;
-    if (cyclesPerUs == 0U) {
-        cyclesPerUs = 1U;
-    }
-
-    waitCycles = cyclesPerUs * delayUs;
-    startCycles = DWT->CYCCNT;
-    while ((DWT->CYCCNT - startCycles) < waitCycles) {
-    }
+    tm1651PortDelayUsFallback(delayUs);
 }
 
 static void tm1651PortDriveScl(bool releaseHigh)

@@ -18,8 +18,8 @@ extern "C" {
 #endif
 
 
-#define MemoryTaskStackSize         13U
-#define MemoryTaskPriority          8U
+#define MemoryTaskStackSize         24U
+#define MemoryTaskPriority          24U
 #define MemoryTaskInterval          100U
 
 #define PowerTaskStackSize          3U
@@ -42,7 +42,7 @@ extern "C" {
 #define AudioTaskPriority           8U
 #define AudioTaskInterval           20U
 
-#define SystemTaskStackSize         10U
+#define SystemTaskStackSize         40U
 #define SystemTaskPriority          17U
 #define SystemTaskInterval          10U
 void systemTaskEntry(void *argument);

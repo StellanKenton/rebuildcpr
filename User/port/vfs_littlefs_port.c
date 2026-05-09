@@ -10,6 +10,7 @@
 **********************************************************************************/
 #include "vfs_littlefs_port.h"
 
+#include "../../Core/Inc/iwdg.h"
 #include "../../rep/module/gd25qxxx/gd25qxxx.h"
 #include "../../rep/service/log/log.h"
 #include "../../rep/service/vfs/vfs.h"
@@ -33,7 +34,10 @@ static bool vfsLittlefsPortBlockRead(void *deviceContext, uint32_t address, void
 static bool vfsLittlefsPortBlockProg(void *deviceContext, uint32_t address, const void *buffer, uint32_t size);
 static bool vfsLittlefsPortBlockErase(void *deviceContext, uint32_t address, uint32_t size);
 static bool vfsLittlefsPortBlockSync(void *deviceContext);
+static void vfsLittlefsPortFeedWatchdog(void);
 static uint32_t vfsLittlefsPortGetRegionSize(const stGd25qxxxInfo *info);
+static bool vfsLittlefsPortFormatAfterCorrupt(stVfsMountCfg *mountCfg, uint32_t regionSize);
+static void vfsLittlefsPortLogReady(const char *state, uint32_t regionSize);
 
 static const stVfsLittlefsBlockDeviceOps gVfsLittlefsPortBlockOps = {
     .init = vfsLittlefsPortBlockInit,
@@ -62,7 +66,16 @@ static bool vfsLittlefsPortBlockRead(void *deviceContext, uint32_t address, void
 static bool vfsLittlefsPortBlockProg(void *deviceContext, uint32_t address, const void *buffer, uint32_t size)
 {
     eGd25qxxxMapType lDevice = (eGd25qxxxMapType)(uintptr_t)deviceContext;
-    return gd25qxxxWrite(lDevice, address, (const uint8_t *)buffer, size) == GD25QXXX_STATUS_OK;
+    bool lResult = gd25qxxxWrite(lDevice, address, (const uint8_t *)buffer, size) == GD25QXXX_STATUS_OK;
+    vfsLittlefsPortFeedWatchdog();
+    return lResult;
+}
+
+static void vfsLittlefsPortFeedWatchdog(void)
+{
+    if (hiwdg.Instance != NULL) {
+        (void)HAL_IWDG_Refresh(&hiwdg);
+    }
 }
 
 static bool vfsLittlefsPortBlockErase(void *deviceContext, uint32_t address, uint32_t size)
@@ -78,6 +91,7 @@ static bool vfsLittlefsPortBlockErase(void *deviceContext, uint32_t address, uin
         if (gd25qxxxEraseSector(lDevice, lAddress) != GD25QXXX_STATUS_OK) {
             return false;
         }
+        vfsLittlefsPortFeedWatchdog();
 
         lAddress += GD25QXXX_SECTOR_SIZE;
         size -= GD25QXXX_SECTOR_SIZE;
@@ -89,6 +103,7 @@ static bool vfsLittlefsPortBlockErase(void *deviceContext, uint32_t address, uin
 static bool vfsLittlefsPortBlockSync(void *deviceContext)
 {
     (void)deviceContext;
+    vfsLittlefsPortFeedWatchdog();
     return true;
 }
 
@@ -115,6 +130,40 @@ static uint32_t vfsLittlefsPortGetRegionSize(const stGd25qxxxInfo *info)
 
     lRegionSize -= (lRegionSize % VFS_LITTLEFS_PORT_BLOCK_SIZE);
     return lRegionSize;
+}
+
+static void vfsLittlefsPortLogReady(const char *state, uint32_t regionSize)
+{
+    LOG_I(VFS_LITTLEFS_PORT_LOG_TAG,
+          "littlefs mount %s %s offset=0x%08lX size=0x%08lX",
+          VFS_LITTLEFS_PORT_MOUNT_PATH,
+          state,
+          (unsigned long)VFS_LITTLEFS_PORT_REGION_OFFSET,
+          (unsigned long)regionSize);
+}
+
+static bool vfsLittlefsPortFormatAfterCorrupt(stVfsMountCfg *mountCfg, uint32_t regionSize)
+{
+    if (mountCfg == NULL) {
+        return false;
+    }
+
+    mountCfg->isAutoMount = false;
+    if (!vfsRegisterMount(mountCfg)) {
+        LOG_E(VFS_LITTLEFS_PORT_LOG_TAG, "format mount register fail err=%u", (unsigned)vfsGetStatus()->lastError);
+        return false;
+    }
+
+    LOG_I(VFS_LITTLEFS_PORT_LOG_TAG, "littlefs first boot format start");
+    if (!vfsFormat(VFS_LITTLEFS_PORT_MOUNT_PATH)) {
+        LOG_E(VFS_LITTLEFS_PORT_LOG_TAG, "littlefs first boot format fail err=%u", (unsigned)vfsGetStatus()->lastError);
+        return false;
+    }
+
+    gVfsLittlefsPortRegistered = true;
+    gVfsLittlefsPortReady = true;
+    vfsLittlefsPortLogReady("formatted", regionSize);
+    return true;
 }
 
 bool vfsLittlefsPortInit(void)
@@ -167,14 +216,35 @@ bool vfsLittlefsPortInit(void)
     lMountCfg.isReadOnly = false;
     if (!vfsRegisterMount(&lMountCfg)) {
         lVfsStatus = vfsGetStatus();
+        if ((lVfsStatus != NULL) && (lVfsStatus->lastError == eVFS_CORRUPT)) {
+            return vfsLittlefsPortFormatAfterCorrupt(&lMountCfg, lRegionSize);
+        }
+
         if ((lVfsStatus != NULL) && (lVfsStatus->lastError == eVFS_ALREADY_EXISTS)) {
-            if (gVfsLittlefsPortReady && vfsIsMounted(VFS_LITTLEFS_PORT_MOUNT_PATH)) {
+            if (vfsIsMounted(VFS_LITTLEFS_PORT_MOUNT_PATH)) {
                 gVfsLittlefsPortRegistered = true;
-                LOG_I(VFS_LITTLEFS_PORT_LOG_TAG,
-                      "littlefs mount %s reused offset=0x%08lX size=0x%08lX",
-                      VFS_LITTLEFS_PORT_MOUNT_PATH,
-                      (unsigned long)VFS_LITTLEFS_PORT_REGION_OFFSET,
-                      (unsigned long)lRegionSize);
+                gVfsLittlefsPortReady = true;
+                vfsLittlefsPortLogReady("reused", lRegionSize);
+                return true;
+            }
+
+            if (vfsMount(VFS_LITTLEFS_PORT_MOUNT_PATH)) {
+                gVfsLittlefsPortRegistered = true;
+                gVfsLittlefsPortReady = true;
+                vfsLittlefsPortLogReady("mounted", lRegionSize);
+                return true;
+            }
+
+            lVfsStatus = vfsGetStatus();
+            if ((lVfsStatus != NULL) && (lVfsStatus->lastError == eVFS_CORRUPT)) {
+                if (!vfsFormat(VFS_LITTLEFS_PORT_MOUNT_PATH)) {
+                    LOG_E(VFS_LITTLEFS_PORT_LOG_TAG, "littlefs existing mount format fail err=%u", (unsigned)vfsGetStatus()->lastError);
+                    return false;
+                }
+
+                gVfsLittlefsPortRegistered = true;
+                gVfsLittlefsPortReady = true;
+                vfsLittlefsPortLogReady("formatted", lRegionSize);
                 return true;
             }
 
@@ -185,18 +255,14 @@ bool vfsLittlefsPortInit(void)
     }
 
     gVfsLittlefsPortReady = true;
-    LOG_I(VFS_LITTLEFS_PORT_LOG_TAG,
-          "littlefs mount %s ready offset=0x%08lX size=0x%08lX",
-          VFS_LITTLEFS_PORT_MOUNT_PATH,
-          (unsigned long)VFS_LITTLEFS_PORT_REGION_OFFSET,
-          (unsigned long)lRegionSize);
+    vfsLittlefsPortLogReady("ready", lRegionSize);
     gVfsLittlefsPortRegistered = true;
     return true;
 }
 
 bool vfsLittlefsPortIsReady(void)
 {
-    return gVfsLittlefsPortReady && vfsIsMounted(VFS_LITTLEFS_PORT_MOUNT_PATH);
+    return gVfsLittlefsPortReady;
 }
 
 /**************************End of file********************************/

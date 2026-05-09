@@ -230,8 +230,8 @@ void systemTaskEntry(void *argument)
 	for (;;) {
 		systemManagerRun();         // System Manager
         /*************** Background Services **********************/
-        drvAdcBackground();         // ADC background processing
 		if ((systemGetMode() == eSYSTEM_STANDBY_MODE) || (systemGetMode() == eSYSTEM_NORMAL_MODE)) {
+			drvAdcBackground();         // ADC background processing
 			selfCheckFaultProcess100ms();
 		}
 		powerLedProcess();          // Power LED state update

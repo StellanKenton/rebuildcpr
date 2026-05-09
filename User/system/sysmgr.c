@@ -198,6 +198,7 @@ static void systemInitBsp(void)
     MX_I2C1_Init();
     MX_I2C2_Init();
     MX_IWDG_Init();
+    (void)HAL_IWDG_Refresh(&hiwdg);
     MX_RTC_Init();
     MX_SPI1_Init();
     MX_TIM3_Init();
@@ -225,6 +226,7 @@ static bool systemModuleInit(void)
     lIsReady = selfCheckInit() && lIsReady;
     selfCheckFaultInit();
     LOG_I(SYSTEM_LOG_TAG, "selfcheck init %s", lIsReady ? "ok" : "fail");
+    (void)HAL_IWDG_Refresh(&hiwdg);
 
     if (pca9535PortInit() == DRV_STATUS_OK) {
         selfCheckSetExpanderResult(true);
@@ -235,6 +237,7 @@ static bool systemModuleInit(void)
         lIsReady = false;
         LOG_E(SYSTEM_LOG_TAG, "pca9535 init fail");
     }
+    (void)HAL_IWDG_Refresh(&hiwdg);
 
     if (tm1651PortInit() == DRV_STATUS_OK) {
         selfCheckSetDisplayResult(true);
@@ -245,6 +248,7 @@ static bool systemModuleInit(void)
         lIsReady = false;
         LOG_E(SYSTEM_LOG_TAG, "tm1651 init fail");
     }
+    (void)HAL_IWDG_Refresh(&hiwdg);
 
     return lIsReady;
 }
@@ -336,7 +340,7 @@ static void systemSelfCheckMode(void)
         }
     }
 
-    if(lSelfCheckCompleted) {
+    if(lSelfCheckCompleted && memoryIsReady()) {
         systemSetMode(eSYSTEM_STANDBY_MODE);
     }
 }
