@@ -35,11 +35,11 @@ extern "C" {
 #define SensorTaskInterval          10U
 
 #define CprAlgTaskStackSize         4U
-#define CprAlgTaskPriority          6U
+#define CprAlgTaskPriority          21U
 #define CprAlgTaskInterval          50U
 
 #define AudioTaskStackSize          21U
-#define AudioTaskPriority           18U
+#define AudioTaskPriority           22U
 #define AudioTaskInterval           20U
 
 #define SystemTaskStackSize         40U

@@ -46,13 +46,13 @@ read_next:
 
 | 函数 | 调用方 | 说明 |
 | --- | --- | --- |
-| `audioInit()` | audio task | 启动时先从 `/setting/*` 读取语言/音量/节拍配置，再初始化 WT2003HX 并设置单曲/DAC/音量 |
+| `audioInit()` | audio task | 启动时等待 memory ready 且 `/setting/volume` 可读；随后从 `/setting/*` 读取语言/音量/节拍配置，再初始化 WT2003HX 并设置单曲/DAC/音量 |
 | `audioProcess()` | audio task 周期调用 | 处理串口回复、业务事件和播放队列；不再周期轮询设置文件 |
 | `audioApplyLanguageSetting()` | iotmanager | 协议收到语言设置后立即同步 audio 状态，必要时插入切换语言提示 |
 | `audioApplyVolumeSetting()` | iotmanager | 协议收到音量设置后立即同步 audio 状态，并在模块已就绪时直接下发音量 |
 | `audioApplyMetronomeSetting()` | iotmanager | 协议收到节拍设置后立即同步 audio 状态并重置节拍计时 |
-| `audioEnqueueNotice()` | 其他 manager 可选调用 | 投递普通语音提示，普通提示优先于滴声 |
-| `audioEnqueueDidi()` | 其他 manager 可选调用 | 投递节拍器滴声 |
+| `audioEnqueueNotice()` | 其他 manager 可选调用 | 投递普通语音提示，并清掉待播滴声；普通提示优先于滴声 |
+| `audioEnqueueDidi()` | 其他 manager 可选调用 | 仅在无普通提示、无普通语音播放时投递节拍器滴声；普通语音忙时本次滴声直接跳过 |
 
 ## 4. 音频资源
 

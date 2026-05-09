@@ -51,6 +51,11 @@ static uint32_t gAudioLastMetronomeTick;
 static uint32_t gAudioBatteryDeadStartTick;
 static uint32_t gAudioNextStateQueryTick;
 static uint32_t gAudioNextPlayTick;
+static bool gAudioPlaybackActive;
+static eAudioClip gAudioPlayingClip = AUDIO_CLIP_MAX;
+static bool gAudioNoticeStopPending;
+static bool gAudioWaitMemoryLogged;
+static bool gAudioWaitVolumeLogged;
 static eSystemMode gAudioLastSystemMode;
 static bool gAudioSystemModeValid;
 static uint8_t gAudioLastBatLevel;
@@ -58,9 +63,13 @@ static bool gAudioBatLevelValid;
 
 static bool audioIsValidClip(eAudioClip clip);
 static bool audioQueuePush(eAudioClip *queue, uint8_t size, uint8_t *head, uint8_t *used, eAudioClip clip);
+static bool audioQueuePeek(eAudioClip *queue, uint8_t size, uint8_t tail, uint8_t used, eAudioClip *clip);
 static bool audioQueuePop(eAudioClip *queue, uint8_t size, uint8_t *tail, uint8_t *used, eAudioClip *clip);
+static bool audioNoticePeek(eAudioClip *clip);
 static bool audioNoticePop(eAudioClip *clip);
+static bool audioDidiPeek(eAudioClip *clip);
 static bool audioDidiPop(eAudioClip *clip);
+static void audioDidiClear(void);
 static uint8_t audioMapVolume(uint8_t volumeLevel);
 static const char *audioGetLanguageCode(eAudioLanguage language);
 static uint8_t audioGetLanguagePrefix(eAudioLanguage language);
@@ -85,6 +94,9 @@ static eDrvStatus audioQueryMusicNum(void);
 static eDrvStatus audioSetSingleMode(void);
 static eDrvStatus audioSetDacMode(void);
 static bool audioBuildFileName(eAudioClip clip, uint8_t *name);
+static bool audioHasPendingPlayback(void);
+static bool audioIsNonDidiPlaybackBusy(void);
+static bool audioCanPlayDidiNow(void);
 static bool audioPlayClip(eAudioClip clip);
 static void audioServiceSystemMode(void);
 static void audioServiceMetronome(void);
@@ -96,16 +108,35 @@ static void audioQueryStatePeriodically(void);
 bool audioInit(void)
 {
     uint8_t lVolume;
+    uint8_t lSettingVolume;
     uint32_t lStartTick;
 
     if (gAudioStatus.state == AUDIO_STATE_READY) {
         return true;
     }
 
+    if (!memoryIsReady()) {
+        if (!gAudioWaitMemoryLogged) {
+            LOG_I(AUDIO_LOG_TAG, "wait memory ready before audio init");
+            gAudioWaitMemoryLogged = true;
+        }
+        return false;
+    }
+
+    if (!audioLoadSettingValue(gAudioSettingVolumePath, &lSettingVolume)) {
+        if (!gAudioWaitVolumeLogged) {
+            LOG_I(AUDIO_LOG_TAG, "wait %s before audio init", gAudioSettingVolumePath);
+            gAudioWaitVolumeLogged = true;
+        }
+        return false;
+    }
+
     gAudioStatus.language = AUDIO_DEFAULT_LANGUAGE;
     gAudioStatus.volumeLevel = AUDIO_DEFAULT_VOLUME_LEVEL;
     gAudioStatus.metronomeFreq = AUDIO_DEFAULT_METRONOME_FREQ;
     audioLoadSettings();
+    gAudioWaitMemoryLogged = false;
+    gAudioWaitVolumeLogged = false;
 
     lStartTick = audioGetTickMs();
     if (wt2003hxPortInit() != DRV_STATUS_OK) {
@@ -129,6 +160,9 @@ bool audioInit(void)
     gAudioSystemModeValid = true;
     gAudioBatLevelValid = false;
     gAudioLastMetronomeTick = 0U;
+    gAudioPlaybackActive = false;
+    gAudioPlayingClip = AUDIO_CLIP_MAX;
+    gAudioNoticeStopPending = false;
 
     gAudioStatus.state = AUDIO_STATE_READY;
     LOG_I(AUDIO_LOG_TAG,
@@ -164,11 +198,20 @@ bool audioEnqueueNotice(eAudioClip clip)
         return false;
     }
 
+    audioDidiClear();
     return audioQueuePush(gAudioNoticeQueue, AUDIO_NOTICE_QUEUE_SIZE, &gAudioNoticeHead, &gAudioNoticeUsed, clip);
 }
 
 bool audioEnqueueDidi(void)
 {
+    if (!audioCanPlayDidiNow()) {
+        return false;
+    }
+
+    if (gAudioDidiUsed > 0U) {
+        return true;
+    }
+
     return audioQueuePush(gAudioDidiQueue, AUDIO_DIDI_QUEUE_SIZE, &gAudioDidiHead, &gAudioDidiUsed, AUDIO_CLIP_DIDI);
 }
 
@@ -221,14 +264,41 @@ static bool audioQueuePop(eAudioClip *queue, uint8_t size, uint8_t *tail, uint8_
     return true;
 }
 
+static bool audioQueuePeek(eAudioClip *queue, uint8_t size, uint8_t tail, uint8_t used, eAudioClip *clip)
+{
+    if ((queue == NULL) || (clip == NULL) || (used == 0U) || (tail >= size)) {
+        return false;
+    }
+
+    *clip = queue[tail];
+    return true;
+}
+
+static bool audioNoticePeek(eAudioClip *clip)
+{
+    return audioQueuePeek(gAudioNoticeQueue, AUDIO_NOTICE_QUEUE_SIZE, gAudioNoticeTail, gAudioNoticeUsed, clip);
+}
+
 static bool audioNoticePop(eAudioClip *clip)
 {
     return audioQueuePop(gAudioNoticeQueue, AUDIO_NOTICE_QUEUE_SIZE, &gAudioNoticeTail, &gAudioNoticeUsed, clip);
 }
 
+static bool audioDidiPeek(eAudioClip *clip)
+{
+    return audioQueuePeek(gAudioDidiQueue, AUDIO_DIDI_QUEUE_SIZE, gAudioDidiTail, gAudioDidiUsed, clip);
+}
+
 static bool audioDidiPop(eAudioClip *clip)
 {
     return audioQueuePop(gAudioDidiQueue, AUDIO_DIDI_QUEUE_SIZE, &gAudioDidiTail, &gAudioDidiUsed, clip);
+}
+
+static void audioDidiClear(void)
+{
+    gAudioDidiHead = 0U;
+    gAudioDidiTail = 0U;
+    gAudioDidiUsed = 0U;
 }
 
 static uint8_t audioMapVolume(uint8_t volumeLevel)
@@ -541,6 +611,31 @@ static eDrvStatus audioSetDacMode(void)
     return wt2003hxPortSetOutputMode(WT2003HX_OUTPUT_MODE_DAC);
 }
 
+static bool audioHasPendingPlayback(void)
+{
+    return gAudioPlaybackActive || (gAudioNoticeUsed > 0U) || (gAudioDidiUsed > 0U);
+}
+
+static bool audioIsNonDidiPlaybackBusy(void)
+{
+    stWt2003hxInfo lInfo;
+
+    if (!wt2003hxPortGetInfo(&lInfo)) {
+        return false;
+    }
+
+    if (!gAudioPlaybackActive && (lInfo.playState != WT2003HX_PLAY_STATE_PLAY)) {
+        return false;
+    }
+
+    return (gAudioPlayingClip != AUDIO_CLIP_DIDI);
+}
+
+static bool audioCanPlayDidiNow(void)
+{
+    return (gAudioNoticeUsed == 0U) && !audioIsNonDidiPlaybackBusy();
+}
+
 static bool audioBuildFileName(eAudioClip clip, uint8_t *name)
 {
     if ((name == NULL) || !audioIsValidClip(clip) || (clip > AUDIO_CLIP_PRESS_WELL)) {
@@ -555,6 +650,7 @@ static bool audioBuildFileName(eAudioClip clip, uint8_t *name)
 static bool audioPlayClip(eAudioClip clip)
 {
     uint8_t lName[2];
+    uint32_t lNowTick;
 
     if (!audioBuildFileName(clip, lName)) {
         return false;
@@ -564,7 +660,12 @@ static bool audioPlayClip(eAudioClip clip)
         return false;
     }
 
-    gAudioNextPlayTick = audioGetTickMs() + AUDIO_PLAY_COOLDOWN_MS;
+    lNowTick = audioGetTickMs();
+    gAudioPlaybackActive = true;
+    gAudioPlayingClip = clip;
+    gAudioNextStateQueryTick = lNowTick;
+    gAudioNextPlayTick = lNowTick + AUDIO_PLAY_COOLDOWN_MS;
+    LOG_I(AUDIO_LOG_TAG, "play clip=%u", (unsigned int)clip);
     return true;
 }
 
@@ -587,13 +688,28 @@ static void audioServiceSystemMode(void)
 
 static void audioServiceMetronome(void)
 {
+    CPR_Data_Typedef lData;
     CPR_Manager_Typedef lManager;
     uint32_t lPeriodMs;
     uint32_t lNowTick = audioGetTickMs();
 
+    if (systemGetMode() != eSYSTEM_NORMAL_MODE) {
+        gAudioLastMetronomeTick = 0U;
+        audioDidiClear();
+        return;
+    }
+
     cprAlgMgrGetManager(&lManager);
+    cprAlgMgrGetData(&lData);
+    if (!lManager.IsPressing && (lData.TimeStamp == 0U)) {
+        gAudioLastMetronomeTick = 0U;
+        audioDidiClear();
+        return;
+    }
+
     if (!lManager.IsPressing && (lManager.IntervalTime >= AUDIO_METRONOME_HOLD_MS)) {
         gAudioLastMetronomeTick = 0U;
+        audioDidiClear();
         return;
     }
 
@@ -607,7 +723,9 @@ static void audioServiceMetronome(void)
         do {
             gAudioLastMetronomeTick += lPeriodMs;
         } while ((uint32_t)(lNowTick - gAudioLastMetronomeTick) >= lPeriodMs);
-        (void)audioEnqueueDidi();
+        if (!audioEnqueueDidi()) {
+            audioDidiClear();
+        }
     }
 }
 
@@ -683,35 +801,70 @@ static void audioServicePlayback(void)
     stWt2003hxInfo lInfo;
     eAudioClip lClip;
     uint32_t lNowTick = audioGetTickMs();
+    bool lModuleBusy;
+    bool lNonDidiBusy;
 
     if ((int32_t)(lNowTick - gAudioNextPlayTick) < 0) {
         return;
     }
 
-    if (!wt2003hxPortGetInfo(&lInfo) || (lInfo.playState == WT2003HX_PLAY_STATE_PLAY)) {
+    if (!wt2003hxPortGetInfo(&lInfo)) {
         return;
     }
 
-    if (audioNoticePop(&lClip)) {
+    lModuleBusy = gAudioPlaybackActive || (lInfo.playState == WT2003HX_PLAY_STATE_PLAY);
+    lNonDidiBusy = lModuleBusy && (gAudioPlayingClip != AUDIO_CLIP_DIDI);
+
+    if (audioNoticePeek(&lClip)) {
+        if (lNonDidiBusy) {
+            return;
+        }
+
+        if (lModuleBusy && (gAudioPlayingClip == AUDIO_CLIP_DIDI)) {
+            if (!gAudioNoticeStopPending && (wt2003hxPortStop() == DRV_STATUS_OK)) {
+                gAudioNoticeStopPending = true;
+                gAudioNextStateQueryTick = lNowTick;
+            }
+            return;
+        }
+
+        gAudioNoticeStopPending = false;
+        (void)audioNoticePop(&lClip);
         (void)audioPlayClip(lClip);
-        (void)audioDidiPop(&lClip);
+        audioDidiClear();
+        gAudioLastMetronomeTick = lNowTick;
         return;
     }
 
-    if (audioDidiPop(&lClip)) {
+    if (audioDidiPeek(&lClip)) {
+        if (lNonDidiBusy) {
+            audioDidiClear();
+            return;
+        }
+
+        (void)audioDidiPop(&lClip);
         (void)audioPlayClip(lClip);
     }
 }
 
 static void audioQueryStatePeriodically(void)
 {
+    stWt2003hxInfo lInfo;
+    uint32_t lQueryIntervalMs = audioHasPendingPlayback() ? AUDIO_STATE_QUERY_ACTIVE_MS : AUDIO_STATE_QUERY_IDLE_MS;
     uint32_t lNowTick = audioGetTickMs();
+
+    if (wt2003hxPortGetInfo(&lInfo) && gAudioPlaybackActive && (lInfo.playState != WT2003HX_PLAY_STATE_PLAY) &&
+        (lInfo.playState != WT2003HX_PLAY_STATE_UNKNOWN)) {
+        gAudioPlaybackActive = false;
+        gAudioPlayingClip = AUDIO_CLIP_MAX;
+        lQueryIntervalMs = audioHasPendingPlayback() ? AUDIO_STATE_QUERY_ACTIVE_MS : AUDIO_STATE_QUERY_IDLE_MS;
+    }
 
     if ((int32_t)(lNowTick - gAudioNextStateQueryTick) < 0) {
         return;
     }
 
-    gAudioNextStateQueryTick = lNowTick + AUDIO_STATE_QUERY_MS;
+    gAudioNextStateQueryTick = lNowTick + lQueryIntervalMs;
     if (!gAudioStatus.musicNumValid) {
         (void)audioQueryMusicNum();
         return;

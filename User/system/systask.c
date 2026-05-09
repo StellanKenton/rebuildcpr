@@ -165,11 +165,14 @@ static void wirelessTaskEntry(void *argument)
 
 static void audioTaskEntry(void *argument)
 {
+	uint32_t lLastWakeTime;
+
 	(void)argument;
+	lLastWakeTime = repRtosGetTickMs();
 
 	for (;;) {
 		audioProcess();
-		(void)repRtosDelayMs(AudioTaskInterval);
+		(void)repRtosTaskDelayUntilMs(&lLastWakeTime, AudioTaskInterval);
 	}
 }
 
