@@ -179,11 +179,6 @@ static void cprAlgMgrShowMetrics(uint8_t depth, uint8_t freq)
     uint8_t lDisplayFreq = cprAlgMgrClampFreqForDisplay(freq);
     uint8_t lDisplayDepth = depth;
 
-    if ((depth == 0U) || (freq == 0U)) {
-        lDisplayDepth = 0U;
-        lDisplayFreq = 0U;
-    }
-
     (void)tm1651PortShowNumber3(lDisplayFreq);
     (void)pca9535PortLedLightNum(cprAlgMgrGetDepthLedNum(lDisplayDepth));
 }

@@ -22,7 +22,6 @@
 #define AUDIO_LOG_TAG "audio"
 #define AUDIO_INIT_QUERY_TIMEOUT_MS 1000U
 #define AUDIO_INIT_QUERY_RETRY_DELAY_MS 120U
-#define AUDIO_SETTING_SYNC_MS 200U
 #define AUDIO_METRONOME_HOLD_MS 3000U
 
 static const char gAudioSettingLanguagePath[] = "/setting/language";
@@ -52,7 +51,6 @@ static uint32_t gAudioLastMetronomeTick;
 static uint32_t gAudioBatteryDeadStartTick;
 static uint32_t gAudioNextStateQueryTick;
 static uint32_t gAudioNextPlayTick;
-static uint32_t gAudioNextSettingSyncTick;
 static eSystemMode gAudioLastSystemMode;
 static bool gAudioSystemModeValid;
 static uint8_t gAudioLastBatLevel;
@@ -69,6 +67,9 @@ static uint8_t audioGetLanguagePrefix(eAudioLanguage language);
 static eAudioLanguage audioNormalizeLanguage(uint8_t language);
 static uint8_t audioNormalizeVolumeLevel(uint8_t volumeLevel);
 static uint8_t audioNormalizeMetronomeFreq(uint8_t freq);
+static void audioApplyLanguage(eAudioLanguage language, bool notifyChange);
+static void audioApplyVolumeLevel(uint8_t volumeLevel);
+static void audioApplyMetronomeFreq(uint8_t freq);
 static bool audioParseSettingValue(const uint8_t *buffer, uint32_t size, uint8_t *value);
 static bool audioLoadSettingValue(const char *path, uint8_t *value);
 static void audioLoadSettings(void);
@@ -85,7 +86,6 @@ static eDrvStatus audioSetSingleMode(void);
 static eDrvStatus audioSetDacMode(void);
 static bool audioBuildFileName(eAudioClip clip, uint8_t *name);
 static bool audioPlayClip(eAudioClip clip);
-static void audioUpdateSettings(void);
 static void audioServiceSystemMode(void);
 static void audioServiceMetronome(void);
 static void audioServiceCprNotice(void);
@@ -102,6 +102,11 @@ bool audioInit(void)
         return true;
     }
 
+    gAudioStatus.language = AUDIO_DEFAULT_LANGUAGE;
+    gAudioStatus.volumeLevel = AUDIO_DEFAULT_VOLUME_LEVEL;
+    gAudioStatus.metronomeFreq = AUDIO_DEFAULT_METRONOME_FREQ;
+    audioLoadSettings();
+
     lStartTick = audioGetTickMs();
     if (wt2003hxPortInit() != DRV_STATUS_OK) {
         gAudioStatus.state = AUDIO_STATE_FAULT;
@@ -113,9 +118,6 @@ bool audioInit(void)
     gAudioStatus.commResponded = false;
     gAudioStatus.musicNum = 0U;
     gAudioStatus.musicNumValid = false;
-    gAudioStatus.language = AUDIO_DEFAULT_LANGUAGE;
-    gAudioStatus.volumeLevel = AUDIO_DEFAULT_VOLUME_LEVEL;
-    gAudioStatus.metronomeFreq = AUDIO_DEFAULT_METRONOME_FREQ;
 
     (void)audioInitQueryVersion();
     (void)audioInitQueryMusicNum();
@@ -123,7 +125,6 @@ bool audioInit(void)
     (void)audioSetDacMode();
     lVolume = audioMapVolume(gAudioStatus.volumeLevel);
     (void)wt2003hxPortSetVolume(lVolume);
-    gAudioNextSettingSyncTick = audioGetTickMs();
     gAudioLastSystemMode = systemGetMode();
     gAudioSystemModeValid = true;
     gAudioBatLevelValid = false;
@@ -149,7 +150,6 @@ void audioProcess(void)
     (void)wt2003hxPortProcess();
     audioUpdateCommStatusFromInfo();
     audioUpdateMusicNumFromInfo();
-    audioUpdateSettings();
     audioServiceSystemMode();
     audioQueryStatePeriodically();
     audioServiceMetronome();
@@ -175,6 +175,21 @@ bool audioEnqueueDidi(void)
 const stAudioStatus *audioGetStatus(void)
 {
     return &gAudioStatus;
+}
+
+void audioApplyLanguageSetting(uint8_t language, bool notifyChange)
+{
+    audioApplyLanguage((eAudioLanguage)language, notifyChange);
+}
+
+void audioApplyVolumeSetting(uint8_t volumeLevel)
+{
+    audioApplyVolumeLevel(volumeLevel);
+}
+
+void audioApplyMetronomeSetting(uint8_t metronomeFreq)
+{
+    audioApplyMetronomeFreq(metronomeFreq);
 }
 
 static bool audioIsValidClip(eAudioClip clip)
@@ -272,6 +287,49 @@ static uint8_t audioNormalizeMetronomeFreq(uint8_t freq)
     return (freq == 0U) ? AUDIO_DEFAULT_METRONOME_FREQ : freq;
 }
 
+static void audioApplyLanguage(eAudioLanguage language, bool notifyChange)
+{
+    eAudioLanguage lNormalizedLanguage = audioNormalizeLanguage((uint8_t)language);
+
+    if (gAudioStatus.language == lNormalizedLanguage) {
+        if (notifyChange && (gAudioStatus.state == AUDIO_STATE_READY)) {
+            (void)audioEnqueueNotice(AUDIO_CLIP_CHANGE_LANGUAGE);
+        }
+        return;
+    }
+
+    gAudioStatus.language = lNormalizedLanguage;
+    if (notifyChange && (gAudioStatus.state == AUDIO_STATE_READY)) {
+        (void)audioEnqueueNotice(AUDIO_CLIP_CHANGE_LANGUAGE);
+    }
+}
+
+static void audioApplyVolumeLevel(uint8_t volumeLevel)
+{
+    uint8_t lNormalizedVolumeLevel = audioNormalizeVolumeLevel(volumeLevel);
+
+    if (gAudioStatus.volumeLevel == lNormalizedVolumeLevel) {
+        return;
+    }
+
+    gAudioStatus.volumeLevel = lNormalizedVolumeLevel;
+    if (gAudioStatus.moduleReady) {
+        (void)wt2003hxPortSetVolume(audioMapVolume(gAudioStatus.volumeLevel));
+    }
+}
+
+static void audioApplyMetronomeFreq(uint8_t freq)
+{
+    uint8_t lNormalizedMetronomeFreq = audioNormalizeMetronomeFreq(freq);
+
+    if (gAudioStatus.metronomeFreq == lNormalizedMetronomeFreq) {
+        return;
+    }
+
+    gAudioStatus.metronomeFreq = lNormalizedMetronomeFreq;
+    gAudioLastMetronomeTick = 0U;
+}
+
 static bool audioParseSettingValue(const uint8_t *buffer, uint32_t size, uint8_t *value)
 {
     uint32_t lIndex;
@@ -336,20 +394,16 @@ static void audioLoadSettings(void)
 {
     uint8_t lValue;
 
-    if (!memoryIsReady()) {
-        return;
-    }
-
     if (audioLoadSettingValue(gAudioSettingLanguagePath, &lValue)) {
-        gAudioStatus.language = audioNormalizeLanguage(lValue);
+        audioApplyLanguage((eAudioLanguage)lValue, false);
     }
 
     if (audioLoadSettingValue(gAudioSettingVolumePath, &lValue)) {
-        gAudioStatus.volumeLevel = audioNormalizeVolumeLevel(lValue);
+        audioApplyVolumeLevel(lValue);
     }
 
     if (audioLoadSettingValue(gAudioSettingMetronomePath, &lValue)) {
-        gAudioStatus.metronomeFreq = audioNormalizeMetronomeFreq(lValue);
+        audioApplyMetronomeFreq(lValue);
     }
 }
 
@@ -512,29 +566,6 @@ static bool audioPlayClip(eAudioClip clip)
 
     gAudioNextPlayTick = audioGetTickMs() + AUDIO_PLAY_COOLDOWN_MS;
     return true;
-}
-
-static void audioUpdateSettings(void)
-{
-    eAudioLanguage lLanguage = gAudioStatus.language;
-    uint8_t lVolume = gAudioStatus.volumeLevel;
-    uint32_t lNowTick = audioGetTickMs();
-
-    if ((int32_t)(lNowTick - gAudioNextSettingSyncTick) < 0) {
-        return;
-    }
-
-    gAudioNextSettingSyncTick = lNowTick + AUDIO_SETTING_SYNC_MS;
-
-    audioLoadSettings();
-
-    if (lLanguage != gAudioStatus.language) {
-        (void)audioEnqueueNotice(AUDIO_CLIP_CHANGE_LANGUAGE);
-    }
-
-    if (lVolume != gAudioStatus.volumeLevel) {
-        (void)wt2003hxPortSetVolume(audioMapVolume(gAudioStatus.volumeLevel));
-    }
 }
 
 static void audioServiceSystemMode(void)

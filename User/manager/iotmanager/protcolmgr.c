@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "cprsensor_protocol.h"
+#include "../audio/audio.h"
 #include "../cpralg/cpralgmgr.h"
 #include "../memory/memory.h"
 #include "../wireless/wireless.h"
@@ -110,6 +111,7 @@ static void protcolMgrFlushMetronomeReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushUtcSettingReply(eIotManagerLinkId linkId);
 static void protcolMgrFlushPendingReplies(void);
 static bool protcolMgrEnsureSettingDir(void);
+static bool protcolMgrIsValidLanguage(uint8_t language);
 static bool protcolMgrWriteSettingValue(const char *path, uint8_t value);
 static void protcolMgrPersistPendingSettings(void);
 
@@ -143,6 +145,9 @@ static void protcolMgrEnsureInitialized(void)
 	gProtcolMgrTxHead = 0U;
 	gProtcolMgrTxCount = 0U;
 	(void)memset(gProtcolMgrTxRetryQueue, 0, sizeof(gProtcolMgrTxRetryQueue));
+	gProtcolMgrLanguagePayload.language = (uint8_t)AUDIO_DEFAULT_LANGUAGE;
+	gProtcolMgrVolumePayload.volume = AUDIO_DEFAULT_VOLUME_LEVEL;
+	gProtcolMgrMetronomePayload.metronomeFreq = AUDIO_DEFAULT_METRONOME_FREQ;
 	gProtcolMgrInitialized = true;
 }
 
@@ -157,6 +162,11 @@ static bool protcolMgrEnsureSettingDir(void)
 	}
 
 	return memoryMkdir(gProtcolMgrSettingDirPath);
+}
+
+static bool protcolMgrIsValidLanguage(uint8_t language)
+{
+	return (language >= (uint8_t)AUDIO_LANGUAGE_ZH) && (language <= (uint8_t)AUDIO_LANGUAGE_IT);
 }
 
 static bool protcolMgrWriteSettingValue(const char *path, uint8_t value)
@@ -739,21 +749,34 @@ static void protcolMgrHandleFrame(eIotManagerLinkId linkId, const stCprsensorPro
 		protcolMgrSetReplyFlag(frameView->cmd);
 		break;
 	case CPRSENSOR_PROTOCOL_CMD_LANGUAGE:
+	{
+		eAudioLanguage lCurrentLanguage;
+		eAudioLanguage lRequestedLanguage;
+
 		if ((frameView->payload == NULL) || (frameView->payloadLen < sizeof(gProtcolMgrLanguagePayload))) {
 			LOG_W(gProtcolMgrLogTag, "invalid language len=%u", (unsigned int)frameView->payloadLen);
 			return;
 		}
+		if (!protcolMgrIsValidLanguage(frameView->payload[0])) {
+			LOG_W(gProtcolMgrLogTag, "invalid language value=%u", (unsigned int)frameView->payload[0]);
+			return;
+		}
+		lCurrentLanguage = audioGetStatus()->language;
+		lRequestedLanguage = (eAudioLanguage)frameView->payload[0];
 		(void)memcpy(&gProtcolMgrLanguagePayload, frameView->payload, sizeof(gProtcolMgrLanguagePayload));
-		gProtcolMgrLanguagePersistPending = true;
+		audioApplyLanguageSetting(gProtcolMgrLanguagePayload.language, true);
+		gProtcolMgrLanguagePersistPending = (lCurrentLanguage != lRequestedLanguage);
 		protcolMgrPersistPendingSettings();
 		protcolMgrSetReplyFlag(frameView->cmd);
 		break;
+	}
 	case CPRSENSOR_PROTOCOL_CMD_VOLUME:
 		if ((frameView->payload == NULL) || (frameView->payloadLen < sizeof(gProtcolMgrVolumePayload))) {
 			LOG_W(gProtcolMgrLogTag, "invalid volume len=%u", (unsigned int)frameView->payloadLen);
 			return;
 		}
 		(void)memcpy(&gProtcolMgrVolumePayload, frameView->payload, sizeof(gProtcolMgrVolumePayload));
+		audioApplyVolumeSetting(gProtcolMgrVolumePayload.volume);
 		gProtcolMgrVolumePersistPending = true;
 		protcolMgrPersistPendingSettings();
 		protcolMgrSetReplyFlag(frameView->cmd);
@@ -764,6 +787,7 @@ static void protcolMgrHandleFrame(eIotManagerLinkId linkId, const stCprsensorPro
 			return;
 		}
 		(void)memcpy(&gProtcolMgrMetronomePayload, frameView->payload, sizeof(gProtcolMgrMetronomePayload));
+		audioApplyMetronomeSetting(gProtcolMgrMetronomePayload.metronomeFreq);
 		gProtcolMgrMetronomePersistPending = true;
 		protcolMgrPersistPendingSettings();
 		protcolMgrSetReplyFlag(frameView->cmd);

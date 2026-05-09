@@ -70,6 +70,9 @@ typedef struct stAudioStatus {
 
 bool audioInit(void);
 void audioProcess(void);
+void audioApplyLanguageSetting(uint8_t language, bool notifyChange);
+void audioApplyVolumeSetting(uint8_t volumeLevel);
+void audioApplyMetronomeSetting(uint8_t metronomeFreq);
 bool audioEnqueueNotice(eAudioClip clip);
 bool audioEnqueueDidi(void);
 const stAudioStatus *audioGetStatus(void);

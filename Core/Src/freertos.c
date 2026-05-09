@@ -28,6 +28,7 @@
 /* USER CODE BEGIN Includes */
 
 #include "systask.h"
+#include "SEGGER_RTT.h"
 
 /* USER CODE END Includes */
 
@@ -167,6 +168,18 @@ void SystemTask(void *argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+  (void)xTask;
+
+  SEGGER_RTT_WriteString(0, "\r\n[fault] FreeRTOS stack overflow task=");
+  SEGGER_RTT_WriteString(0, (pcTaskName != NULL) ? pcTaskName : "unknown");
+  SEGGER_RTT_WriteString(0, "\r\n");
+  taskDISABLE_INTERRUPTS();
+  for (;;) {
+  }
+}
 
 /* USER CODE END Application */
 

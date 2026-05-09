@@ -24,6 +24,7 @@
 #include "../../rep/service/log/log.h"
 #include "../../rep/module/lis2hh12/lis2hh12.h"
 #include "../manager/memory/memory_debug.h"
+#include "../manager/iotmanager/protcolmgr_debug.h"
 #include "../manager/power/power.h"
 #include "../manager/sensor/sensor.h"
 #include "../manager/wireless/wireless.h"
@@ -957,6 +958,10 @@ bool systemDebugConsoleRegister(void)
         return false;
     }
 
+    if (!protcolMgrDebugConsoleRegister()) {
+        return false;
+    }
+
     if (!logRegisterConsole(&gSystemTaskUsageConsoleCommand)) {
         return false;
     }
@@ -992,6 +997,10 @@ bool systemDebugConsoleRegister(void)
     }
 
     if (!memoryDebugConsoleRegister()) {
+        return false;
+    }
+
+    if (!protcolMgrDebugConsoleRegister()) {
         return false;
     }
 

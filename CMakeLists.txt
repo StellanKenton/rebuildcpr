@@ -81,6 +81,7 @@ add_executable(${TARGET_NAME}
   User/manager/iotmanager/cprsensor_protocol.c
   User/manager/iotmanager/iotmanager.c
   User/manager/iotmanager/protcolmgr.c
+  User/manager/iotmanager/protcolmgr_debug.c
   User/manager/wireless/wireless_ble.c
   User/manager/wireless/wireless.c
   User/manager/wireless/wireless_wifi.c

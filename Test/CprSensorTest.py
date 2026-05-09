@@ -19,8 +19,8 @@ DEFAULT_SERVICE_UUID = "0000fe60-0000-1000-8000-00805f9b34fb"
 DEFAULT_WRITE_CHAR_UUID = "0000fe61-0000-1000-8000-00805f9b34fb"
 DEFAULT_NOTIFY_CHAR_UUID = "0000fe62-0000-1000-8000-00805f9b34fb"
 DEFAULT_CHAR_UUID = DEFAULT_WRITE_CHAR_UUID
-TEST_HANDSHAKE_MAC_ADDRESS = "3C:1A:CC:4B:26:B2"
-
+#TEST_HANDSHAKE_MAC_ADDRESS = "3C:1A:CC:4B:26:B2"
+TEST_HANDSHAKE_MAC_ADDRESS = "3C:1A:CC:4B:26:91"
 CMD_HANDSHAKE = 0x01
 CMD_HEARTBEAT = 0x03
 CMD_DISCONNECT = 0x04
@@ -42,7 +42,7 @@ COMMAND_SPECS = {
     0x31: {"name": "CPR_DATA", "zh": "CPR数据", "hint": "通常为设备上传"},
     0x33: {"name": "TIME_SYNC", "zh": "时间同步", "hint": "worldTime=秒 或 4字节HEX；空则发送当前时间"},
     0x34: {"name": "BATTERY", "zh": "电池", "hint": "空"},
-    0x35: {"name": "LANGUAGE", "zh": "语言", "hint": "language=0/1 或 00/01"},
+    0x35: {"name": "LANGUAGE", "zh": "语言", "hint": "language=1-5 或 01-05"},
     0x36: {"name": "VOLUME", "zh": "音量", "hint": "volume=0-255 或 1字节HEX"},
     0x37: {"name": "CPR_RAW_DATA", "zh": "CPR原始波形", "hint": "通常为设备上传"},
     0x38: {"name": "CLEAR_MEMORY", "zh": "清除存储", "hint": "空"},
