@@ -34,7 +34,7 @@ extern "C" {
 #define SensorTaskPriority          23U
 #define SensorTaskInterval          10U
 
-#define CprAlgTaskStackSize         4U
+#define CprAlgTaskStackSize         40U
 #define CprAlgTaskPriority          21U
 #define CprAlgTaskInterval          50U
 

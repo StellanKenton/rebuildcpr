@@ -26,6 +26,8 @@
 #define AUDIO_METRONOME_HOLD_MS 3000U
 #define AUDIO_DIDI_PLAY_MS 250U
 
+static const uint8_t gAudioCprNoticeHistoryMajority = 2U;
+
 static const char gAudioSettingLanguagePath[] = "/setting/language";
 static const char gAudioSettingVolumePath[] = "/setting/volume";
 static const char gAudioSettingMetronomePath[] = "/setting/metronome";
@@ -56,6 +58,11 @@ static uint32_t gAudioNextPlayTick;
 static uint32_t gAudioPlayingStartTick;
 static bool gAudioPlaybackActive;
 static eAudioClip gAudioPlayingClip = AUDIO_CLIP_MAX;
+static bool gAudioNoticeStopPending;
+static eWt2003hxPlayState gAudioDebugLastPlayState = WT2003HX_PLAY_STATE_UNKNOWN;
+static uint8_t gAudioDebugLastReplyCmd;
+static bool gAudioDebugNoticeWaitLogged;
+static bool gAudioDebugStopWaitLogged;
 static bool gAudioWaitMemoryLogged;
 static bool gAudioWaitVolumeLogged;
 static eSystemMode gAudioLastSystemMode;
@@ -98,9 +105,18 @@ static eDrvStatus audioSetDacMode(void);
 static bool audioBuildFileName(eAudioClip clip, uint8_t *name);
 static bool audioHasPendingPlayback(void);
 static bool audioIsDidiPlayWindowActive(uint32_t nowTick);
+static bool audioIsNoticePlayWindowActive(uint32_t nowTick);
 static bool audioIsNonDidiPlaybackBusy(void);
+static bool audioShouldWaitNoticePlayback(const stWt2003hxInfo *info, uint32_t nowTick);
 static bool audioCanPlayDidiNow(void);
 static bool audioPlayClip(eAudioClip clip);
+static int8_t audioClassifyDepthNotice(uint8_t depth);
+static int8_t audioClassifyFreqNotice(uint8_t freq);
+static uint8_t audioCountCprNoticeValue(const int8_t *history, uint8_t count, int8_t value);
+static void audioResolveCprNotice(const CPR_Recent_Press_History_Typedef *history,
+                                  const CPR_Data_Typedef *data,
+                                  eAudioClip *depthClip,
+                                  eAudioClip *freqClip);
 static void audioServiceSystemMode(void);
 static void audioServiceMetronome(void);
 static void audioServiceCprNotice(void);
@@ -112,7 +128,6 @@ static void audioDebugToggleDidiPin(void);
 bool audioInit(void)
 {
     uint8_t lVolume;
-    uint8_t lSettingVolume;
     uint32_t lStartTick;
 
     if (gAudioStatus.state == AUDIO_STATE_READY) {
@@ -127,12 +142,13 @@ bool audioInit(void)
         return false;
     }
 
-    if (!audioLoadSettingValue(gAudioSettingVolumePath, &lSettingVolume)) {
+    if (!memoryExists(gAudioSettingVolumePath)) {
         if (!gAudioWaitVolumeLogged) {
-            LOG_I(AUDIO_LOG_TAG, "wait %s before audio init", gAudioSettingVolumePath);
+            LOG_W(AUDIO_LOG_TAG,
+                  "missing %s, use default audio settings",
+                  gAudioSettingVolumePath);
             gAudioWaitVolumeLogged = true;
         }
-        return false;
     }
 
     gAudioStatus.language = AUDIO_DEFAULT_LANGUAGE;
@@ -167,6 +183,12 @@ bool audioInit(void)
     gAudioPlayingStartTick = 0U;
     gAudioPlaybackActive = false;
     gAudioPlayingClip = AUDIO_CLIP_MAX;
+    gAudioNoticeStopPending = false;
+    gAudioDebugLastPlayState = WT2003HX_PLAY_STATE_UNKNOWN;
+    gAudioDebugLastReplyCmd = 0U;
+    gAudioDebugNoticeWaitLogged = false;
+    gAudioDebugStopWaitLogged = false;
+    gAudioLastNoticeTick = 0U;
 
     gAudioStatus.state = AUDIO_STATE_READY;
     LOG_I(AUDIO_LOG_TAG,
@@ -626,6 +648,13 @@ static bool audioIsDidiPlayWindowActive(uint32_t nowTick)
            ((uint32_t)(nowTick - gAudioPlayingStartTick) < AUDIO_DIDI_PLAY_MS);
 }
 
+static bool audioIsNoticePlayWindowActive(uint32_t nowTick)
+{
+    return (gAudioPlayingClip != AUDIO_CLIP_DIDI) &&
+           (gAudioPlayingClip != AUDIO_CLIP_MAX) &&
+           ((uint32_t)(nowTick - gAudioPlayingStartTick) < AUDIO_NOTICE_PLAY_HOLD_MS);
+}
+
 static bool audioIsNonDidiPlaybackBusy(void)
 {
     stWt2003hxInfo lInfo;
@@ -644,6 +673,62 @@ static bool audioIsNonDidiPlaybackBusy(void)
     }
 
     return (gAudioPlayingClip != AUDIO_CLIP_DIDI);
+}
+
+static bool audioShouldWaitNoticePlayback(const stWt2003hxInfo *info, uint32_t nowTick)
+{
+    if (info == NULL) {
+        return false;
+    }
+
+    if ((gAudioPlayingClip == AUDIO_CLIP_MAX) || (gAudioPlayingClip == AUDIO_CLIP_DIDI)) {
+        return false;
+    }
+
+    if (audioIsNoticePlayWindowActive(nowTick)) {
+        if (!gAudioDebugNoticeWaitLogged) {
+            LOG_I(AUDIO_LOG_TAG,
+                  "notice hold clip=%u active=%u state=%u cmd=0x%02X",
+                  (unsigned int)gAudioPlayingClip,
+                  (unsigned int)gAudioPlaybackActive,
+                  (unsigned int)info->playState,
+                  (unsigned int)info->lastReplyCmd);
+            gAudioDebugNoticeWaitLogged = true;
+        }
+        return true;
+    }
+
+    if ((info->lastReplyCmd != WT2003HX_CMD_CHECK_STATE) ||
+        ((gAudioPlayingStartTick != 0U) && ((uint32_t)(info->lastReplyTick - gAudioPlayingStartTick) >= 0x80000000UL))) {
+        if (!gAudioDebugNoticeWaitLogged) {
+            LOG_I(AUDIO_LOG_TAG,
+                  "notice query state clip=%u state=%u cmd=0x%02X tick=%lu start=%lu",
+                  (unsigned int)gAudioPlayingClip,
+                  (unsigned int)info->playState,
+                  (unsigned int)info->lastReplyCmd,
+                  (unsigned long)info->lastReplyTick,
+                  (unsigned long)gAudioPlayingStartTick);
+            gAudioDebugNoticeWaitLogged = true;
+        }
+        (void)wt2003hxPortQuery(WT2003HX_CMD_CHECK_STATE);
+        gAudioNextPlayTick = nowTick + AUDIO_STATE_QUERY_ACTIVE_MS;
+        return true;
+    }
+
+    if (info->playState != WT2003HX_PLAY_STATE_STOP) {
+        if (!gAudioDebugNoticeWaitLogged) {
+            LOG_I(AUDIO_LOG_TAG,
+                  "notice wait stop clip=%u state=%u cmd=0x%02X",
+                  (unsigned int)gAudioPlayingClip,
+                  (unsigned int)info->playState,
+                  (unsigned int)info->lastReplyCmd);
+            gAudioDebugNoticeWaitLogged = true;
+        }
+        return true;
+    }
+
+    gAudioDebugNoticeWaitLogged = false;
+    return (info->playState != WT2003HX_PLAY_STATE_STOP);
 }
 
 static bool audioCanPlayDidiNow(void)
@@ -666,23 +751,162 @@ static bool audioPlayClip(eAudioClip clip)
 {
     uint8_t lName[2];
     uint32_t lNowTick;
+    stWt2003hxInfo lInfo;
 
     if (!audioBuildFileName(clip, lName)) {
+        LOG_W(AUDIO_LOG_TAG, "invalid clip=%u for play", (unsigned int)clip);
         return false;
     }
 
     if (wt2003hxPortPlayName(lName, (uint8_t)sizeof(lName)) != DRV_STATUS_OK) {
+        if (wt2003hxPortGetInfo(&lInfo)) {
+            LOG_W(AUDIO_LOG_TAG,
+                  "play failed clip=%u state=%u cmd=0x%02X pendingStop=%u active=%u notice=%u didi=%u",
+                  (unsigned int)clip,
+                  (unsigned int)lInfo.playState,
+                  (unsigned int)lInfo.lastReplyCmd,
+                  (unsigned int)gAudioNoticeStopPending,
+                  (unsigned int)gAudioPlaybackActive,
+                  (unsigned int)gAudioNoticeUsed,
+                  (unsigned int)gAudioDidiUsed);
+        } else {
+            LOG_W(AUDIO_LOG_TAG,
+                  "play failed clip=%u pendingStop=%u active=%u notice=%u didi=%u",
+                  (unsigned int)clip,
+                  (unsigned int)gAudioNoticeStopPending,
+                  (unsigned int)gAudioPlaybackActive,
+                  (unsigned int)gAudioNoticeUsed,
+                  (unsigned int)gAudioDidiUsed);
+        }
         return false;
     }
 
     lNowTick = audioGetTickMs();
     gAudioPlaybackActive = true;
     gAudioPlayingClip = clip;
+    gAudioDebugNoticeWaitLogged = false;
+    gAudioDebugStopWaitLogged = false;
     gAudioPlayingStartTick = lNowTick;
     gAudioNextStateQueryTick = (clip == AUDIO_CLIP_DIDI) ? (lNowTick + AUDIO_DIDI_PLAY_MS) : lNowTick;
     gAudioNextPlayTick = lNowTick + AUDIO_PLAY_COOLDOWN_MS;
-    LOG_I(AUDIO_LOG_TAG, "play clip=%u", (unsigned int)clip);
+    LOG_I(AUDIO_LOG_TAG,
+          "play clip=%u name=%c%c notice=%u didi=%u",
+          (unsigned int)clip,
+          (char)lName[0],
+          (char)lName[1],
+          (unsigned int)gAudioNoticeUsed,
+          (unsigned int)gAudioDidiUsed);
     return true;
+}
+
+static int8_t audioClassifyDepthNotice(uint8_t depth)
+{
+    if (depth > s_CPR_Alarm_Limit.Depth_High_Limit) {
+        return 1;
+    }
+
+    if (depth < s_CPR_Alarm_Limit.Depth_Low_Limit) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int8_t audioClassifyFreqNotice(uint8_t freq)
+{
+    if (freq > s_CPR_Alarm_Limit.Freq_High_Limit) {
+        return 1;
+    }
+
+    if (freq < s_CPR_Alarm_Limit.Freq_Low_Limit) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static uint8_t audioCountCprNoticeValue(const int8_t *history, uint8_t count, int8_t value)
+{
+    uint8_t lIndex;
+    uint8_t lMatchCount = 0U;
+
+    if (history == NULL) {
+        return 0U;
+    }
+
+    for (lIndex = 0U; lIndex < count; lIndex++) {
+        if (history[lIndex] == value) {
+            lMatchCount++;
+        }
+    }
+
+    return lMatchCount;
+}
+
+static void audioResolveCprNotice(const CPR_Recent_Press_History_Typedef *history,
+                                  const CPR_Data_Typedef *data,
+                                  eAudioClip *depthClip,
+                                  eAudioClip *freqClip)
+{
+    int8_t lDepthHistory[CPR_ALG_MGR_RECENT_PRESS_COUNT];
+    int8_t lFreqHistory[CPR_ALG_MGR_RECENT_PRESS_COUNT];
+    uint8_t lIndex;
+    uint8_t lValidCount = 0U;
+    int8_t lDepthState;
+    int8_t lFreqState;
+
+    if ((history == NULL) || (data == NULL) || (depthClip == NULL) || (freqClip == NULL)) {
+        return;
+    }
+
+    *depthClip = AUDIO_CLIP_MAX;
+    *freqClip = AUDIO_CLIP_MAX;
+
+    for (lIndex = 0U; lIndex < history->Count; lIndex++) {
+        if (!history->Records[lIndex].Valid) {
+            continue;
+        }
+
+        lDepthHistory[lValidCount] = audioClassifyDepthNotice(history->Records[lIndex].Depth);
+        lFreqHistory[lValidCount] = audioClassifyFreqNotice(history->Records[lIndex].Freq);
+        lValidCount++;
+    }
+
+    if (lValidCount == 0U) {
+        return;
+    }
+
+    lDepthState = audioClassifyDepthNotice(data->Depth);
+    lFreqState = audioClassifyFreqNotice(data->Freq);
+
+    if ((lValidCount >= gAudioCprNoticeHistoryMajority) &&
+        (audioCountCprNoticeValue(lDepthHistory,
+                                  lValidCount,
+                                  1) >= gAudioCprNoticeHistoryMajority)) {
+        *depthClip = AUDIO_CLIP_PRESS_DEEP;
+    } else if ((lValidCount >= gAudioCprNoticeHistoryMajority) &&
+               (audioCountCprNoticeValue(lDepthHistory,
+                                         lValidCount,
+                                         -1) >= gAudioCprNoticeHistoryMajority)) {
+        *depthClip = AUDIO_CLIP_PRESS_SHALLOW;
+    }
+
+    if ((lValidCount >= gAudioCprNoticeHistoryMajority) &&
+        (audioCountCprNoticeValue(lFreqHistory,
+                                  lValidCount,
+                                  1) >= gAudioCprNoticeHistoryMajority)) {
+        *freqClip = AUDIO_CLIP_PRESS_FAST;
+    } else if ((lValidCount >= gAudioCprNoticeHistoryMajority) &&
+               (audioCountCprNoticeValue(lFreqHistory,
+                                         lValidCount,
+                                         -1) >= gAudioCprNoticeHistoryMajority)) {
+        *freqClip = AUDIO_CLIP_PRESS_SLOW;
+    }
+
+    if ((*depthClip == AUDIO_CLIP_MAX) && (*freqClip == AUDIO_CLIP_MAX) &&
+        (lDepthState == 0) && (lFreqState == 0)) {
+        *depthClip = AUDIO_CLIP_PRESS_WELL;
+    }
 }
 
 static void audioServiceSystemMode(void)
@@ -756,29 +980,32 @@ static void audioServiceCprNotice(void)
 {
     CPR_Data_Typedef lData;
     CPR_Manager_Typedef lManager;
+    CPR_Recent_Press_History_Typedef lHistory;
+    eAudioClip lDepthClip;
+    eAudioClip lFreqClip;
     uint32_t lNowTick = audioGetTickMs();
+
+    cprAlgMgrGetData(&lData);
+    cprAlgMgrGetManager(&lManager);
+    cprAlgMgrGetRecentPressHistory(&lHistory);
+
+    if ((lData.TimeStamp == 0U) || (!lManager.IsPressing && (lManager.IntervalTime >= AUDIO_METRONOME_HOLD_MS))) {
+        gAudioLastNoticeTick = lNowTick;
+        return;
+    }
 
     if ((uint32_t)(lNowTick - gAudioLastNoticeTick) < AUDIO_NOTICE_WINDOW_MS) {
         return;
     }
 
-    cprAlgMgrGetData(&lData);
-    cprAlgMgrGetManager(&lManager);
-    if (!lManager.DataReady) {
-        return;
-    }
-
     gAudioLastNoticeTick = lNowTick;
-    if (lData.Depth > s_CPR_Alarm_Limit.Depth_High_Limit) {
-        (void)audioEnqueueNotice(AUDIO_CLIP_PRESS_DEEP);
-    } else if (lData.Depth < s_CPR_Alarm_Limit.Depth_Low_Limit) {
-        (void)audioEnqueueNotice(AUDIO_CLIP_PRESS_SHALLOW);
-    } else if (lData.Freq > s_CPR_Alarm_Limit.Freq_High_Limit) {
-        (void)audioEnqueueNotice(AUDIO_CLIP_PRESS_FAST);
-    } else if (lData.Freq < s_CPR_Alarm_Limit.Freq_Low_Limit) {
-        (void)audioEnqueueNotice(AUDIO_CLIP_PRESS_SLOW);
-    } else {
-        (void)audioEnqueueNotice(AUDIO_CLIP_PRESS_WELL);
+
+    audioResolveCprNotice(&lHistory, &lData, &lDepthClip, &lFreqClip);
+    if (lDepthClip != AUDIO_CLIP_MAX) {
+        (void)audioEnqueueNotice(lDepthClip);
+    }
+    if (lFreqClip != AUDIO_CLIP_MAX) {
+        (void)audioEnqueueNotice(lFreqClip);
     }
 }
 
@@ -845,16 +1072,54 @@ static void audioServicePlayback(void)
     lNonDidiBusy = lModuleBusy && (gAudioPlayingClip != AUDIO_CLIP_DIDI);
 
     if (audioNoticePeek(&lClip)) {
-        if (lModuleBusy) {
+        if ((gAudioPlayingClip == AUDIO_CLIP_DIDI) || (lInfo.playState == WT2003HX_PLAY_STATE_PLAY)) {
+            if ((lInfo.lastReplyCmd != WT2003HX_CMD_CHECK_STATE) ||
+                (lInfo.playState == WT2003HX_PLAY_STATE_PLAY) ||
+                (lInfo.playState == WT2003HX_PLAY_STATE_UNKNOWN)) {
+                if (!gAudioDebugStopWaitLogged) {
+                    LOG_I(AUDIO_LOG_TAG,
+                          "notice wait current audio clip=%u current=%u state=%u cmd=0x%02X",
+                          (unsigned int)lClip,
+                          (unsigned int)gAudioPlayingClip,
+                          (unsigned int)lInfo.playState,
+                          (unsigned int)lInfo.lastReplyCmd);
+                    gAudioDebugStopWaitLogged = true;
+                }
+                (void)wt2003hxPortQuery(WT2003HX_CMD_CHECK_STATE);
+                gAudioNextPlayTick = lNowTick + AUDIO_STATE_QUERY_ACTIVE_MS;
+                return;
+            }
+
+            gAudioDebugStopWaitLogged = false;
+            if (gAudioPlayingClip == AUDIO_CLIP_DIDI) {
+                LOG_I(AUDIO_LOG_TAG,
+                      "notice after didi clip=%u state=%u cmd=0x%02X gap=%u",
+                      (unsigned int)lClip,
+                      (unsigned int)lInfo.playState,
+                      (unsigned int)lInfo.lastReplyCmd,
+                      (unsigned int)AUDIO_NOTICE_CHAIN_GAP_MS);
+                gAudioPlayingClip = AUDIO_CLIP_MAX;
+                gAudioNextPlayTick = lNowTick + AUDIO_NOTICE_CHAIN_GAP_MS;
+                return;
+            }
+        }
+
+        if (lModuleBusy || audioShouldWaitNoticePlayback(&lInfo, lNowTick)) {
+            return;
+        }
+
+        if (!audioPlayClip(lClip)) {
+            gAudioNextPlayTick = lNowTick + AUDIO_STATE_QUERY_ACTIVE_MS;
             return;
         }
 
         (void)audioNoticePop(&lClip);
-        (void)audioPlayClip(lClip);
         audioDidiClear();
         gAudioLastMetronomeTick = lNowTick;
         return;
     }
+
+    gAudioNoticeStopPending = false;
 
     if (audioDidiPeek(&lClip)) {
         if (lNonDidiBusy) {
@@ -862,8 +1127,13 @@ static void audioServicePlayback(void)
             return;
         }
 
+        if (!audioPlayClip(lClip)) {
+            audioDidiClear();
+            gAudioNextPlayTick = lNowTick + AUDIO_STATE_QUERY_ACTIVE_MS;
+            return;
+        }
+
         (void)audioDidiPop(&lClip);
-        (void)audioPlayClip(lClip);
     }
 }
 
@@ -882,20 +1152,59 @@ static void audioQueryStatePeriodically(void)
         lQueryIntervalMs = audioHasPendingPlayback() ? AUDIO_STATE_QUERY_ACTIVE_MS : AUDIO_STATE_QUERY_IDLE_MS;
     }
 
-    if (wt2003hxPortGetInfo(&lInfo) && gAudioPlaybackActive && (lInfo.playState != WT2003HX_PLAY_STATE_PLAY) &&
+    if (gAudioPlaybackActive && audioIsNoticePlayWindowActive(lNowTick)) {
+        return;
+    }
+
+    if (wt2003hxPortGetInfo(&lInfo) &&
+        gAudioPlaybackActive &&
+        (lInfo.lastReplyCmd == WT2003HX_CMD_CHECK_STATE) &&
+        (lInfo.playState != WT2003HX_PLAY_STATE_PLAY) &&
         (lInfo.playState != WT2003HX_PLAY_STATE_UNKNOWN)) {
+        bool lHasPendingNotice = (gAudioNoticeUsed > 0U);
+
         gAudioPlaybackActive = false;
+        LOG_I(AUDIO_LOG_TAG,
+              "playback released clip=%u state=%u cmd=0x%02X",
+              (unsigned int)gAudioPlayingClip,
+              (unsigned int)lInfo.playState,
+              (unsigned int)lInfo.lastReplyCmd);
+        if (gAudioPlayingClip != AUDIO_CLIP_DIDI) {
+            gAudioPlayingClip = AUDIO_CLIP_MAX;
+            if (lHasPendingNotice && ((int32_t)(gAudioNextPlayTick - (lNowTick + AUDIO_NOTICE_CHAIN_GAP_MS)) < 0)) {
+                gAudioNextPlayTick = lNowTick + AUDIO_NOTICE_CHAIN_GAP_MS;
+                LOG_I(AUDIO_LOG_TAG,
+                      "notice chain gap=%u pending=%u",
+                      (unsigned int)AUDIO_NOTICE_CHAIN_GAP_MS,
+                      (unsigned int)gAudioNoticeUsed);
+            }
+        }
         /*
-         * Keep gAudioPlayingClip as the last commanded clip. WT2003HX state
-         * replies can briefly report STOP before the physical prompt is fully
-         * idle; clearing the clip here makes that residual DIDI playback look
-         * like an unknown non-DIDI busy state and drops every other 120 BPM beat.
+         * Keep the last commanded DIDI clip only. WT2003HX state replies can
+         * briefly report STOP before the physical beat is fully idle; clearing
+         * the clip here makes that residual DIDI playback look like an unknown
+         * non-DIDI busy state and drops every other 120 BPM beat.
          */
         lQueryIntervalMs = audioHasPendingPlayback() ? AUDIO_STATE_QUERY_ACTIVE_MS : AUDIO_STATE_QUERY_IDLE_MS;
     }
 
     if ((int32_t)(lNowTick - gAudioNextStateQueryTick) < 0) {
         return;
+    }
+
+    if (wt2003hxPortGetInfo(&lInfo) &&
+        ((lInfo.playState != gAudioDebugLastPlayState) || (lInfo.lastReplyCmd != gAudioDebugLastReplyCmd))) {
+        LOG_I(AUDIO_LOG_TAG,
+              "state update clip=%u active=%u pendingStop=%u state=%u cmd=0x%02X notice=%u didi=%u",
+              (unsigned int)gAudioPlayingClip,
+              (unsigned int)gAudioPlaybackActive,
+              (unsigned int)gAudioNoticeStopPending,
+              (unsigned int)lInfo.playState,
+              (unsigned int)lInfo.lastReplyCmd,
+              (unsigned int)gAudioNoticeUsed,
+              (unsigned int)gAudioDidiUsed);
+        gAudioDebugLastPlayState = lInfo.playState;
+        gAudioDebugLastReplyCmd = lInfo.lastReplyCmd;
     }
 
     gAudioNextStateQueryTick = lNowTick + lQueryIntervalMs;

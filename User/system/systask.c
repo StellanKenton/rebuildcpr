@@ -27,6 +27,7 @@
 
 #define SYSTASK_LOG_TAG "systask"
 #define SYSTASK_STACK_DEPTH_FROM_BYTES(bytes) ((uint32_t)(bytes) / (uint32_t)sizeof(uint32_t))
+#define SYSTASK_MEMORY_INIT_RETRY_MS 1000U
 
 volatile uint32_t gSystemFaultTraceStage = 0U;
 
@@ -102,12 +103,21 @@ static const stRepRtosTaskConfig gSystemAudioTaskConfig = {
 
 static void memoryTaskEntry(void *argument)
 {
+	uint32_t lLastInitTick = 0U;
+
 	(void)argument;
 
 	for (;;) {
 		if (!memoryIsReady()) {
-			(void)memoryInit();
+			uint32_t lNowTick = repRtosGetTickMs();
+
+			if ((lLastInitTick == 0U) ||
+				((uint32_t)(lNowTick - lLastInitTick) >= SYSTASK_MEMORY_INIT_RETRY_MS)) {
+				lLastInitTick = lNowTick;
+				(void)memoryInit();
+			}
 		} else {
+			lLastInitTick = 0U;
 			memoryProcess();
 		}
 		(void)repRtosDelayMs(MemoryTaskInterval);

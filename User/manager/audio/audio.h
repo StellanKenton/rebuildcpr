@@ -28,6 +28,8 @@ extern "C" {
 #define AUDIO_STATE_QUERY_IDLE_MS           200U
 #define AUDIO_STATE_QUERY_ACTIVE_MS         20U
 #define AUDIO_PLAY_COOLDOWN_MS              20U
+#define AUDIO_NOTICE_CHAIN_GAP_MS           250U
+#define AUDIO_NOTICE_PLAY_HOLD_MS           1800U
 
 typedef enum eAudioLanguage {
     AUDIO_LANGUAGE_INVALID = 0,

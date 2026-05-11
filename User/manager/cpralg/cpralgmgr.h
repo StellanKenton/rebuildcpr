@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+#define CPR_ALG_MGR_RECENT_PRESS_COUNT 3U
+
 typedef struct 
 {
     uint8_t Depth;
@@ -38,6 +40,21 @@ typedef struct
 
 }CPR_Alarm_Limit_Typedef;
 
+typedef struct
+{
+    uint8_t Depth;
+    uint8_t Freq;
+    uint32_t TimeStamp;
+    bool Valid;
+} CPR_Press_Record_Typedef;
+
+typedef struct
+{
+    CPR_Press_Record_Typedef Records[CPR_ALG_MGR_RECENT_PRESS_COUNT];
+    uint8_t Count;
+    uint8_t NextIndex;
+} CPR_Recent_Press_History_Typedef;
+
 extern CPR_Data_Typedef s_CPR_Data;
 extern CPR_Manager_Typedef s_CPR_Manager;
 extern CPR_Alarm_Limit_Typedef s_CPR_Alarm_Limit;
@@ -47,6 +64,7 @@ void cprAlgMgrProcess(void);
 void cprAlgMgrDisplayProcess(void);
 void cprAlgMgrGetData(CPR_Data_Typedef *data);
 void cprAlgMgrGetManager(CPR_Manager_Typedef *manager);
+void cprAlgMgrGetRecentPressHistory(CPR_Recent_Press_History_Typedef *history);
 uint32_t cprAlgMgrGetRtcTime(void);
 bool cprAlgMgrSetRtcTime(uint32_t timestamp);
 

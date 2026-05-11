@@ -1,6 +1,7 @@
 #include "cpralgmgr.h"
 
 #include "CprFeedback_C.h"
+#include "../memory/memory.h"
 #include "../selfcheck/selfcheck_fault.h"
 #include "../sensor/sensor.h"
 #include "../../port/pca9535_port.h"
@@ -9,20 +10,50 @@
 #include "rtos.h"
 
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #define CPR_ALG_MGR_INTERVAL_MS 50U
 #define CPR_ALG_MGR_RTC_BASE_YEAR 2025U
+#define CPR_ALG_MGR_PAUSE_RESET_MS 3000U
 
 static const char gCprAlgMgrLogTag[] = "cpralg";
+static const char gCprAlgMgrMdataDir[] = "/mdata";
 static const uint8_t gCprAlgMgrFreqDisplayMin = 40U;
 static const uint8_t gCprAlgMgrFreqDisplayMax = 160U;
 static const uint32_t gCprAlgMgrMetricDisplayMs = 2000U;
 static const uint32_t gCprAlgMgrIntervalDisplayStartMs = 3000U;
 static const uint32_t gCprAlgMgrIntervalDisplayEndMs = 300000U;
+static const uint32_t gCprAlgMgrMdataRecordSize = 7U;
+static const uint32_t gCprAlgMgrMdataRecordsPerFile = 300U;
+static const uint32_t gCprAlgMgrMdataFileMaxSize = 2100U;
+static const uint32_t gCprAlgMgrMdataMaxRecords = 30000U;
+
+struct stCprAlgMgrMdataScanContext {
+    uint32_t totalRecordCount;
+    uint32_t oldestBootTimeStamp;
+    uint32_t oldestFileIndex;
+    uint32_t oldestRecordCount;
+    char oldestPath[VFS_PATH_MAX];
+    uint32_t emptyBootTimeStamp;
+    uint32_t emptyFileIndex;
+    char emptyPath[VFS_PATH_MAX];
+    bool hasOldest;
+    bool hasEmpty;
+};
+
 static bool sCprAlgMgrHasFirstPress = false;
+static uint32_t sCprAlgMgrMdataBootTimeStamp = 0U;
+static uint32_t sCprAlgMgrMdataFileIndex = 0U;
+static uint32_t sCprAlgMgrMdataRecordCount = 0U;
+static bool sCprAlgMgrMdataReady = false;
+static struct stCprAlgMgrMdataScanContext sCprAlgMgrMdataScanContext;
+static char sCprAlgMgrMdataPath[VFS_PATH_MAX];
+static uint8_t sCprAlgMgrMdataRecord[7U];
 
 CPR_Data_Typedef s_CPR_Data = {0};
 CPR_Manager_Typedef s_CPR_Manager = {0};
+static CPR_Recent_Press_History_Typedef sCprAlgMgrRecentPressHistory = {0};
 CPR_Alarm_Limit_Typedef s_CPR_Alarm_Limit = {
     .Depth_High_Limit = 60,
     .Depth_Low_Limit = 50,
@@ -36,6 +67,367 @@ CPR_Alarm_Limit_Typedef s_CPR_Alarm_Limit = {
 };
 
 static bool s_CPR_Alg_Initialized = false;
+
+static bool cprAlgMgrEnsureMdataDir(void);
+static void cprAlgMgrBuildMdataPath(uint32_t bootTimeStamp, uint32_t fileIndex, char *path, uint32_t pathSize);
+static bool cprAlgMgrParseMdataFileName(const char *name, uint32_t *bootTimeStamp, uint32_t *fileIndex);
+static bool cprAlgMgrMdataScanVisitor(void *context, const stMemoryEntryInfo *entry);
+static bool cprAlgMgrCleanupMdataIfNeeded(void);
+static void cprAlgMgrEncodePressRecord(const CPR_Data_Typedef *data, uint8_t record[7U]);
+static bool cprAlgMgrPrepareMdataFile(const CPR_Data_Typedef *data);
+static bool cprAlgMgrStorePressRecord(const CPR_Data_Typedef *data);
+
+static bool cprAlgMgrEnsureMdataDir(void)
+{
+    if (memoryExists(gCprAlgMgrMdataDir)) {
+        return true;
+    }
+
+    if (!memoryMkdir(gCprAlgMgrMdataDir)) {
+        LOG_E(gCprAlgMgrLogTag, "mdata mkdir fail path=%s", gCprAlgMgrMdataDir);
+        return false;
+    }
+
+    return true;
+}
+
+static void cprAlgMgrBuildMdataPath(uint32_t bootTimeStamp, uint32_t fileIndex, char *path, uint32_t pathSize)
+{
+    if ((path == NULL) || (pathSize == 0U)) {
+        return;
+    }
+
+    if (fileIndex == 0U) {
+        (void)snprintf(path, pathSize, "%s/%08lX.bin",
+                       gCprAlgMgrMdataDir,
+                       (unsigned long)bootTimeStamp);
+    } else {
+        (void)snprintf(path, pathSize, "%s/%08lX-%lu.bin",
+                       gCprAlgMgrMdataDir,
+                       (unsigned long)bootTimeStamp,
+                       (unsigned long)fileIndex);
+    }
+}
+
+static bool cprAlgMgrParseHexDigit(char digit, uint32_t *value)
+{
+    if (value == NULL) {
+        return false;
+    }
+
+    if ((digit >= '0') && (digit <= '9')) {
+        *value = (uint32_t)(digit - '0');
+        return true;
+    }
+
+    if ((digit >= 'A') && (digit <= 'F')) {
+        *value = (uint32_t)(digit - 'A') + 10U;
+        return true;
+    }
+
+    if ((digit >= 'a') && (digit <= 'f')) {
+        *value = (uint32_t)(digit - 'a') + 10U;
+        return true;
+    }
+
+    return false;
+}
+
+static bool cprAlgMgrParseMdataFileName(const char *name, uint32_t *bootTimeStamp, uint32_t *fileIndex)
+{
+    uint32_t lBootTimeStamp = 0U;
+    uint32_t lFileIndex = 0U;
+    uint32_t lDigit;
+    uint32_t lIndex;
+    const char *lCursor;
+
+    if ((name == NULL) || (bootTimeStamp == NULL) || (fileIndex == NULL)) {
+        return false;
+    }
+
+    for (lIndex = 0U; lIndex < 8U; lIndex++) {
+        if (!cprAlgMgrParseHexDigit(name[lIndex], &lDigit)) {
+            return false;
+        }
+        lBootTimeStamp = (lBootTimeStamp << 4U) | lDigit;
+    }
+
+    lCursor = &name[8];
+    if (strncmp(lCursor, ".bin", 4U) == 0) {
+        if (lCursor[4] != '\0') {
+            return false;
+        }
+        *bootTimeStamp = lBootTimeStamp;
+        *fileIndex = 0U;
+        return true;
+    }
+
+    if (*lCursor != '-') {
+        return false;
+    }
+    lCursor++;
+
+    if ((*lCursor < '0') || (*lCursor > '9')) {
+        return false;
+    }
+
+    while ((*lCursor >= '0') && (*lCursor <= '9')) {
+        uint32_t lNextIndex = (lFileIndex * 10U) + (uint32_t)(*lCursor - '0');
+
+        if (lNextIndex < lFileIndex) {
+            return false;
+        }
+        lFileIndex = lNextIndex;
+        lCursor++;
+    }
+
+    if ((strncmp(lCursor, ".bin", 4U) != 0) || (lCursor[4] != '\0')) {
+        return false;
+    }
+
+    *bootTimeStamp = lBootTimeStamp;
+    *fileIndex = lFileIndex;
+    return true;
+}
+
+static bool cprAlgMgrMdataScanVisitor(void *context, const stMemoryEntryInfo *entry)
+{
+    struct stCprAlgMgrMdataScanContext *lContext = (struct stCprAlgMgrMdataScanContext *)context;
+    uint32_t lBootTimeStamp;
+    uint32_t lFileIndex;
+    uint32_t lRecordCount;
+    bool lIsOlder;
+
+    if ((lContext == NULL) || (entry == NULL)) {
+        return false;
+    }
+
+    if ((entry->type != eMEMORY_ENTRY_TYPE_FILE) ||
+        !cprAlgMgrParseMdataFileName(entry->name, &lBootTimeStamp, &lFileIndex)) {
+        return true;
+    }
+
+    lRecordCount = entry->size / gCprAlgMgrMdataRecordSize;
+    lContext->totalRecordCount += lRecordCount;
+
+    if ((entry->size == 0U) && !lContext->hasEmpty) {
+        lContext->hasEmpty = true;
+        lContext->emptyBootTimeStamp = lBootTimeStamp;
+        lContext->emptyFileIndex = lFileIndex;
+        cprAlgMgrBuildMdataPath(lBootTimeStamp, lFileIndex, lContext->emptyPath, sizeof(lContext->emptyPath));
+    }
+
+    lIsOlder = !lContext->hasOldest ||
+               (lBootTimeStamp < lContext->oldestBootTimeStamp) ||
+               ((lBootTimeStamp == lContext->oldestBootTimeStamp) &&
+                (lFileIndex < lContext->oldestFileIndex));
+
+    if (lIsOlder) {
+        lContext->hasOldest = true;
+        lContext->oldestBootTimeStamp = lBootTimeStamp;
+        lContext->oldestFileIndex = lFileIndex;
+        lContext->oldestRecordCount = lRecordCount;
+        cprAlgMgrBuildMdataPath(lBootTimeStamp, lFileIndex, lContext->oldestPath, sizeof(lContext->oldestPath));
+    }
+
+    return true;
+}
+
+static bool cprAlgMgrCleanupMdataIfNeeded(void)
+{
+    uint32_t lEntryCount;
+
+    do {
+        (void)memset(&sCprAlgMgrMdataScanContext, 0, sizeof(sCprAlgMgrMdataScanContext));
+        lEntryCount = 0U;
+
+        if (!memoryListDir(gCprAlgMgrMdataDir, cprAlgMgrMdataScanVisitor, &sCprAlgMgrMdataScanContext, &lEntryCount)) {
+            LOG_E(gCprAlgMgrLogTag, "mdata list fail path=%s", gCprAlgMgrMdataDir);
+            return false;
+        }
+
+        if (sCprAlgMgrMdataScanContext.hasEmpty) {
+            LOG_I(gCprAlgMgrLogTag, "mdata delete empty path=%s", sCprAlgMgrMdataScanContext.emptyPath);
+
+            if (!memoryDelete(sCprAlgMgrMdataScanContext.emptyPath)) {
+                LOG_E(gCprAlgMgrLogTag, "mdata delete fail path=%s", sCprAlgMgrMdataScanContext.emptyPath);
+                return false;
+            }
+
+            if (sCprAlgMgrMdataReady &&
+                (sCprAlgMgrMdataBootTimeStamp == sCprAlgMgrMdataScanContext.emptyBootTimeStamp) &&
+                (sCprAlgMgrMdataFileIndex == sCprAlgMgrMdataScanContext.emptyFileIndex)) {
+                sCprAlgMgrMdataReady = false;
+            }
+            continue;
+        }
+
+        if ((sCprAlgMgrMdataScanContext.totalRecordCount + 1U) <= gCprAlgMgrMdataMaxRecords) {
+            return true;
+        }
+
+        if (!sCprAlgMgrMdataScanContext.hasOldest) {
+            return false;
+        }
+
+        LOG_I(gCprAlgMgrLogTag, "mdata delete oldest path=%s records=%lu",
+              sCprAlgMgrMdataScanContext.oldestPath,
+              (unsigned long)sCprAlgMgrMdataScanContext.oldestRecordCount);
+
+        if (!memoryDelete(sCprAlgMgrMdataScanContext.oldestPath)) {
+            LOG_E(gCprAlgMgrLogTag, "mdata delete fail path=%s", sCprAlgMgrMdataScanContext.oldestPath);
+            return false;
+        }
+
+        if (sCprAlgMgrMdataReady &&
+            (sCprAlgMgrMdataBootTimeStamp == sCprAlgMgrMdataScanContext.oldestBootTimeStamp) &&
+            (sCprAlgMgrMdataFileIndex == sCprAlgMgrMdataScanContext.oldestFileIndex)) {
+            sCprAlgMgrMdataReady = false;
+        }
+    } while (true);
+}
+
+static void cprAlgMgrEncodePressRecord(const CPR_Data_Typedef *data, uint8_t record[7U])
+{
+    if ((data == NULL) || (record == NULL)) {
+        return;
+    }
+
+    record[0] = data->Depth;
+    record[1] = data->Freq;
+    record[2] = data->RealseDepth;
+    record[3] = (uint8_t)(data->TimeStamp & 0xFFU);
+    record[4] = (uint8_t)((data->TimeStamp >> 8U) & 0xFFU);
+    record[5] = (uint8_t)((data->TimeStamp >> 16U) & 0xFFU);
+    record[6] = (uint8_t)((data->TimeStamp >> 24U) & 0xFFU);
+}
+
+static bool cprAlgMgrPrepareMdataFile(const CPR_Data_Typedef *data)
+{
+    uint32_t lFileSize;
+    bool lFileExists;
+
+    if (data == NULL) {
+        return false;
+    }
+
+    if (!memoryIsReady()) {
+        return false;
+    }
+
+    if (!cprAlgMgrEnsureMdataDir() || !cprAlgMgrCleanupMdataIfNeeded()) {
+        return false;
+    }
+
+    if (!sCprAlgMgrMdataReady ||
+        (sCprAlgMgrMdataBootTimeStamp != data->BootTimeStamp)) {
+        sCprAlgMgrMdataBootTimeStamp = data->BootTimeStamp;
+        sCprAlgMgrMdataFileIndex = 0U;
+        sCprAlgMgrMdataRecordCount = 0U;
+        sCprAlgMgrMdataReady = true;
+    }
+
+    do {
+        cprAlgMgrBuildMdataPath(sCprAlgMgrMdataBootTimeStamp,
+                                sCprAlgMgrMdataFileIndex,
+                                sCprAlgMgrMdataPath,
+                                sizeof(sCprAlgMgrMdataPath));
+        lFileSize = 0U;
+        lFileExists = memoryExists(sCprAlgMgrMdataPath);
+
+        if (lFileExists && !memoryGetFileSize(sCprAlgMgrMdataPath, &lFileSize)) {
+            LOG_E(gCprAlgMgrLogTag, "mdata size fail path=%s", sCprAlgMgrMdataPath);
+            return false;
+        }
+
+        if (!lFileExists) {
+            sCprAlgMgrMdataRecordCount = 0U;
+            return true;
+        }
+
+        if ((lFileSize % gCprAlgMgrMdataRecordSize) != 0U) {
+            sCprAlgMgrMdataFileIndex++;
+            LOG_I(gCprAlgMgrLogTag, "mdata switch file boot=0x%08lX index=%lu",
+                  (unsigned long)sCprAlgMgrMdataBootTimeStamp,
+                  (unsigned long)sCprAlgMgrMdataFileIndex);
+            continue;
+        }
+
+        sCprAlgMgrMdataRecordCount = lFileSize / gCprAlgMgrMdataRecordSize;
+        if ((sCprAlgMgrMdataRecordCount >= gCprAlgMgrMdataRecordsPerFile) ||
+            ((lFileSize + gCprAlgMgrMdataRecordSize) > gCprAlgMgrMdataFileMaxSize)) {
+            sCprAlgMgrMdataFileIndex++;
+            LOG_I(gCprAlgMgrLogTag, "mdata switch file boot=0x%08lX index=%lu",
+                  (unsigned long)sCprAlgMgrMdataBootTimeStamp,
+                  (unsigned long)sCprAlgMgrMdataFileIndex);
+            continue;
+        }
+
+        return true;
+    } while (true);
+}
+
+static bool cprAlgMgrStorePressRecord(const CPR_Data_Typedef *data)
+{
+    if (data == NULL) {
+        return false;
+    }
+
+    if (!cprAlgMgrPrepareMdataFile(data)) {
+        return false;
+    }
+
+    cprAlgMgrEncodePressRecord(data, sCprAlgMgrMdataRecord);
+    cprAlgMgrBuildMdataPath(sCprAlgMgrMdataBootTimeStamp,
+                            sCprAlgMgrMdataFileIndex,
+                            sCprAlgMgrMdataPath,
+                            sizeof(sCprAlgMgrMdataPath));
+
+    if (!memoryAppendFile(sCprAlgMgrMdataPath,
+                          sCprAlgMgrMdataRecord,
+                          (uint32_t)sizeof(sCprAlgMgrMdataRecord))) {
+        uint32_t lFileSize;
+
+        if (memoryGetFileSize(sCprAlgMgrMdataPath, &lFileSize) && (lFileSize == 0U)) {
+            (void)memoryDelete(sCprAlgMgrMdataPath);
+        }
+        LOG_E(gCprAlgMgrLogTag, "mdata append fail path=%s", sCprAlgMgrMdataPath);
+        return false;
+    }
+
+    sCprAlgMgrMdataRecordCount++;
+    return true;
+}
+
+static void cprAlgMgrClearRecentPressHistory(void)
+{
+    uint8_t lIndex;
+
+    sCprAlgMgrRecentPressHistory.Count = 0U;
+    sCprAlgMgrRecentPressHistory.NextIndex = 0U;
+    for (lIndex = 0U; lIndex < CPR_ALG_MGR_RECENT_PRESS_COUNT; lIndex++) {
+        sCprAlgMgrRecentPressHistory.Records[lIndex].Depth = 0U;
+        sCprAlgMgrRecentPressHistory.Records[lIndex].Freq = 0U;
+        sCprAlgMgrRecentPressHistory.Records[lIndex].TimeStamp = 0U;
+        sCprAlgMgrRecentPressHistory.Records[lIndex].Valid = false;
+    }
+}
+
+static void cprAlgMgrPushRecentPressHistory(uint8_t depth, uint8_t freq, uint32_t timeStamp)
+{
+    CPR_Press_Record_Typedef *lRecord = &sCprAlgMgrRecentPressHistory.Records[sCprAlgMgrRecentPressHistory.NextIndex];
+
+    lRecord->Depth = depth;
+    lRecord->Freq = freq;
+    lRecord->TimeStamp = timeStamp;
+    lRecord->Valid = true;
+
+    sCprAlgMgrRecentPressHistory.NextIndex =
+        (uint8_t)((sCprAlgMgrRecentPressHistory.NextIndex + 1U) % CPR_ALG_MGR_RECENT_PRESS_COUNT);
+    if (sCprAlgMgrRecentPressHistory.Count < CPR_ALG_MGR_RECENT_PRESS_COUNT) {
+        sCprAlgMgrRecentPressHistory.Count++;
+    }
+}
 
 static bool cprAlgMgrIsLeapYear(uint16_t year)
 {
@@ -265,6 +657,7 @@ bool cprAlgMgrInit(void)
     s_CPR_Manager.IsPressing = false;
     s_CPR_Manager.DataReady = false;
     s_CPR_Manager.IntervalTime = 0U;
+    cprAlgMgrClearRecentPressHistory();
     repRtosExitCritical();
 
     sCprAlgMgrHasFirstPress = false;
@@ -279,12 +672,18 @@ void cprAlgMgrProcess(void)
     stSensorSample lSample;
     CprFeedbackRst lCprRst;
     bool lDataReady = false;
+    CPR_Data_Typedef lPressData;
+    bool lShouldStorePress;
 
     if (!s_CPR_Alg_Initialized && !cprAlgMgrInit()) {
         return;
     }
 
     while (sensorReadSample(&lSample, 0U)) {
+        uint32_t lPressTimeStamp;
+
+        lShouldStorePress = false;
+
         CprFeedback_process(lSample.x, lSample.y, lSample.z, (int16_t)lSample.force);
         CprFeedback_get_cpr_rst(&lCprRst);
 
@@ -295,20 +694,31 @@ void cprAlgMgrProcess(void)
             s_CPR_Data.Depth = cprAlgMgrClampToU8(lCprRst.CPRDepth);
             s_CPR_Data.Freq = cprAlgMgrClampToU8(lCprRst.CPRRate);
             s_CPR_Data.RealseDepth = cprAlgMgrClampToU8(lCprRst.CPRReleaseDepth_Instantaneous);
-            s_CPR_Data.TimeStamp = repRtosGetTickMs();
+            lPressTimeStamp = repRtosGetTickMs();
+            s_CPR_Data.TimeStamp = lPressTimeStamp;
             s_CPR_Manager.IntervalTime = 0U;
+            cprAlgMgrPushRecentPressHistory(s_CPR_Data.Depth, s_CPR_Data.Freq, lPressTimeStamp);
             sCprAlgMgrHasFirstPress = true;
+            lPressData = s_CPR_Data;
+            lShouldStorePress = true;
             lDataReady = true;
         }
 
         s_CPR_Manager.DataReady = lDataReady;
         repRtosExitCritical();
+
+        if (lShouldStorePress) {
+            (void)cprAlgMgrStorePressRecord(&lPressData);
+        }
     }
 
     repRtosEnterCritical();
     s_CPR_Manager.DataReady = lDataReady;
     if (!lDataReady) {
         cprAlgMgrUpdateInterval();
+        if (!s_CPR_Manager.IsPressing && (s_CPR_Manager.IntervalTime >= CPR_ALG_MGR_PAUSE_RESET_MS)) {
+            cprAlgMgrClearRecentPressHistory();
+        }
     }
     repRtosExitCritical();
 }
@@ -341,6 +751,17 @@ void cprAlgMgrGetManager(CPR_Manager_Typedef *manager)
 
     repRtosEnterCritical();
     *manager = s_CPR_Manager;
+    repRtosExitCritical();
+}
+
+void cprAlgMgrGetRecentPressHistory(CPR_Recent_Press_History_Typedef *history)
+{
+    if (history == NULL) {
+        return;
+    }
+
+    repRtosEnterCritical();
+    *history = sCprAlgMgrRecentPressHistory;
     repRtosExitCritical();
 }
 
