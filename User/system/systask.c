@@ -15,7 +15,7 @@
 
 #include "sysmgr.h"
 #include "system_debug.h"
-#include "../../rep/service/log/log.h"
+#include "../../rep/sys/log/log.h"
 #include "../../rep/driver/drvadc/drvadc.h"
 #include "../manager/memory/memory.h"
 #include "../manager/power/power.h"

@@ -12,9 +12,9 @@
 
 #include "../../Core/Inc/iwdg.h"
 #include "../../rep/module/gd25qxxx/gd25qxxx.h"
-#include "../../rep/service/log/log.h"
-#include "../../rep/service/vfs/vfs.h"
-#include "../../rep/service/vfs/vfs_littlefs.h"
+#include "../../rep/sys/log/log.h"
+#include "../../rep/sys/vfs/vfs.h"
+#include "../../rep/sys/vfs/vfs_littlefs.h"
 
 #define VFS_LITTLEFS_PORT_LOG_TAG            "vfs_port"
 #define VFS_LITTLEFS_PORT_FLASH_DEVICE       GD25Q32_MEM

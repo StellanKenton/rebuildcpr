@@ -11,7 +11,7 @@
 #ifndef REBUILDCPR_LOG_PORT_H
 #define REBUILDCPR_LOG_PORT_H
 
-#include "../../rep/service/log/log.h"
+#include "../../rep/sys/log/log.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -12,7 +12,7 @@
 
 #include <string.h>
 
-#include "../../../rep/service/log/log.h"
+#include "../../../rep/sys/log/log.h"
 #include "../../port/vfs_littlefs_port.h"
 
 static void memorySyncStatus(void);

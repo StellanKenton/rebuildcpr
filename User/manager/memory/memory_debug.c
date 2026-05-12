@@ -1,7 +1,7 @@
 #include "memory_debug.h"
 
 #include "memory.h"
-#include "../../../rep/service/vfs/vfs_debug.h"
+#include "../../../rep/sys/vfs/vfs_debug.h"
 
 bool memoryDebugConsoleRegister(void)
 {

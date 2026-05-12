@@ -10,7 +10,7 @@
 #include "drvadc_port.h"
 #include "lis2hh12_port.h"
 #include "rtos.h"
-#include "../../../rep/service/log/log.h"
+#include "../../../rep/sys/log/log.h"
 
 #define SENSOR_LOG_TAG                    "sensor"
 

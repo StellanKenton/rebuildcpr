@@ -11,7 +11,7 @@
 
 #include "selfcheck.h"
 #include "../../../Core/Inc/rtc.h"
-#include "../../../rep/service/rtos/rtos.h"
+#include "../../../rep/sys/rtos/rtos.h"
 #include "../audio/audio.h"
 #include "../memory/memory.h"
 #include "../power/power.h"

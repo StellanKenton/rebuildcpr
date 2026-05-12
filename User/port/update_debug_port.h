@@ -11,7 +11,7 @@
 #ifndef REBUILDCPR_UPDATE_DEBUG_PORT_H
 #define REBUILDCPR_UPDATE_DEBUG_PORT_H
 
-#include "../../rep/service/update/update_debug.h"
+#include "../../rep/sys/update/update_debug.h"
 
 #ifdef __cplusplus
 extern "C" {

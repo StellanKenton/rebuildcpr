@@ -18,7 +18,7 @@
 #include "drvgpio_port.h"
 #include "drvuart.h"
 
-#include "../../rep/service/rtos/rtos.h"
+#include "../../rep/sys/rtos/rtos.h"
 #include "drvuart_port.h"
 
 static eDrvStatus fc41dPortTransportInit(uint8_t linkId);

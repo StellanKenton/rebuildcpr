@@ -20,7 +20,7 @@
 #include "../../Core/Inc/usart.h"
 
 #include "drvgpio.h"
-#include "../../rep/service/log/log.h"
+#include "../../rep/sys/log/log.h"
 
 #include "../manager/power/power.h"
 #include "../manager/sensor/sensor.h"

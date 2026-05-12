@@ -13,7 +13,7 @@
 #include <stddef.h>
 
 #include "usart.h"
-#include "../../rep/service/rtos/rtos.h"
+#include "../../rep/sys/rtos/rtos.h"
 
 #include "../port/drvuart_port.h"
 

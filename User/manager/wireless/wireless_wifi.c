@@ -15,8 +15,8 @@
 #include "../../../rep/module/fc41d/fc41d_http.h"
 #include "../../../rep/module/fc41d/fc41d_mqtt.h"
 #include "../../../rep/module/fc41d/fc41d_wifi.h"
-#include "../../../rep/service/log/log.h"
-#include "../../../rep/service/rtos/rtos.h"
+#include "../../../rep/sys/log/log.h"
+#include "../../../rep/sys/rtos/rtos.h"
 #include "../../../rep/tools/jsonparser/jsonparser.h"
 #include "../../../rep/tools/md5/md5.h"
 

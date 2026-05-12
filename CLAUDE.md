@@ -42,8 +42,8 @@ Output: `build/CprSensor.elf`, `.hex`, `.bin`, `.map`. MDK-ARM project also avai
 ## Key Coding Rules
 
 1. **Typedefs and macros MUST go in `.h` files, NEVER in `.c` files.** No exceptions — even if only used internally.
-2. **No `printf`/`puts`/`putchar`.** Use `LOG_I`, `LOG_W`, `LOG_E`, `LOG_T` macros from `rep/service/log/log.h`.
-3. **No direct RTOS API calls.** Except in `User/port/rtos_port.*`, always use `rep/service/rtos/rtos.h` `repRtos*` functions.
+2. **No `printf`/`puts`/`putchar`.** Use `LOG_I`, `LOG_W`, `LOG_E`, `LOG_T` macros from `rep/sys/log/log.h`.
+3. **No direct RTOS API calls.** Except in `User/port/rtos_port.*`, always use `rep/sys/rtos/rtos.h` `repRtos*` functions.
 4. **New directories MUST include a main `.md` document** (with design overview, interface contracts, usage examples) AND update the parent directory's main `.md`.
 5. **Naming**: camelCase. Prefixes — `g` global, `l` local, `st` struct, `e` enum, `pf` function pointer. Function names prefix with module name (e.g., `drvSpiInit`).
 6. **Brace style**: same line (`void func() {`).
@@ -62,7 +62,7 @@ For any new task:
 
 ## RTOS Abstraction
 
-All code outside `User/port/rtos_port.*` must use `rep/service/rtos/rtos.h`:
+All code outside `User/port/rtos_port.*` must use `rep/sys/rtos/rtos.h`:
 - `repRtosDelayMs()`, `repRtosGetTickMs()`, `repRtosTaskCreate()`, `repRtosTaskDelayUntilMs()`
 - `repRtosStatsInit()`, `repRtosIsSchedulerRunning()`
 

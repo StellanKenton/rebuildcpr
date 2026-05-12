@@ -120,9 +120,9 @@ add_executable(${TARGET_NAME}
   User/port/ec800m_port.c
   User/port/esp32c5_port.c
   User/port/vfs_littlefs_port.c
-  rep/service/vfs/vfs.c
-  rep/service/vfs/vfs_littlefs.c
-  rep/service/vfs/vfs_debug.c
+  rep/sys/vfs/vfs.c
+  rep/sys/vfs/vfs_littlefs.c
+  rep/sys/vfs/vfs_debug.c
   rep/lib/littlefs/lfs.c
   rep/lib/littlefs/lfs_util.c
   rep/module/fc41d/fc41d.c
@@ -164,9 +164,9 @@ add_executable(${TARGET_NAME}
   rep/tools/md5/md5.c
   rep/tools/aes/aes.c
   rep/comm/frameparser/framepareser.c
-  rep/service/log/console.c
-  rep/service/log/log.c
-  rep/service/rtos/rtos.c
+  rep/sys/log/console.c
+  rep/sys/log/log.c
+  rep/sys/rtos/rtos.c
   rep/driver/drvadc/drvadc_debug.c
   rep/driver/drvanlogiic/drvanlogiic_debug.c
   rep/driver/drvgpio/drvgpio_debug.c
@@ -217,9 +217,9 @@ target_include_directories(${TARGET_NAME} PRIVATE
   rep/module/pca9535
   rep/module/tm1651
   rep/module/wt2003hx
-  rep/service/log
-  rep/service/rtos
-  rep/service/vfs
+  rep/sys/log
+  rep/sys/rtos
+  rep/sys/vfs
   rep/tools/ringbuffer
   rep/tools/aes
   rep/tools/md5

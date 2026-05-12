@@ -17,7 +17,7 @@
 #include "drvgpio_port.h"
 #include "drvuart.h"
 #include "drvuart_port.h"
-#include "../../../rep/service/log/log.h"
+#include "../../../rep/sys/log/log.h"
 #include "rtos.h"
 
 #define WT2003HX_PORT_LOG_TAG "wt2003hxPort"

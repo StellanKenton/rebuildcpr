@@ -17,8 +17,8 @@
 #include "../cpralg/cpralgmgr.h"
 #include "../power/power.h"
 #include "../../system/system.h"
-#include "../../../rep/service/log/log.h"
-#include "../../../rep/service/rtos/rtos.h"
+#include "../../../rep/sys/log/log.h"
+#include "../../../rep/sys/rtos/rtos.h"
 
 #define AUDIO_LOG_TAG "audio"
 #define AUDIO_INIT_QUERY_TIMEOUT_MS 1000U

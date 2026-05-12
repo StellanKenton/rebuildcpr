@@ -73,10 +73,10 @@
 ### 4.2 service 与 tools
 
 1. `rep/tools/ringbuffer/ringbuffer.c`
-2. `rep/service/log/log.c`
-3. `rep/service/log/console.c`
+2. `rep/sys/log/log.c`
+3. `rep/sys/log/console.c`
 4. `rep/tools/trace/trace.c`
-5. `rep/service/update/update_debug.c`
+5. `rep/sys/update/update_debug.c`
 
 ### 4.3 module
 
@@ -117,7 +117,7 @@
 建议样板优先级：
 
 1. `rep/tools/ringbuffer`
-2. `rep/service/log`
+2. `rep/sys/log`
 3. `rep/module/lis2hh12`
 
 建议优先选 `lis2hh12` 作为模块样板，因为它同时包含：
@@ -188,7 +188,7 @@
 4. 对应 md 的契约更新
 验收标准：
 
-1. `rep/service/` 与 `rep/tools/` 中目标 weak 清零。
+1. `rep/sys/` 与 `rep/tools/` 中目标 weak 清零。
 2. 缺失可选成员时行为明确退化，不影响主流程。
 
 ### 阶段 4：按模块族迁移 module

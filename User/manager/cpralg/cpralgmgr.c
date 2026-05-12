@@ -6,7 +6,7 @@
 #include "../sensor/sensor.h"
 #include "../../port/pca9535_port.h"
 #include "../../port/tm1651_port.h"
-#include "../../../rep/service/log/log.h"
+#include "../../../rep/sys/log/log.h"
 #include "rtos.h"
 
 #include <stddef.h>

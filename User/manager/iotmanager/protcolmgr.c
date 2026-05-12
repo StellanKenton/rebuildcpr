@@ -16,8 +16,8 @@
 #include "../cpralg/cpralgmgr.h"
 #include "../memory/memory.h"
 #include "../wireless/wireless.h"
-#include "../../../rep/service/log/log.h"
-#include "../../../rep/service/rtos/rtos.h"
+#include "../../../rep/sys/log/log.h"
+#include "../../../rep/sys/rtos/rtos.h"
 #include "../../../rep/tools/aes/aes.h"
 #include "../../../rep/tools/md5/md5.h"
 

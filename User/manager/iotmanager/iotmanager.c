@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include "../wireless/wireless.h"
-#include "../../../rep/service/rtos/rtos.h"
+#include "../../../rep/sys/rtos/rtos.h"
 
 typedef struct stIotManagerContext {
     stIotManagerState publicState;

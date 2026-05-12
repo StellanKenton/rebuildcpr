@@ -12,8 +12,8 @@
 #include "protcolmgr.h"
 #include "../audio/audio.h"
 #include "../memory/memory.h"
-#include "../../../rep/service/log/console.h"
-#include "../../../rep/service/log/log.h"
+#include "../../../rep/sys/log/console.h"
+#include "../../../rep/sys/log/log.h"
 
 #define PROTCOL_MGR_DEBUG_FRAME_BUFFER_SIZE 32U
 #define PROTCOL_MGR_DEBUG_LANGUAGE_PATH     "/setting/language"

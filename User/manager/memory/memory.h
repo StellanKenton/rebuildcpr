@@ -14,7 +14,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "../../../rep/service/vfs/vfs.h"
+#include "../../../rep/sys/vfs/vfs.h"
 
 #ifdef __cplusplus
 extern "C" {
