@@ -35,6 +35,34 @@
 #define REP_LOG_OUTPUT_PORT 1U
 #endif
 
+#ifndef SYSTEM_FW_VER_MAJOR
+#define SYSTEM_FW_VER_MAJOR 0
+#endif
+
+#ifndef SYSTEM_FW_VER_MINOR
+#define SYSTEM_FW_VER_MINOR 0
+#endif
+
+#ifndef SYSTEM_FW_VER_PATCH
+#define SYSTEM_FW_VER_PATCH 1
+#endif
+
+#ifndef SYSTEM_HW_VER_MAJOR
+#define SYSTEM_HW_VER_MAJOR 0
+#endif
+
+#ifndef SYSTEM_HW_VER_MINOR
+#define SYSTEM_HW_VER_MINOR 0
+#endif
+
+#ifndef SYSTEM_HW_VER_PATCH
+#define SYSTEM_HW_VER_PATCH 1
+#endif
+
+#ifndef SYSTEM_FIRMWARE_NAME
+#define SYSTEM_FIRMWARE_NAME "CprSensor"
+#endif
+
 #ifndef CONSOLE_MAX_COMMANDS
 #define CONSOLE_MAX_COMMANDS 24U
 #endif

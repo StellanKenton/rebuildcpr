@@ -87,8 +87,8 @@ add_executable(${TARGET_NAME}
   User/manager/wireless/wireless_wifi.c
   User/system/sysmgr.c
   User/system/systask.c
-  User/system/system.c
   User/system/system_debug.c
+  rep/sys/system/system.c
   User/bsp/bsp_rtt.c
   User/bsp/bspanlogiic.c
   User/bsp/bspgpio.c
@@ -219,6 +219,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
   rep/module/wt2003hx
   rep/sys/log
   rep/sys/rtos
+  rep/sys/system
   rep/sys/vfs
   rep/tools/ringbuffer
   rep/tools/aes

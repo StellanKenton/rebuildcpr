@@ -16,7 +16,7 @@
 #include "../../port/wt2003hx_port.h"
 #include "../cpralg/cpralgmgr.h"
 #include "../power/power.h"
-#include "../../system/system.h"
+#include "system.h"
 #include "../../../rep/sys/log/log.h"
 #include "../../../rep/sys/rtos/rtos.h"
 
