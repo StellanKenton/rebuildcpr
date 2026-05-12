@@ -10,6 +10,8 @@
 #ifndef REBUILDCPR_DRVGPIO_PORT_H
 #define REBUILDCPR_DRVGPIO_PORT_H
 
+#include "drvgpio.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,6 +31,8 @@ typedef enum eDrvGpioPinMap {
     DRVGPIO_SPI_CS,
     DRVGPIO_POWER_ON_CTRL,
 } eDrvGpioPinMap;
+
+const stDrvGpioOps *drvGpioPortGetOps(void);
 
 #ifdef __cplusplus
 }

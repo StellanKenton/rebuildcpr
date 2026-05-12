@@ -144,14 +144,24 @@ static const stDrvAdcBspInterface gDrvAdcBspInterface = {
     .resolutionBits = DRVADC_DEFAULT_RESOLUTION_BITS,
 };
 
-const stDrvAdcBspInterface *drvAdcGetPlatformBspInterface(void)
+static const stDrvAdcBspInterface *drvAdcPortGetBspInterfaceImpl(void)
 {
     return &gDrvAdcBspInterface;
 }
 
-stDrvAdcData *drvAdcGetPlatformData(void)
+static stDrvAdcData *drvAdcPortGetDataImpl(void)
 {
     return gDrvAdcData;
+}
+
+static const stDrvAdcOps gDrvAdcOps = {
+    .getBspInterface = drvAdcPortGetBspInterfaceImpl,
+    .getData = drvAdcPortGetDataImpl,
+};
+
+const stDrvAdcOps *drvAdcPortGetOps(void)
+{
+    return &gDrvAdcOps;
 }
 
 /**************************End of file********************************/

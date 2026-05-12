@@ -10,6 +10,8 @@
 #ifndef REBUILDCPR_DRVSPI_PORT_H
 #define REBUILDCPR_DRVSPI_PORT_H
 
+#include "drvspi.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -19,6 +21,8 @@ typedef enum eDrvSpiPortMap {
 } eDrvSpiPortMap;
 
 #define DRVSPI_DEFAULT_TIMEOUT_MS 100U
+
+const stDrvSpiOps *drvSpiPortGetOps(void);
 
 #ifdef __cplusplus
 }

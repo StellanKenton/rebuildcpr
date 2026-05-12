@@ -19,13 +19,7 @@ extern "C" {
 #define LIS2HH12_PORT_RETRY_DELAY_MS       10U
 #define LIS2HH12_PORT_RESET_POLL_DELAY_MS  1U
 
-void lis2hh12LoadPlatformDefaultCfg(eLis2hh12MapType device, stLis2hh12Cfg *cfg);
-const stLis2hh12IicInterface *lis2hh12GetPlatformIicInterface(eLis2hh12MapType device);
-bool lis2hh12PlatformIsValidAssemble(eLis2hh12MapType device);
-uint8_t lis2hh12PlatformGetLinkId(eLis2hh12MapType device);
-uint32_t lis2hh12PlatformGetRetryDelayMs(void);
-uint32_t lis2hh12PlatformGetResetPollDelayMs(void);
-void lis2hh12PlatformDelayMs(uint32_t delayMs);
+const stLis2hh12Ops *lis2hh12PortGetOps(void);
 
 #ifdef __cplusplus
 }

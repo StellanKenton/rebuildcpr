@@ -37,4 +37,18 @@ stDrvAnlogIicBspInterface gDrvAnlogIicBspInterface[DRVANLOGIIC_MAX] = {
     },
 };
 
+static const stDrvAnlogIicBspInterface *drvAnlogIicPortGetBspInterfacesImpl(void)
+{
+    return gDrvAnlogIicBspInterface;
+}
+
+static const stDrvAnlogIicOps gDrvAnlogIicOps = {
+    .getBspInterfaces = drvAnlogIicPortGetBspInterfacesImpl,
+};
+
+const stDrvAnlogIicOps *drvAnlogIicPortGetOps(void)
+{
+    return &gDrvAnlogIicOps;
+}
+
 /**************************End of file********************************/

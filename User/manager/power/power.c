@@ -13,6 +13,7 @@
 #include "drvadc.h"
 #include "drvgpio.h"
 #include "system.h"
+#include "../port/drvadc_port.h"
 #include "../port/drvgpio_port.h"
 #include "../port/pca9535_port.h"
 
@@ -277,9 +278,11 @@ void powerLedProcess(void)
 void powerTransRawToVoltage(void)
 {
     uint8_t lIndex;
+    const stDrvAdcOps *lOps;
     stDrvAdcData *lAdcData;
 
-    lAdcData = drvAdcGetPlatformData();
+    lOps = drvAdcPortGetOps();
+    lAdcData = ((lOps != NULL) && (lOps->getData != NULL)) ? lOps->getData() : NULL;
     if (lAdcData == NULL) {
         for (lIndex = 0U; lIndex < (uint8_t)(sizeof(gPowerChannelMap) / sizeof(gPowerChannelMap[0])); lIndex++) {
             *gPowerChannelMap[lIndex].rawValue = 0U;

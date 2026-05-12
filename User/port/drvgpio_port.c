@@ -20,9 +20,18 @@ static const stDrvGpioBspInterface gDrvGpioBspInterface = {
     .toggle = bspGpioToggle,
 };
 
-const stDrvGpioBspInterface *drvGpioGetPlatformBspInterface(void)
+static const stDrvGpioBspInterface *drvGpioPortGetBspInterfaceImpl(void)
 {
     return &gDrvGpioBspInterface;
+}
+
+static const stDrvGpioOps gDrvGpioOps = {
+    .getBspInterface = drvGpioPortGetBspInterfaceImpl,
+};
+
+const stDrvGpioOps *drvGpioPortGetOps(void)
+{
+    return &gDrvGpioOps;
 }
 
 /**************************End of file********************************/

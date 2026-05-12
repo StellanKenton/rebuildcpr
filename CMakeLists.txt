@@ -96,21 +96,29 @@ add_executable(${TARGET_NAME}
   User/bsp/bspspi.c
   User/bsp/bspuart.c
   User/bsp/bspusb.c
+  User/port/frameparser_port.c
   User/port/drvadc_port.c
   User/port/drvgpio_port.c
   User/port/drviic_port.c
   User/port/drvspi_port.c
   User/port/drvuart_port.c
   User/port/fc41dport.c
+  User/port/mpu6050_port.c
   User/port/lis2hh12_port.c
   User/port/drvusb_port.c
+  User/port/drvmcuflash_port.c
   User/port/log_port.c
+  User/port/ringbuffer_port.c
   User/port/pca9535_port.c
   User/port/rtos_port.c
   User/port/tm1651_port.c
   User/port/wt2003hx_port.c
   User/port/drvanlogiic_port.c
   User/port/gd25qxxx_port.c
+  User/port/w25qxxx_port.c
+  User/port/sdcard_port.c
+  User/port/ec800m_port.c
+  User/port/esp32c5_port.c
   User/port/vfs_littlefs_port.c
   rep/service/vfs/vfs.c
   rep/service/vfs/vfs_littlefs.c
@@ -123,7 +131,18 @@ add_executable(${TARGET_NAME}
   rep/module/fc41d/fc41d_http.c
   rep/module/fc41d/fc41d_mqtt.c
   rep/module/fc41d/fc41d_wifi.c
+  rep/module/mpu6050/mpu6050.c
   rep/module/lis2hh12/lis2hh12.c
+  rep/module/ec800m/ec800m.c
+  rep/module/ec800m/ec800m_http.c
+  rep/module/ec800m/ec800m_mqtt.c
+  rep/module/esp32c5/esp32c5.c
+  rep/module/esp32c5/esp32c5_ctrl.c
+  rep/module/esp32c5/esp32c5_data.c
+  rep/module/esp32c5/esp32c5_ble.c
+  rep/module/esp32c5/esp32c5_http.c
+  rep/module/esp32c5/esp32c5_mqtt.c
+  rep/module/esp32c5/esp32c5_wifi.c
   rep/comm/flowparser/flowparser.c
   rep/comm/flowparser/flowparser_stream.c
   rep/driver/drvadc/drvadc.c
@@ -133,7 +152,10 @@ add_executable(${TARGET_NAME}
   rep/driver/drvspi/drvspi.c
   rep/driver/drvuart/drvuart.c
   rep/driver/drvusb/drvusb.c
+  rep/driver/drvmcuflash/drvmcuflash.c
   rep/module/gd25qxxx/gd25qxxx.c
+  rep/module/w25qxxx/w25qxxx.c
+  rep/module/sdcard/sdcard.c
   rep/module/pca9535/pca9535.c
   rep/module/tm1651/tm1651.c
   rep/module/wt2003hx/wt2003hx.c
@@ -187,6 +209,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
   rep/driver/drvspi
   rep/driver/drvuart
   rep/driver/drvusb
+  rep/driver/drvmcuflash
   rep/lib/littlefs
   rep/module/fc41d
   rep/module/lis2hh12

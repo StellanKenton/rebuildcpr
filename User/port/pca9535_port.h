@@ -43,6 +43,8 @@ extern "C" {
 typedef stPca9535IicInterface stPca9535PortIicInterface;
 typedef stPca9535AssembleCfg stPca9535PortAssembleCfg;
 
+const stPca9535Ops *pca9535PortGetOps(void);
+
 eDrvStatus pca9535PortInit(void);
 bool pca9535PortIsReady(void);
 eDrvStatus pca9535PortLedOff(void);
@@ -52,10 +54,6 @@ eDrvStatus pca9535PortLedPressShow(bool isRedOn, bool isGreenOn, bool isBlueOn);
 eDrvStatus pca9535PortSetShowMask(uint16_t mask);
 eDrvStatus pca9535PortGetShowMask(uint16_t *mask);
 eDrvStatus pca9535PortReadInputPort(uint16_t *value);
-void pca9535PortResetInit(void);
-void pca9535PortResetWrite(bool assertReset);
-void pca9535PortDelayMs(uint32_t delayMs);
-
 #ifdef __cplusplus
 }
 #endif

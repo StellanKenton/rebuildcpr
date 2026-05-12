@@ -1,7 +1,7 @@
 /***********************************************************************************
 * @file     : fc41dport.c
 * @brief    : Project-side FC41D binding implementation.
-* @details  : Provides FC41D default assembly, UART transport binding, and reset
+* @details  : Provides the FC41D ops table, UART transport binding, and reset
 *             control hooks for the current project.
 * @author   : 
 * @date     : 
@@ -28,6 +28,10 @@ static eDrvStatus fc41dPortTransportRead(uint8_t linkId, uint8_t *buffer, uint16
 static uint32_t fc41dPortTransportGetTickMs(void);
 static void fc41dPortControlInit(uint8_t resetPin);
 static void fc41dPortControlSetResetLevel(uint8_t resetPin, bool isActive);
+static void fc41dPortLoadDefaultCfg(eFc41dMapType device, stFc41dCfg *cfg);
+static const stFc41dTransportInterface *fc41dPortGetTransportInterface(const stFc41dCfg *cfg);
+static const stFc41dControlInterface *fc41dPortGetControlInterface(eFc41dMapType device);
+static bool fc41dPortIsValidCfg(const stFc41dCfg *cfg);
 
 static const stFc41dTransportInterface gFc41dPortTransportInterface = {
     .init = fc41dPortTransportInit,
@@ -40,6 +44,13 @@ static const stFc41dTransportInterface gFc41dPortTransportInterface = {
 static const stFc41dControlInterface gFc41dPortControlInterface = {
     .init = fc41dPortControlInit,
     .setResetLevel = fc41dPortControlSetResetLevel,
+};
+
+static const stFc41dOps gFc41dPortOps = {
+    .loadDefaultCfg = fc41dPortLoadDefaultCfg,
+    .getTransportInterface = fc41dPortGetTransportInterface,
+    .getControlInterface = fc41dPortGetControlInterface,
+    .isValidCfg = fc41dPortIsValidCfg,
 };
 
 static eDrvStatus fc41dPortTransportInit(uint8_t linkId)
@@ -81,7 +92,7 @@ static void fc41dPortControlSetResetLevel(uint8_t resetPin, bool isActive)
     drvGpioWrite(resetPin, isActive ? DRVGPIO_PIN_RESET : DRVGPIO_PIN_SET);
 }
 
-void fc41dLoadPlatformDefaultCfg(eFc41dMapType device, stFc41dCfg *cfg)
+static void fc41dPortLoadDefaultCfg(eFc41dMapType device, stFc41dCfg *cfg)
 {
     (void)device;
 
@@ -96,16 +107,16 @@ void fc41dLoadPlatformDefaultCfg(eFc41dMapType device, stFc41dCfg *cfg)
     cfg->readySettleMs = 300U;
 }
 
-const stFc41dTransportInterface *fc41dGetPlatformTransportInterface(const stFc41dCfg *cfg)
+static const stFc41dTransportInterface *fc41dPortGetTransportInterface(const stFc41dCfg *cfg)
 {
-    if (!fc41dPlatformIsValidCfg(cfg)) {
+    if (!fc41dPortIsValidCfg(cfg)) {
         return NULL;
     }
 
     return &gFc41dPortTransportInterface;
 }
 
-const stFc41dControlInterface *fc41dGetPlatformControlInterface(eFc41dMapType device)
+static const stFc41dControlInterface *fc41dPortGetControlInterface(eFc41dMapType device)
 {
     if (device != FC41D_DEV0) {
         return NULL;
@@ -114,9 +125,14 @@ const stFc41dControlInterface *fc41dGetPlatformControlInterface(eFc41dMapType de
     return &gFc41dPortControlInterface;
 }
 
-bool fc41dPlatformIsValidCfg(const stFc41dCfg *cfg)
+static bool fc41dPortIsValidCfg(const stFc41dCfg *cfg)
 {
     return (cfg != NULL) && (cfg->linkId < DRVUART_MAX) && (cfg->resetPin < DRVGPIO_MAX);
+}
+
+const stFc41dOps *fc41dPortGetOps(void)
+{
+    return &gFc41dPortOps;
 }
 
 /**************************End of file********************************/

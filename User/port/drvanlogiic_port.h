@@ -35,6 +35,8 @@ typedef enum eDrvAnlogIicPortMap {
     DRVANLOGIIC_PORT_MAX = DRVANLOGIIC_MAX,
 } eDrvAnlogIicPortMap;
 
+const stDrvAnlogIicOps *drvAnlogIicPortGetOps(void);
+
 #ifdef __cplusplus
 }
 #endif

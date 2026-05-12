@@ -1,8 +1,8 @@
 /************************************************************************************
 * @file     : fc41dport.h
 * @brief    : Project-side FC41D binding helpers.
-* @details  : Provides FC41D platform hook declarations and startup helpers used
-*             by the project wireless manager.
+* @details  : Exposes the explicit FC41D ops table consumed by the reusable
+*             module core.
 * @author   : 
 * @date     : 
 * @version  : 
@@ -18,6 +18,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+const stFc41dOps *fc41dPortGetOps(void);
 
 #ifdef __cplusplus
 }

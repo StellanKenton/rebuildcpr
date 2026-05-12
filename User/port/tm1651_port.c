@@ -9,14 +9,18 @@
 **********************************************************************************/
 #include "tm1651_port.h"
 
-#include "main.h"
-
+#include "stm32f1xx_hal.h"
 #include "drvgpio.h"
 #include "drvgpio_port.h"
 
 typedef enum eTm1651LocalBus {
     TM1651_LOCAL_BUS0 = 0,
 } eTm1651LocalBus;
+
+void tm1651LoadPlatformDefaultCfg(eTm1651MapType device, stTm1651Cfg *cfg);
+const stTm1651IicInterface *tm1651GetPlatformIicInterface(eTm1651MapType device);
+bool tm1651PlatformIsValidAssemble(eTm1651MapType device);
+uint8_t tm1651PlatformGetLinkId(eTm1651MapType device);
 
 static bool gTm1651PortReady = false;
 
@@ -144,6 +148,18 @@ static const stTm1651PortIicInterface gTm1651IicInterface = {
     .init = tm1651PortBusInit,
     .writeFrame = tm1651PortWriteFrameRaw,
 };
+
+static const stTm1651Ops gTm1651PortOps = {
+    .loadDefaultCfg = tm1651LoadPlatformDefaultCfg,
+    .getIicInterface = tm1651GetPlatformIicInterface,
+    .isValidAssemble = tm1651PlatformIsValidAssemble,
+    .getLinkId = tm1651PlatformGetLinkId,
+};
+
+const stTm1651Ops *tm1651PortGetOps(void)
+{
+    return &gTm1651PortOps;
+}
 
 void tm1651LoadPlatformDefaultCfg(eTm1651MapType device, stTm1651Cfg *cfg)
 {

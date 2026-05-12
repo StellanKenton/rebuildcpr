@@ -7,7 +7,7 @@
 * @version  : 
 * @copyright: Copyright (c) 2050
 **********************************************************************************/
-#include "../../rep/service/log/log.h"
+#include "log_port.h"
 
 #include "../bsp/bsp_rtt.h"
 
@@ -22,19 +22,22 @@ static const stLogInterface gLogInterfaces[] = {
     },
 };
 
-const stLogInterface *logGetPlatformInterfaces(void)
-{
-    return gLogInterfaces;
-}
+static void logPortConsolePollImpl(void);
 
-uint32_t logGetPlatformInterfaceCount(void)
-{
-    return (uint32_t)(sizeof(gLogInterfaces) / sizeof(gLogInterfaces[0]));
-}
+static const stLogOps gLogOps = {
+    .interfaces = gLogInterfaces,
+    .interfaceCount = (uint32_t)(sizeof(gLogInterfaces) / sizeof(gLogInterfaces[0])),
+    .consolePoll = logPortConsolePollImpl,
+};
 
-void logPlatformConsolePoll(void)
+static void logPortConsolePollImpl(void)
 {
     (void)bspRttLogGetInputBuffer();
+}
+
+const stLogOps *logPortGetOps(void)
+{
+    return &gLogOps;
 }
 
 /**************************End of file********************************/

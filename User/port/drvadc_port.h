@@ -10,6 +10,8 @@
 #ifndef REBUILDCPR_DRVADC_PORT_H
 #define REBUILDCPR_DRVADC_PORT_H
 
+#include "drvadc.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,6 +23,8 @@ typedef enum eDrvAdcPortMap {
     DRVADC_5V0,
     DRVADC_3V3,
 } eDrvAdcPortMap;
+
+const stDrvAdcOps *drvAdcPortGetOps(void);
 
 #ifdef __cplusplus
 }

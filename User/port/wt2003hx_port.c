@@ -30,6 +30,10 @@ static uint32_t wt2003hxPortTransportGetTickMs(void);
 static void wt2003hxPortControlSetEnable(uint8_t enablePin, bool enabled);
 static void wt2003hxPortControlDelayMs(uint32_t delayMs);
 static void wt2003hxPortLogFrame(const char *direction, const uint8_t *buffer, uint16_t length);
+static void wt2003hxPortLoadDefaultCfg(eWt2003hxMapType device, stWt2003hxCfg *cfg);
+static const stWt2003hxTransportInterface *wt2003hxPortGetTransportInterface(const stWt2003hxCfg *cfg);
+static const stWt2003hxControlInterface *wt2003hxPortGetControlInterface(eWt2003hxMapType device);
+static bool wt2003hxPortIsValidCfg(const stWt2003hxCfg *cfg);
 
 static const stWt2003hxPortTransportInterface gWt2003hxPortTransportInterface = {
     .init = wt2003hxPortTransportInit,
@@ -42,6 +46,13 @@ static const stWt2003hxPortTransportInterface gWt2003hxPortTransportInterface = 
 static const stWt2003hxPortControlInterface gWt2003hxPortControlInterface = {
     .setEnable = wt2003hxPortControlSetEnable,
     .delayMs = wt2003hxPortControlDelayMs,
+};
+
+static const stWt2003hxOps gWt2003hxPortOps = {
+    .loadDefaultCfg = wt2003hxPortLoadDefaultCfg,
+    .getTransportInterface = wt2003hxPortGetTransportInterface,
+    .getControlInterface = wt2003hxPortGetControlInterface,
+    .isValidCfg = wt2003hxPortIsValidCfg,
 };
 
 static void wt2003hxPortLogFrame(const char *direction, const uint8_t *buffer, uint16_t length)
@@ -128,7 +139,7 @@ static void wt2003hxPortControlDelayMs(uint32_t delayMs)
     (void)repRtosDelayMs(delayMs);
 }
 
-void wt2003hxLoadPlatformDefaultCfg(eWt2003hxMapType device, stWt2003hxCfg *cfg)
+static void wt2003hxPortLoadDefaultCfg(eWt2003hxMapType device, stWt2003hxCfg *cfg)
 {
     (void)device;
 
@@ -143,19 +154,24 @@ void wt2003hxLoadPlatformDefaultCfg(eWt2003hxMapType device, stWt2003hxCfg *cfg)
     cfg->txTimeoutMs = WT2003HX_TX_TIMEOUT_MS;
 }
 
-const stWt2003hxTransportInterface *wt2003hxGetPlatformTransportInterface(const stWt2003hxCfg *cfg)
+static const stWt2003hxTransportInterface *wt2003hxPortGetTransportInterface(const stWt2003hxCfg *cfg)
 {
-    return wt2003hxPlatformIsValidCfg(cfg) ? &gWt2003hxPortTransportInterface : NULL;
+    return wt2003hxPortIsValidCfg(cfg) ? &gWt2003hxPortTransportInterface : NULL;
 }
 
-const stWt2003hxControlInterface *wt2003hxGetPlatformControlInterface(eWt2003hxMapType device)
+static const stWt2003hxControlInterface *wt2003hxPortGetControlInterface(eWt2003hxMapType device)
 {
     return (device == WT2003HX_DEV0) ? &gWt2003hxPortControlInterface : NULL;
 }
 
-bool wt2003hxPlatformIsValidCfg(const stWt2003hxCfg *cfg)
+static bool wt2003hxPortIsValidCfg(const stWt2003hxCfg *cfg)
 {
     return (cfg != NULL) && (cfg->linkId < DRVUART_MAX) && (cfg->enablePin < DRVGPIO_MAX);
+}
+
+const stWt2003hxOps *wt2003hxPortGetOps(void)
+{
+    return &gWt2003hxPortOps;
 }
 
 eDrvStatus wt2003hxPortInit(void)

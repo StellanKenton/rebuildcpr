@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F103xE,DRVGPIO_LOG_SUPPORT=0,DRVGPIO_CONSOLE_SUPPORT=1</Define>
               <Undefine></Undefine>
-              <IncludePath>..;../Core/Inc;../User;../User/manager;../User/system;../User/port;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../rep/comm/frameparser;../rep/driver/drviic;../rep/driver/drvspi;../rep/driver/drvuart;../rep/driver/drvgpio;../rep/driver/drvadc;../rep/driver/drvusb;../rep/driver/drvanlogiic;../rep/module/mpu6050;../rep/module/w25qxxx;../rep/module/pca9535;../rep/module/tm1651;../rep/module/wt2003hx;../rep/module/lsm6;../rep/service/rtos;../rep/tools/ringbuffer;../rep/tools/jsonparser;../rep/tools/md5;../rep/tools/aes;../SEGGER</IncludePath>
+              <IncludePath>..;../Core/Inc;../User;../User/manager;../User/system;../User/port;../USB_DEVICE/App;../USB_DEVICE/Target;../Drivers/STM32F1xx_HAL_Driver/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../rep/comm/frameparser;../rep/driver/drviic;../rep/driver/drvspi;../rep/driver/drvuart;../rep/driver/drvgpio;../rep/driver/drvadc;../rep/driver/drvusb;../rep/driver/drvanlogiic;../rep/module/lis2hh12;../rep/module/mpu6050;../rep/module/w25qxxx;../rep/module/pca9535;../rep/module/tm1651;../rep/module/wt2003hx;../rep/module/lsm6;../rep/service/rtos;../rep/tools/ringbuffer;../rep/tools/jsonparser;../rep/tools/md5;../rep/tools/aes;../SEGGER</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -845,6 +845,56 @@
               <FilePath>..\rep\module\fc41d\fc41d_data.c</FilePath>
             </File>
             <File>
+              <FileName>ec800m.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\ec800m\ec800m.c</FilePath>
+            </File>
+            <File>
+              <FileName>ec800m_http.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\ec800m\ec800m_http.c</FilePath>
+            </File>
+            <File>
+              <FileName>ec800m_mqtt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\ec800m\ec800m_mqtt.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\esp32c5\esp32c5.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5_ctrl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\esp32c5\esp32c5_ctrl.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5_data.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\esp32c5\esp32c5_data.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5_ble.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\esp32c5\esp32c5_ble.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5_http.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\esp32c5\esp32c5_http.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5_mqtt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\esp32c5\esp32c5_mqtt.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\esp32c5\esp32c5_wifi.c</FilePath>
+            </File>
+            <File>
               <FileName>wt2003hx.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\rep\module\wt2003hx\wt2003hx.c</FilePath>
@@ -920,9 +970,34 @@
               <FilePath>..\rep\driver\drvusb\drvusb.c</FilePath>
             </File>
             <File>
+              <FileName>drvmcuflash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\driver\drvmcuflash\drvmcuflash.c</FilePath>
+            </File>
+            <File>
               <FileName>gd25qxxx.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\rep\module\gd25qxxx\gd25qxxx.c</FilePath>
+            </File>
+            <File>
+              <FileName>w25qxxx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\w25qxxx\w25qxxx.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdcard.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\sdcard\sdcard.c</FilePath>
+            </File>
+            <File>
+              <FileName>mpu6050.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\mpu6050\mpu6050.c</FilePath>
+            </File>
+            <File>
+              <FileName>lis2hh12.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\rep\module\lis2hh12\lis2hh12.c</FilePath>
             </File>
             <File>
               <FileName>pca9535.c</FileName>
@@ -1055,14 +1130,39 @@
               <FilePath>..\User\port\fc41dport.c</FilePath>
             </File>
             <File>
+              <FileName>frameparser_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\frameparser_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>lis2hh12_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\lis2hh12_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>mpu6050_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\mpu6050_port.c</FilePath>
+            </File>
+            <File>
               <FileName>drvusb_port.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\port\drvusb_port.c</FilePath>
             </File>
             <File>
+              <FileName>drvmcuflash_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\drvmcuflash_port.c</FilePath>
+            </File>
+            <File>
               <FileName>log_port.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\port\log_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>ringbuffer_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\ringbuffer_port.c</FilePath>
             </File>
             <File>
               <FileName>pca9535_port.c</FileName>
@@ -1093,6 +1193,26 @@
               <FileName>gd25qxxx_port.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\port\gd25qxxx_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>w25qxxx_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\w25qxxx_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdcard_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\sdcard_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>ec800m_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\ec800m_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>esp32c5_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\port\esp32c5_port.c</FilePath>
             </File>
             <File>
               <FileName>vfs_littlefs_port.c</FileName>

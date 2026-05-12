@@ -9,7 +9,7 @@
 **********************************************************************************/
 #include "pca9535_port.h"
 
-#include "main.h"
+#include "stm32f1xx_hal.h"
 #include "rtos.h"
 
 #include "drvgpio.h"
@@ -18,6 +18,16 @@
 typedef enum ePca9535LocalBus {
     PCA9535_LOCAL_BUS0 = 0,
 } ePca9535LocalBus;
+
+void pca9535LoadPlatformDefaultCfg(ePca9535MapType device, stPca9535Cfg *cfg);
+const stPca9535IicInterface *pca9535GetPlatformIicInterface(ePca9535MapType device);
+bool pca9535PlatformIsValidAssemble(ePca9535MapType device);
+uint8_t pca9535PlatformGetLinkId(ePca9535MapType device);
+void pca9535PlatformResetInit(void);
+void pca9535PlatformResetWrite(bool assertReset);
+uint32_t pca9535PlatformGetResetAssertDelayMs(void);
+uint32_t pca9535PlatformGetResetReleaseDelayMs(void);
+void pca9535PlatformDelayMs(uint32_t delayMs);
 
 static bool gPca9535PortReady = false;
 static uint16_t gPca9535PortShowMask = 0U;
@@ -271,6 +281,23 @@ static const stPca9535PortIicInterface gPca9535IicInterface = {
     .writeReg = pca9535PortWriteReg,
     .readReg = pca9535PortReadReg,
 };
+
+static const stPca9535Ops gPca9535PortOps = {
+    .loadDefaultCfg = pca9535LoadPlatformDefaultCfg,
+    .getIicInterface = pca9535GetPlatformIicInterface,
+    .isValidAssemble = pca9535PlatformIsValidAssemble,
+    .getLinkId = pca9535PlatformGetLinkId,
+    .resetInit = pca9535PlatformResetInit,
+    .resetWrite = pca9535PlatformResetWrite,
+    .getResetAssertDelayMs = pca9535PlatformGetResetAssertDelayMs,
+    .getResetReleaseDelayMs = pca9535PlatformGetResetReleaseDelayMs,
+    .delayMs = pca9535PlatformDelayMs,
+};
+
+const stPca9535Ops *pca9535PortGetOps(void)
+{
+    return &gPca9535PortOps;
+}
 
 void pca9535LoadPlatformDefaultCfg(ePca9535MapType device, stPca9535Cfg *cfg)
 {

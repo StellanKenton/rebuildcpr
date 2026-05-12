@@ -23,6 +23,8 @@ extern "C" {
 typedef stTm1651IicInterface stTm1651PortIicInterface;
 typedef stTm1651AssembleCfg stTm1651PortAssembleCfg;
 
+const stTm1651Ops *tm1651PortGetOps(void);
+
 eDrvStatus tm1651PortInit(void);
 bool tm1651PortIsReady(void);
 eDrvStatus tm1651PortSetBrightness(uint8_t brightness);

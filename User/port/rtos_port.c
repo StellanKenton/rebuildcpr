@@ -485,26 +485,4 @@ const stRepRtosOps *rtosPortGetOps(void)
     return &gRepRtosOps;
 }
 
-const char *rtosPortGetName(void)
-{
-#if ((REP_RTOS_SYSTEM == REP_RTOS_FREERTOS) || (defined(REP_RTOS_CUBEMX_FREERTOS) && (REP_RTOS_SYSTEM == REP_RTOS_CUBEMX_FREERTOS))) && (REBUILDCPR_RTOS_HAS_FREERTOS_NATIVE == 1)
-    return "freertos";
-#elif defined(REP_RTOS_CUBEMX_FREERTOS) && (REP_RTOS_SYSTEM == REP_RTOS_CUBEMX_FREERTOS)
-    return "cubemx-freertos";
-#elif (REP_RTOS_SYSTEM == REP_RTOS_UCOSII)
-    return "ucosii";
-#elif (REP_RTOS_SYSTEM == REP_RTOS_UCOSIII)
-    return "ucosiii";
-#elif (REP_RTOS_SYSTEM == REP_RTOS_NONE)
-    return "baremetal";
-#else
-    return "unknown";
-#endif
-}
-
-uint32_t rtosPortGetSystem(void)
-{
-    return REP_RTOS_SYSTEM;
-}
-
 /**************************End of file********************************/

@@ -40,12 +40,12 @@ static stDrvUartBspInterface gDrvUartBspInterface[DRVUART_MAX] = {
     },
 };
 
-const stDrvUartBspInterface *drvUartGetPlatformBspInterfaces(void)
+static const stDrvUartBspInterface *drvUartPortGetBspInterfacesImpl(void)
 {
     return gDrvUartBspInterface;
 }
 
-stRingBuffer *drvUartGetPlatformRingBuffer(uint8_t uart)
+static stRingBuffer *drvUartPortGetRingBufferImpl(uint8_t uart)
 {
     if (uart >= DRVUART_MAX) {
         return NULL;
@@ -54,7 +54,7 @@ stRingBuffer *drvUartGetPlatformRingBuffer(uint8_t uart)
     return &gDrvUartRingBuffer[uart];
 }
 
-eDrvStatus drvUartGetPlatformStorageConfig(uint8_t uart, uint8_t **storage, uint32_t *capacity)
+static eDrvStatus drvUartPortGetStorageConfigImpl(uint8_t uart, uint8_t **storage, uint32_t *capacity)
 {
     if ((storage == NULL) || (capacity == NULL) || (uart >= DRVUART_MAX)) {
         return DRV_STATUS_INVALID_PARAM;
@@ -74,6 +74,17 @@ eDrvStatus drvUartGetPlatformStorageConfig(uint8_t uart, uint8_t **storage, uint
             *capacity = 0U;
             return DRV_STATUS_UNSUPPORTED;
     }
+}
+
+static const stDrvUartOps gDrvUartOps = {
+    .getBspInterfaces = drvUartPortGetBspInterfacesImpl,
+    .getRingBuffer = drvUartPortGetRingBufferImpl,
+    .getStorageConfig = drvUartPortGetStorageConfigImpl,
+};
+
+const stDrvUartOps *drvUartPortGetOps(void)
+{
+    return &gDrvUartOps;
 }
 
 /**************************End of file********************************/

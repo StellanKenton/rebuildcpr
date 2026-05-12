@@ -12,6 +12,8 @@
 #include "drviic_port.h"
 #include "rtos.h"
 
+static bool lsm6PortIsValidAssemble(eLsm6MapType device);
+
 static eDrvStatus lsm6PortInit(uint8_t bus)
 {
     return drvIicInit(bus);
@@ -37,7 +39,7 @@ static const uint8_t gLsm6LinkMap[LSM6_DEV_MAX] = {
     [LSM6_DEV0] = DRVIIC_BUS1,
 };
 
-void lsm6LoadPlatformDefaultCfg(eLsm6MapType device, stLsm6Cfg *cfg)
+static void lsm6PortLoadDefaultCfg(eLsm6MapType device, stLsm6Cfg *cfg)
 {
     if ((cfg == NULL) || ((uint32_t)device >= (uint32_t)LSM6_DEV_MAX)) {
         return;
@@ -52,21 +54,21 @@ void lsm6LoadPlatformDefaultCfg(eLsm6MapType device, stLsm6Cfg *cfg)
     cfg->autoIncrement = true;
 }
 
-const stLsm6IicInterface *lsm6GetPlatformIicInterface(eLsm6MapType device)
+static const stLsm6IicInterface *lsm6PortGetIicInterface(eLsm6MapType device)
 {
-    if (!lsm6PlatformIsValidAssemble(device)) {
+    if (!lsm6PortIsValidAssemble(device)) {
         return NULL;
     }
 
     return &gLsm6IicInterface;
 }
 
-bool lsm6PlatformIsValidAssemble(eLsm6MapType device)
+static bool lsm6PortIsValidAssemble(eLsm6MapType device)
 {
     return ((uint32_t)device < (uint32_t)LSM6_DEV_MAX) && (gLsm6LinkMap[device] < DRVIIC_MAX);
 }
 
-uint8_t lsm6PlatformGetLinkId(eLsm6MapType device)
+static uint8_t lsm6PortGetLinkId(eLsm6MapType device)
 {
     if ((uint32_t)device >= (uint32_t)LSM6_DEV_MAX) {
         return 0U;
@@ -75,19 +77,34 @@ uint8_t lsm6PlatformGetLinkId(eLsm6MapType device)
     return gLsm6LinkMap[device];
 }
 
-uint32_t lsm6PlatformGetResetDelayMs(void)
+static uint32_t lsm6PortGetResetDelayMs(void)
 {
     return LSM6_PORT_RESET_DELAY_MS;
 }
 
-uint32_t lsm6PlatformGetResetPollDelayMs(void)
+static uint32_t lsm6PortGetResetPollDelayMs(void)
 {
     return LSM6_PORT_RESET_POLL_DELAY_MS;
 }
 
-void lsm6PlatformDelayMs(uint32_t delayMs)
+static void lsm6PortDelayMs(uint32_t delayMs)
 {
     (void)repRtosDelayMs(delayMs);
+}
+
+static const stLsm6Ops gLsm6PortOps = {
+    .loadDefaultCfg = lsm6PortLoadDefaultCfg,
+    .getIicInterface = lsm6PortGetIicInterface,
+    .isValidAssemble = lsm6PortIsValidAssemble,
+    .getLinkId = lsm6PortGetLinkId,
+    .getResetDelayMs = lsm6PortGetResetDelayMs,
+    .getResetPollDelayMs = lsm6PortGetResetPollDelayMs,
+    .delayMs = lsm6PortDelayMs,
+};
+
+const stLsm6Ops *lsm6PortGetOps(void)
+{
+    return &gLsm6PortOps;
 }
 
 /**************************End of file********************************/

@@ -9,6 +9,11 @@
 #include "drvspi_port.h"
 #include "rtos.h"
 
+void gd25qxxxLoadPlatformDefaultCfg(eGd25qxxxMapType device, stGd25qxxxCfg *cfg);
+const stGd25qxxxSpiInterface *gd25qxxxGetPlatformSpiInterface(const stGd25qxxxCfg *cfg);
+bool gd25qxxxPlatformIsValidCfg(const stGd25qxxxCfg *cfg);
+void gd25qxxxPlatformDelayMs(uint32_t delayMs);
+
 static eDrvStatus gd25qxxxPortSpiInit(uint8_t bus)
 {
     return drvSpiInit(bus);
@@ -59,5 +64,17 @@ bool gd25qxxxPlatformIsValidCfg(const stGd25qxxxCfg *cfg)
 void gd25qxxxPlatformDelayMs(uint32_t delayMs)
 {
     (void)repRtosDelayMs(delayMs);
+}
+
+static const stGd25qxxxOps gGd25qxxxPortOps = {
+    .loadDefaultCfg = gd25qxxxLoadPlatformDefaultCfg,
+    .getSpiInterface = gd25qxxxGetPlatformSpiInterface,
+    .isValidCfg = gd25qxxxPlatformIsValidCfg,
+    .delayMs = gd25qxxxPlatformDelayMs,
+};
+
+const stGd25qxxxOps *gd25qxxxPortGetOps(void)
+{
+    return &gGd25qxxxPortOps;
 }
 /**************************End of file********************************/

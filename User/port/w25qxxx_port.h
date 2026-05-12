@@ -10,16 +10,13 @@
 #ifndef REBUILDCPR_W25QXXX_PORT_H
 #define REBUILDCPR_W25QXXX_PORT_H
 
-#include "w25qxxx.h"
+#include "../../rep/module/w25qxxx/w25qxxx.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void w25qxxxLoadPlatformDefaultCfg(eW25qxxxMapType device, stW25qxxxCfg *cfg);
-const stW25qxxxSpiInterface *w25qxxxGetPlatformSpiInterface(const stW25qxxxCfg *cfg);
-bool w25qxxxPlatformIsValidCfg(const stW25qxxxCfg *cfg);
-void w25qxxxPlatformDelayMs(uint32_t delayMs);
+const stW25qxxxOps *w25qxxxPortGetOps(void);
 
 #ifdef __cplusplus
 }

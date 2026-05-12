@@ -22,6 +22,7 @@ This directory contains project-side binding code for reusable content from `rep
 - Driver-layer bindings: `drvadc_port.*`, `drvgpio_port.*`, `drviic_port.*`, `drvspi_port.*`, `drvuart_port.*`
 - Module bindings: `mpu6050_port.*`, `pca9535_port.*`, `tm1651_port.*`, `w25qxxx_port.*`
 - Audio module binding: `wt2003hx_port.*`, binding WT2003HX to `DRVUART_AUDIO` and `DRVGPIO_EN_AUDIO`
+- Comm binding: `frameparser_port.*`, binding reusable parser defaults to product protocols and tick source
 - RTOS binding: `rtos_port.*`
 - Documentation: `README.md`, `MIGRATED_FROM_PROJECT_CPRBOOT.md`
 

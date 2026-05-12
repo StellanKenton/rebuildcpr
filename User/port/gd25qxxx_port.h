@@ -19,10 +19,7 @@ extern "C" {
 #define GD25QXXX_PORT_READ_FILL_DATA          0xFFU
 #endif
 
-void gd25qxxxLoadPlatformDefaultCfg(eGd25qxxxMapType device, stGd25qxxxCfg *cfg);
-const stGd25qxxxSpiInterface *gd25qxxxGetPlatformSpiInterface(const stGd25qxxxCfg *cfg);
-bool gd25qxxxPlatformIsValidCfg(const stGd25qxxxCfg *cfg);
-void gd25qxxxPlatformDelayMs(uint32_t delayMs);
+const stGd25qxxxOps *gd25qxxxPortGetOps(void);
 
 #ifdef __cplusplus
 }

@@ -19,8 +19,6 @@ extern "C" {
 #endif
 
 const stRepRtosOps *rtosPortGetOps(void);
-const char *rtosPortGetName(void);
-uint32_t rtosPortGetSystem(void);
 
 #ifdef __cplusplus
 }

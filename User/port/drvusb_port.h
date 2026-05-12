@@ -11,6 +11,7 @@
 #define REBUILDCPR_DRVUSB_PORT_H
 
 #include "usbd_cdc.h"
+#include "drvusb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +29,8 @@ typedef enum eDrvUsbPortMap {
 #define DRVUSB_PORT_CDC_DATA_IN_EP           CDC_IN_EP
 #define DRVUSB_PORT_CDC_DATA_OUT_EP          CDC_OUT_EP
 #define DRVUSB_PORT_CDC_CMD_EP               CDC_CMD_EP
+
+const stDrvUsbOps *drvUsbPortGetOps(void);
 
 #ifdef __cplusplus
 }

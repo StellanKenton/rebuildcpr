@@ -10,6 +10,8 @@
 #ifndef REBUILDCPR_DRVIIC_PORT_H
 #define REBUILDCPR_DRVIIC_PORT_H
 
+#include "drviic.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,6 +23,8 @@ typedef enum eDrvIicPortMap {
 } eDrvIicPortMap;
 
 #define DRVIIC_DEFAULT_TIMEOUT_MS 100U
+
+const stDrvIicOps *drvIicPortGetOps(void);
 
 #ifdef __cplusplus
 }

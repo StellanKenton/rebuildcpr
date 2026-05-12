@@ -28,9 +28,18 @@ const stDrvIicBspInterface gDrvIicBspInterface[DRVIIC_MAX] = {
     },
 };
 
-const stDrvIicBspInterface *drvIicGetPlatformBspInterfaces(void)
+static const stDrvIicBspInterface *drvIicPortGetBspInterfacesImpl(void)
 {
     return gDrvIicBspInterface;
+}
+
+static const stDrvIicOps gDrvIicOps = {
+    .getBspInterfaces = drvIicPortGetBspInterfacesImpl,
+};
+
+const stDrvIicOps *drvIicPortGetOps(void)
+{
+    return &gDrvIicOps;
 }
 
 /**************************End of file********************************/

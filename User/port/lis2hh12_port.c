@@ -10,6 +10,8 @@
 #include "drviic_port.h"
 #include "rtos.h"
 
+static bool lis2hh12PortIsValidAssemble(eLis2hh12MapType device);
+
 static eDrvStatus lis2hh12PortInit(uint8_t bus)
 {
     return drvIicInit(bus);
@@ -45,7 +47,7 @@ static const uint8_t gLis2hh12LinkMap[LIS2HH12_DEV_MAX] = {
     [LIS2HH12_DEV0] = DRVIIC_BUS0,
 };
 
-void lis2hh12LoadPlatformDefaultCfg(eLis2hh12MapType device, stLis2hh12Cfg *cfg)
+static void lis2hh12PortLoadDefaultCfg(eLis2hh12MapType device, stLis2hh12Cfg *cfg)
 {
     if ((cfg == NULL) || ((uint32_t)device >= (uint32_t)LIS2HH12_DEV_MAX)) {
         return;
@@ -65,22 +67,22 @@ void lis2hh12LoadPlatformDefaultCfg(eLis2hh12MapType device, stLis2hh12Cfg *cfg)
     cfg->autoIncrement = true;
 }
 
-const stLis2hh12IicInterface *lis2hh12GetPlatformIicInterface(eLis2hh12MapType device)
+static const stLis2hh12IicInterface *lis2hh12PortGetIicInterface(eLis2hh12MapType device)
 {
-    if (!lis2hh12PlatformIsValidAssemble(device)) {
+    if (!lis2hh12PortIsValidAssemble(device)) {
         return NULL;
     }
 
     return &gLis2hh12IicInterface;
 }
 
-bool lis2hh12PlatformIsValidAssemble(eLis2hh12MapType device)
+static bool lis2hh12PortIsValidAssemble(eLis2hh12MapType device)
 {
     return ((uint32_t)device < (uint32_t)LIS2HH12_DEV_MAX) &&
            (gLis2hh12LinkMap[device] < DRVIIC_MAX);
 }
 
-uint8_t lis2hh12PlatformGetLinkId(eLis2hh12MapType device)
+static uint8_t lis2hh12PortGetLinkId(eLis2hh12MapType device)
 {
     if ((uint32_t)device >= (uint32_t)LIS2HH12_DEV_MAX) {
         return 0U;
@@ -89,19 +91,34 @@ uint8_t lis2hh12PlatformGetLinkId(eLis2hh12MapType device)
     return gLis2hh12LinkMap[device];
 }
 
-uint32_t lis2hh12PlatformGetRetryDelayMs(void)
+static uint32_t lis2hh12PortGetRetryDelayMs(void)
 {
     return LIS2HH12_PORT_RETRY_DELAY_MS;
 }
 
-uint32_t lis2hh12PlatformGetResetPollDelayMs(void)
+static uint32_t lis2hh12PortGetResetPollDelayMs(void)
 {
     return LIS2HH12_PORT_RESET_POLL_DELAY_MS;
 }
 
-void lis2hh12PlatformDelayMs(uint32_t delayMs)
+static void lis2hh12PortDelayMs(uint32_t delayMs)
 {
     (void)repRtosDelayMs(delayMs);
+}
+
+static const stLis2hh12Ops gLis2hh12PortOps = {
+    .loadDefaultCfg = lis2hh12PortLoadDefaultCfg,
+    .getIicInterface = lis2hh12PortGetIicInterface,
+    .isValidAssemble = lis2hh12PortIsValidAssemble,
+    .getLinkId = lis2hh12PortGetLinkId,
+    .getRetryDelayMs = lis2hh12PortGetRetryDelayMs,
+    .getResetPollDelayMs = lis2hh12PortGetResetPollDelayMs,
+    .delayMs = lis2hh12PortDelayMs,
+};
+
+const stLis2hh12Ops *lis2hh12PortGetOps(void)
+{
+    return &gLis2hh12PortOps;
 }
 
 /**************************End of file********************************/

@@ -24,6 +24,8 @@ extern "C" {
 typedef stWt2003hxTransportInterface stWt2003hxPortTransportInterface;
 typedef stWt2003hxControlInterface stWt2003hxPortControlInterface;
 
+const stWt2003hxOps *wt2003hxPortGetOps(void);
+
 eDrvStatus wt2003hxPortInit(void);
 eDrvStatus wt2003hxPortProcess(void);
 bool wt2003hxPortIsReady(void);

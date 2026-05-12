@@ -10,6 +10,8 @@
 #ifndef REBUILDCPR_DRVUART_PORT_H
 #define REBUILDCPR_DRVUART_PORT_H
 
+#include "drvuart.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,6 +27,8 @@ typedef enum eDrvUartPortMapTable {
 
 #define DRVUART_RECVLEN_WIFI 256U
 #define DRVUART_RECVLEN_AUDIO 256U
+
+const stDrvUartOps *drvUartPortGetOps(void);
 
 #ifdef __cplusplus
 }

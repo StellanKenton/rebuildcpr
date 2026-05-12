@@ -32,9 +32,18 @@ static const stDrvUsbBspInterface gDrvUsbBspInterfaces[DRVUSB_MAX] = {
     },
 };
 
-const stDrvUsbBspInterface *drvUsbGetPlatformBspInterfaces(void)
+static const stDrvUsbBspInterface *drvUsbPortGetBspInterfacesImpl(void)
 {
     return gDrvUsbBspInterfaces;
+}
+
+static const stDrvUsbOps gDrvUsbOps = {
+    .getBspInterfaces = drvUsbPortGetBspInterfacesImpl,
+};
+
+const stDrvUsbOps *drvUsbPortGetOps(void)
+{
+    return &gDrvUsbOps;
 }
 
 /**************************End of file********************************/
